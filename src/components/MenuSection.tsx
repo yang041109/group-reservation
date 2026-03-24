@@ -1,0 +1,109 @@
+'use client';
+
+import type { MenuItemData } from '@/types';
+
+interface MenuSectionProps {
+  menus: MenuItemData[];
+  quantities: Record<string, number>;
+  onChange: (quantities: Record<string, number>) => void;
+}
+
+export default function MenuSection({
+  menus,
+  quantities,
+  onChange,
+}: MenuSectionProps) {
+  // Group menus by category (items without category go into "기타")
+  const grouped = menus.reduce<Record<string, MenuItemData[]>>((acc, menu) => {
+    const category = menu.category || '기타';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(menu);
+    return acc;
+  }, {});
+
+  const handleQuantityChange = (menuId: string, delta: number) => {
+    const current = quantities[menuId] ?? 0;
+    const next = Math.max(0, current + delta);
+    const updated = { ...quantities, [menuId]: next };
+    // Remove zero-quantity entries to keep state clean
+    if (updated[menuId] === 0) delete updated[menuId];
+    onChange(updated);
+  };
+
+  return (
+    <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-gray-900">🍽️ 메뉴 선택</h2>
+
+      {menus.length === 0 ? (
+        <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
+      ) : (
+        Object.entries(grouped).map(([category, items]) => (
+          <div key={category}>
+            <h3 className="mb-2 text-sm font-semibold text-gray-600">
+              {category}
+            </h3>
+            <ul className="space-y-2">
+              {items.map((menu) => {
+                const qty = quantities[menu.id] ?? 0;
+                return (
+                  <li
+                    key={menu.id}
+                    className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {menu.name}
+                      </span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        {menu.price.toLocaleString()}원
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={qty <= 0}
+                          onClick={() => handleQuantityChange(menu.id, -1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          disabled={qty < 10}
+                          onClick={() => handleQuantityChange(menu.id, -10)}
+                          className="flex h-5 w-8 items-center justify-center rounded-md border border-gray-200 text-[10px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          −10
+                        </button>
+                      </div>
+                      <span className="min-w-[1.5rem] text-center text-sm font-bold text-gray-900">
+                        {qty}
+                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityChange(menu.id, 1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityChange(menu.id, 10)}
+                          className="flex h-5 w-8 items-center justify-center rounded-md border border-gray-200 text-[10px] text-gray-500 transition hover:bg-gray-100"
+                        >
+                          +10
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
