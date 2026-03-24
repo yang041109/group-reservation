@@ -3,7 +3,7 @@ import Header from "@/components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "단체 예약 플랫폼",
+  title: "우르르 (urr)",
   description: "단체 예약을 간편하게 진행하세요",
 };
 

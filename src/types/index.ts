@@ -1,5 +1,5 @@
 // ============================================================
-// 단체 예약 플랫폼 - 공유 TypeScript 타입 및 인터페이스
+// 우르르 (urr) - 공유 TypeScript 타입 및 인터페이스
 // ============================================================
 
 // --- 인원수 기반 최소 주문 금액 규칙 ---
@@ -143,4 +143,5 @@ export interface GetStoreDetailResponse {
   store: StoreDetail;
   menus: MenuItemData[];
   availableTimes: string[];
+  reservedTimes: string[];
 }

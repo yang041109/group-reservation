@@ -29,6 +29,7 @@ export async function GET(
     store: storeDetail,
     menus: store.menus,
     availableTimes: store.availableTimes,
+    reservedTimes: store.reservedTimes,
   };
 
   return NextResponse.json(response);

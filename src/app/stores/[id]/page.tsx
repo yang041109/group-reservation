@@ -76,7 +76,7 @@ export default function StoreDetailPage() {
     );
   }
 
-  const { store, menus, availableTimes } = data;
+  const { store, menus, availableTimes, reservedTimes } = data;
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   // Calculate total amount from menu quantities
@@ -115,6 +115,7 @@ export default function StoreDetailPage() {
 
         <TimeSelector
           availableTimes={availableTimes}
+          reservedTimes={reservedTimes}
           selectedTime={selectedTime}
           onChange={setSelectedTime}
         />
