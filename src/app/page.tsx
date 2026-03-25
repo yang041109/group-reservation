@@ -8,8 +8,10 @@ export default function Home() {
   const storeCards: StoreCardType[] = stores.map((store) => ({
     id: store.id,
     name: store.name,
+    category: store.category,
     images: store.images,
     availableTimes: store.availableTimes,
+    reservedTimes: store.reservedTimes,
     maxCapacity: store.maxCapacity,
     minOrderRules: store.minOrderRules,
   }));
