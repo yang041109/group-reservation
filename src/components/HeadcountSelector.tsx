@@ -2,15 +2,19 @@
 
 interface HeadcountSelectorProps {
   maxCapacity: number;
+  minCapacity?: number;
   selectedHeadcount: number;
   onChange: (headcount: number) => void;
 }
 
 export default function HeadcountSelector({
   maxCapacity,
+  minCapacity = 1,
   selectedHeadcount,
   onChange,
 }: HeadcountSelectorProps) {
+  const effectiveMin = Math.max(1, minCapacity);
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700">👥 인원수</h3>
@@ -18,16 +22,16 @@ export default function HeadcountSelector({
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
-            disabled={selectedHeadcount <= 1}
-            onClick={() => onChange(Math.max(1, selectedHeadcount - 1))}
+            disabled={selectedHeadcount <= effectiveMin}
+            onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 1))}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             −
           </button>
           <button
             type="button"
-            disabled={selectedHeadcount <= 10}
-            onClick={() => onChange(Math.max(1, selectedHeadcount - 10))}
+            disabled={selectedHeadcount - 10 < effectiveMin}
+            onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 10))}
             className="flex h-6 w-9 items-center justify-center rounded-md border border-gray-200 text-xs text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             −10
@@ -54,7 +58,9 @@ export default function HeadcountSelector({
             +10
           </button>
         </div>
-        <span className="text-sm text-gray-500">/ 최대 {maxCapacity}명</span>
+        <span className="text-sm text-gray-500">
+          {effectiveMin}명 ~ {maxCapacity}명
+        </span>
       </div>
     </div>
   );

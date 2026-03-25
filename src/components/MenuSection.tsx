@@ -59,43 +59,24 @@ export default function MenuSection({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          type="button"
-                          disabled={qty <= 0}
-                          onClick={() => handleQuantityChange(menu.id, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          −
-                        </button>
-                        <button
-                          type="button"
-                          disabled={qty < 10}
-                          onClick={() => handleQuantityChange(menu.id, -10)}
-                          className="flex h-5 w-8 items-center justify-center rounded-md border border-gray-200 text-[10px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          −10
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        disabled={qty <= 0}
+                        onClick={() => handleQuantityChange(menu.id, -1)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        −
+                      </button>
                       <span className="min-w-[1.5rem] text-center text-sm font-bold text-gray-900">
                         {qty}
                       </span>
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleQuantityChange(menu.id, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100"
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleQuantityChange(menu.id, 10)}
-                          className="flex h-5 w-8 items-center justify-center rounded-md border border-gray-200 text-[10px] text-gray-500 transition hover:bg-gray-100"
-                        >
-                          +10
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(menu.id, 1)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100"
+                      >
+                        +
+                      </button>
                     </div>
                   </li>
                 );

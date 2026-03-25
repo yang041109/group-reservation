@@ -182,7 +182,7 @@ export default function ReservationConfirmPage() {
       <div className="mt-8 flex gap-3">
         <button
           type="button"
-          onClick={() => router.push(`/stores/${storeId}`)}
+          onClick={() => router.back()}
           className="flex-1 rounded-xl border border-gray-300 bg-white py-3.5 text-base font-bold text-gray-700 transition hover:bg-gray-50 active:bg-gray-100"
         >
           뒤로 가기

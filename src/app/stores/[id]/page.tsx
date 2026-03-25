@@ -30,6 +30,30 @@ export default function StoreDetailPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
 
+  // Restore state from sessionStorage when returning from confirm page
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingReservation');
+    if (raw) {
+      try {
+        const pending = JSON.parse(raw);
+        if (pending.storeId === storeId) {
+          setSelectedHeadcount(pending.headcount ?? 1);
+          setSelectedTime(pending.time ?? null);
+          // Restore menu quantities from pending menu items
+          if (pending.menuItems) {
+            const restored: Record<string, number> = {};
+            for (const item of pending.menuItems) {
+              if (item.quantity > 0) restored[item.menuId] = item.quantity;
+            }
+            setMenuQuantities(restored);
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, [storeId]);
+
   useEffect(() => {
     async function fetchStore() {
       try {
@@ -109,6 +133,7 @@ export default function StoreDetailPage() {
       <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <HeadcountSelector
           maxCapacity={store.maxCapacity}
+          minCapacity={store.minOrderRules.length > 0 ? Math.min(...store.minOrderRules.map(r => r.minHeadcount)) : 1}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
         />
