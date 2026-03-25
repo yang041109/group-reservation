@@ -16,8 +16,10 @@ export interface MinOrderRule {
 export interface StoreCard {
   id: string;
   name: string;
+  category?: string;
   images: string[];
   availableTimes: string[];
+  reservedTimes: string[];
   maxCapacity: number;
   minOrderRules: MinOrderRule[];
 }

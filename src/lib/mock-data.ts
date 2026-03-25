@@ -14,6 +14,7 @@ import type {
 export interface MockStore {
   id: string;
   name: string;
+  category?: string;
   images: string[];
   availableTimes: string[];
   reservedTimes: string[];
@@ -51,6 +52,7 @@ const STORES: MockStore[] = [
   {
     id: 'store-1',
     name: '맛있는 한식당',
+    category: '한식',
     images: [
       'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=450&fit=crop',
     ],
@@ -74,6 +76,7 @@ const STORES: MockStore[] = [
   {
     id: 'store-2',
     name: '화덕 피자 하우스',
+    category: '양식',
     images: [
       'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=450&fit=crop',
     ],
@@ -97,6 +100,7 @@ const STORES: MockStore[] = [
   {
     id: 'store-3',
     name: '스시 오마카세',
+    category: '일식',
     images: [
       'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&h=450&fit=crop',
     ],
