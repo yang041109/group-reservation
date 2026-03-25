@@ -7,6 +7,12 @@ import type {
   ValidationResult,
 } from '@/types';
 
+/** Parse "HH:mm" → total minutes */
+function toMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
 /**
  * 인원수가 속하는 구간의 최소 주문 금액을 반환한다.
  * 해당하는 구간이 없으면 0을 반환한다.
@@ -57,8 +63,23 @@ export function validateReservationRequest(
   }
 
   // 예약 불가능 시간
-  if (req.time && !availableTimes.includes(req.time)) {
-    errors.push('선택한 시간은 예약이 불가능합니다.');
+  if (req.time) {
+    // 범위 형식 ("HH:mm - HH:mm") 또는 단일 시간 ("HH:mm") 모두 지원
+    if (req.time.includes(' - ')) {
+      const [start, end] = req.time.split(' - ');
+      const startMin = toMinutes(start);
+      const endMin = toMinutes(end);
+      // 범위 내 모든 시간이 available인지 확인
+      const timesInRange = availableTimes.filter((t) => {
+        const m = toMinutes(t);
+        return m >= startMin && m <= endMin;
+      });
+      if (timesInRange.length === 0) {
+        errors.push('선택한 시간은 예약이 불가능합니다.');
+      }
+    } else if (!availableTimes.includes(req.time)) {
+      errors.push('선택한 시간은 예약이 불가능합니다.');
+    }
   }
 
   // 최소 주문 금액 검증
