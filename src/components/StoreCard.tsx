@@ -34,8 +34,8 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
     : 1;
 
   // Build timetable data
-  const allTimes = [...new Set([...store.availableTimes, ...store.reservedTimes])].sort();
-  const reservedSet = new Set(store.reservedTimes);
+  const allTimes = [...new Set([...(store.availableTimes || []), ...(store.reservedTimes || [])])].sort();
+  const reservedSet = new Set(store.reservedTimes || []);
 
   const hourGroups = new Map<number, string[]>();
   for (const time of allTimes) {

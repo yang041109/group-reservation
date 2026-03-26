@@ -53,22 +53,25 @@ export default function ReservationConfirmPage() {
     setError(null);
 
     try {
-      const res = await fetch('/api/reservations', {
+      const res = await fetch('http://localhost:8080/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeId: reservation.storeId,
           headcount: reservation.headcount,
           time: reservation.time,
+          // [수정 포인트!] item.name과 item.price를 추가해서 백엔드로 보냅니다.
           menuItems: reservation.menuItems.map((item) => ({
             menuId: item.menuId,
+            name: item.name,      // 백엔드 엔티티의 'name' 필드와 일치
             quantity: item.quantity,
+            price: item.price     // 백엔드 엔티티의 'price' 필드와 일치
           })),
           totalAmount: reservation.totalAmount,
-          minOrderAmount: reservation.minOrderAmount,
+          minOrderAmount: reservation.minOrderAmount || 0,
         }),
       });
-
+      
       if (!res.ok) {
         const data = await res.json();
         const msg = data.errors?.join(', ') || data.error || '예약 처리 중 오류가 발생했습니다.';
