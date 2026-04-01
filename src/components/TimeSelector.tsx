@@ -126,11 +126,11 @@ export default function TimeSelector({
     }
   };
 
-  // Calculate hours for display
-  const rangeHours = useMemo(() => {
+  // Calculate duration for display
+  const rangeDuration = useMemo(() => {
     if (!startTime) return 0;
-    if (!endTime) return 1;
-    return (toMinutes(endTime) - toMinutes(startTime)) / 60 + 1;
+    if (!endTime) return 0.5; // single slot = 30 min
+    return (toMinutes(endTime) - toMinutes(startTime) + 30) / 60;
   }, [startTime, endTime]);
 
   return (
@@ -199,7 +199,7 @@ export default function TimeSelector({
       {startTime && (
         <p className="mt-2 text-sm text-blue-600 font-medium">
           {endTime
-            ? `선택: ${startTime} ~ ${endTime} (${rangeHours}시간)`
+            ? `선택: ${startTime} ~ ${endTime} (${rangeDuration % 1 === 0 ? `${rangeDuration}시간` : `${Math.floor(rangeDuration)}시간 30분`})`
             : `선택: ${startTime} (다른 시간을 클릭하면 범위 선택)`}
         </p>
       )}

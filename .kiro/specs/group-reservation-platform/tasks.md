@@ -82,12 +82,12 @@ Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼
     - 읽지 않은 알림 개수 조회 함수 (getUnreadNotificationCount)
     - _Requirements: 7.1, 7.2, 7.3, 7.5, 7.6_
 
-  - [ ]* 2.13 Property 14 속성 테스트: 사이트 내 알림 생성 정확성
+  - [~] 2.13 Property 14 속성 테스트: 사이트 내 알림 생성 정확성
     - **Property 14: 사이트 내 알림 생성 정확성**
     - 임의의 예약 상태 변경 생성 → 알림 타입 및 메시지 정확성 확인
     - **Validates: Requirements 7.1, 7.2**
 
-  - [ ]* 2.14 Property 15 속성 테스트: 사이트 내 알림 안내사항 포함
+  - [~] 2.14 Property 15 속성 테스트: 사이트 내 알림 안내사항 포함
     - **Property 15: 사이트 내 알림 안내사항 포함**
     - 임의의 안내사항 포함 상태 변경 생성 → 알림에 안내사항 포함 확인
     - **Validates: Requirements 7.3**

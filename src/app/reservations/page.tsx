@@ -7,6 +7,7 @@ interface ReservationItem {
   id: string;
   storeName: string;
   headcount: number;
+  date: string;
   time: string;
   totalAmount: number;
   status: 'pending' | 'accepted' | 'rejected';
@@ -85,7 +86,7 @@ export default function MyReservationsPage() {
                 </div>
 
                 <div className="mt-3 space-y-1 text-sm text-gray-600">
-                  <p>👥 {r.headcount}명 · 🕐 {r.time}</p>
+                  <p>📅 {r.date} · 👥 {r.headcount}명 · 🕐 {r.time}</p>
                   <p>💰 {r.totalAmount.toLocaleString()}원</p>
                 </div>
 

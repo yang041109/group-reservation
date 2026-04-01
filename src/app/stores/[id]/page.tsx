@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
-import HeadcountSelector from '@/components/HeadcountSelector';
 import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
@@ -25,21 +24,27 @@ export default function StoreDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Shared state for later use by menu/reservation components (tasks 9.2, 9.3)
+  // Read date & headcount from sessionStorage (set on home page)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedHeadcount, setSelectedHeadcount] = useState(1);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
 
-  // Restore state from sessionStorage when returning from confirm page
   useEffect(() => {
+    const savedDate = sessionStorage.getItem('selectedDate');
+    const savedHeadcount = sessionStorage.getItem('selectedHeadcount');
+    if (savedDate) setSelectedDate(savedDate);
+    if (savedHeadcount) setSelectedHeadcount(parseInt(savedHeadcount, 10));
+
+    // Restore state from pendingReservation when returning from confirm page
     const raw = sessionStorage.getItem('pendingReservation');
     if (raw) {
       try {
         const pending = JSON.parse(raw);
         if (pending.storeId === storeId) {
-          setSelectedHeadcount(pending.headcount ?? 1);
+          if (pending.headcount) setSelectedHeadcount(pending.headcount);
+          if (pending.date) setSelectedDate(pending.date);
           setSelectedTime(pending.time ?? null);
-          // Restore menu quantities from pending menu items
           if (pending.menuItems) {
             const restored: Record<string, number> = {};
             for (const item of pending.menuItems) {
@@ -49,7 +54,7 @@ export default function StoreDetailPage() {
           }
         }
       } catch {
-        // ignore parse errors
+        // ignore
       }
     }
   }, [storeId]);
@@ -103,11 +108,19 @@ export default function StoreDetailPage() {
   const { store, menus, availableTimes, reservedTimes } = data;
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
-  // Calculate total amount from menu quantities
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
     const menu = menus.find((m) => m.id === menuId);
     return sum + (menu ? menu.price * qty : 0);
   }, 0);
+
+  // Format date for display
+  const dateDisplay = selectedDate
+    ? (() => {
+        const d = new Date(selectedDate + 'T00:00:00');
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        return `${d.getMonth() + 1}/${d.getDate()} (${days[d.getDay()]})`;
+      })()
+    : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -129,15 +142,21 @@ export default function StoreDetailPage() {
       {/* Store name */}
       <h1 className="mt-4 text-2xl font-bold text-gray-900">{store.name}</h1>
 
+      {/* Date & headcount summary (read-only, set from home) */}
+      <div className="mt-4 flex items-center gap-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        {dateDisplay && <span>📅 {dateDisplay}</span>}
+        <span>👥 {selectedHeadcount}명</span>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="ml-auto text-xs text-blue-500 hover:underline"
+        >
+          변경
+        </button>
+      </div>
+
       {/* Selectors section */}
       <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <HeadcountSelector
-          maxCapacity={store.maxCapacity}
-          minCapacity={store.minOrderRules.length > 0 ? Math.min(...store.minOrderRules.map(r => r.minHeadcount)) : 1}
-          selectedHeadcount={selectedHeadcount}
-          onChange={setSelectedHeadcount}
-        />
-
         <TimeSelector
           availableTimes={availableTimes}
           reservedTimes={reservedTimes}
@@ -172,6 +191,7 @@ export default function StoreDetailPage() {
       {/* Fixed reserve button */}
       <ReserveButton
         selectedHeadcount={selectedHeadcount}
+        selectedDate={selectedDate}
         selectedTime={selectedTime}
         totalAmount={totalAmount}
         minOrderAmount={minOrderAmount}

@@ -14,6 +14,7 @@ interface PendingReservation {
   storeId: string;
   storeName: string;
   headcount: number;
+  date: string;
   time: string;
   menuItems: PendingMenuItem[];
   totalAmount: number;
@@ -59,6 +60,7 @@ export default function ReservationConfirmPage() {
         body: JSON.stringify({
           storeId: reservation.storeId,
           headcount: reservation.headcount,
+          date: reservation.date,
           time: reservation.time,
           // [수정 포인트!] item.name과 item.price를 추가해서 백엔드로 보냅니다.
           menuItems: reservation.menuItems.map((item) => ({
@@ -114,6 +116,12 @@ export default function ReservationConfirmPage() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">인원수</span>
           <span className="font-semibold text-gray-900">{reservation.headcount}명</span>
+        </div>
+
+        {/* 날짜 */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-500">날짜</span>
+          <span className="font-semibold text-gray-900">{reservation.date}</span>
         </div>
 
         {/* 시간 */}

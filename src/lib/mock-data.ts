@@ -27,6 +27,7 @@ export interface MockReservation {
   id: string;
   storeId: string;
   headcount: number;
+  date: string;
   time: string;
   totalAmount: number;
   status: 'pending' | 'accepted' | 'rejected';
@@ -142,6 +143,7 @@ export function getStoreById(id: string): MockStore | undefined {
 export function createReservation(data: {
   storeId: string;
   headcount: number;
+  date: string;
   time: string;
   totalAmount: number;
   menuItems: { menuId: string; quantity: number }[];
@@ -153,6 +155,7 @@ export function createReservation(data: {
     id,
     storeId: data.storeId,
     headcount: data.headcount,
+    date: data.date,
     time: data.time,
     totalAmount: data.totalAmount,
     status: 'pending',

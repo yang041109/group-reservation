@@ -57,6 +57,20 @@ export function validateReservationRequest(
     );
   }
 
+  // 날짜 미선택
+  if (!req.date) {
+    errors.push('날짜를 선택해주세요.');
+  }
+
+  // 당일 예약 불가
+  if (req.date) {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (req.date <= todayStr) {
+      errors.push('당일 예약은 불가능합니다. 내일 이후 날짜를 선택해주세요.');
+    }
+  }
+
   // 시간 미선택
   if (!req.time) {
     errors.push('시간을 선택해주세요.');

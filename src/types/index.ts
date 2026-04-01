@@ -56,6 +56,7 @@ export interface StatusTransitionResult {
 export interface CreateReservationRequest {
   storeId: string;
   headcount: number;
+  date: string;
   time: string;
   menuItems: { menuId: string; quantity: number }[];
   totalAmount: number;
@@ -128,6 +129,7 @@ export interface NotionStoreData {
 export interface SlackReservationNotification {
   storeName: string;
   headcount: number;
+  date: string;
   time: string;
   menuItems: { name: string; quantity: number; price: number }[];
   totalAmount: number;

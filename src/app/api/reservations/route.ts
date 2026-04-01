@@ -13,6 +13,7 @@ export async function GET() {
       id: r.id,
       storeName: store?.name ?? '',
       headcount: r.headcount,
+      date: r.date,
       time: r.time,
       totalAmount: r.totalAmount,
       status: r.status,
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
     const reservation = createReservation({
       storeId: store.id,
       headcount: body.headcount!,
+      date: body.date!,
       time: body.time!,
       totalAmount: body.totalAmount!,
       menuItems: body.menuItems ?? [],
@@ -65,6 +67,7 @@ export async function POST(request: Request) {
     sendSlackNotification({
       storeName: store.name,
       headcount: reservation.headcount,
+      date: reservation.date,
       time: reservation.time,
       menuItems: reservation.menuItems.map((rm) => ({
         name: rm.name,

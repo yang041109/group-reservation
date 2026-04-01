@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 
 interface ReserveButtonProps {
   selectedHeadcount: number;
+  selectedDate: string | null;
   selectedTime: string | null;
   totalAmount: number;
   minOrderAmount: number;
@@ -15,6 +16,7 @@ interface ReserveButtonProps {
 
 export default function ReserveButton({
   selectedHeadcount,
+  selectedDate,
   selectedTime,
   totalAmount,
   minOrderAmount,
@@ -25,15 +27,16 @@ export default function ReserveButton({
 }: ReserveButtonProps) {
   const router = useRouter();
 
-  // Validation
+  const dateNotSelected = selectedDate === null;
   const timeNotSelected = selectedTime === null;
   const minOrderNotMet = minOrderAmount > 0 && totalAmount < minOrderAmount;
   const deficit = minOrderAmount - totalAmount;
-  const isDisabled = timeNotSelected || minOrderNotMet;
+  const isDisabled = dateNotSelected || timeNotSelected || minOrderNotMet;
 
-  // Determine validation message
   let validationMessage: string | null = null;
-  if (timeNotSelected) {
+  if (dateNotSelected) {
+    validationMessage = '날짜를 선택해주세요';
+  } else if (timeNotSelected) {
     validationMessage = '시간을 선택해주세요';
   } else if (minOrderNotMet) {
     validationMessage = `최소 주문 금액까지 ${deficit.toLocaleString()}원 부족합니다`;
@@ -42,7 +45,6 @@ export default function ReserveButton({
   const handleClick = () => {
     if (isDisabled) return;
 
-    // Build menu items with names and prices for the confirm page
     const menuItems = Object.entries(menuQuantities).map(([menuId, quantity]) => {
       const menu = menus.find((m) => m.id === menuId);
       return {
@@ -53,11 +55,11 @@ export default function ReserveButton({
       };
     });
 
-    // Store reservation data in sessionStorage for the confirm page
     const pendingReservation = {
       storeId,
       storeName,
       headcount: selectedHeadcount,
+      date: selectedDate,
       time: selectedTime,
       menuItems,
       totalAmount,
