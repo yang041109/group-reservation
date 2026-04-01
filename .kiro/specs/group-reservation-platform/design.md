@@ -71,24 +71,30 @@ graph TD
     App --> StoreDetailPage["가게 상세 페이지"]
     App --> ReservationConfirmPage["예약 확인 페이지"]
     App --> ReservationCompletePage["예약 완료 페이지"]
+    App --> MyReservationsPage["내 예약 페이지"]
     App --> NotificationPanel["알림 패널"]
 
-    HomePage --> StoreCardList["가게 카드 리스트"]
+    HomePage --> DateSelector["날짜 선택기 (월간 캘린더)"]
+    HomePage --> HeadcountSelector["인원수 선택기"]
+    HomePage --> StoreCardList["가게 카드 리스트 (필터링)"]
     StoreCardList --> StoreCard["가게 카드"]
 
-    StoreDetailPage --> HeadcountSelector["인원수 선택기"]
-    StoreDetailPage --> TimeSelector["시간 선택기"]
+    StoreDetailPage --> DateHeadcountSummary["날짜/인원수 요약 (읽기 전용)"]
+    StoreDetailPage --> TimeSelector["시간 선택기 (11~20시 타임테이블)"]
     StoreDetailPage --> MenuSection["메뉴 섹션"]
     MenuSection --> MenuItem["메뉴 아이템 (수량 조절)"]
     StoreDetailPage --> TotalPrice["총 금액 표시"]
     StoreDetailPage --> MinOrderAmount["최소 주문 금액 안내"]
     StoreDetailPage --> ReserveButton["예약하기 버튼 (고정)"]
 
-    ReservationConfirmPage --> ReservationSummary["예약 정보 요약"]
+    ReservationConfirmPage --> ReservationSummary["예약 정보 요약 (날짜 포함)"]
     ReservationConfirmPage --> ConfirmButton["예약 확정 버튼"]
     ReservationConfirmPage --> BackButton["뒤로 가기 버튼"]
 
     ReservationCompletePage --> CompleteMessage["예약 완료 메시지"]
+
+    MyReservationsPage --> ReservationCard["예약 카드 (가게 이동 링크)"]
+    MyReservationsPage --> CancelButton["예약 취소 버튼 (3일 전까지)"]
 
     NotificationPanel --> NotificationBadge["읽지 않은 알림 배지"]
     NotificationPanel --> NotificationList["알림 목록"]
@@ -152,6 +158,7 @@ interface MenuItemData {
 interface CreateReservationRequest {
   storeId: string;
   headcount: number;
+  date: string;                // YYYY-MM-DD 형식
   time: string;
   menuItems: { menuId: string; quantity: number }[];
   totalAmount: number;
@@ -162,6 +169,10 @@ interface CreateReservationResponse {
   reservationId: string;
   status: 'pending';
 }
+
+// POST /api/reservations/:id/cancel - 예약 취소
+// 예약 날짜 기준 3일 전까지만 취소 가능
+// 성공 시 { success: true }, 실패 시 { error: string }
 
 // POST /api/reservations/:id/respond - Slack에서 운영팀 응답
 interface RespondReservationRequest {
@@ -177,6 +188,7 @@ interface RespondReservationRequest {
 interface SlackReservationNotification {
   storeName: string;
   headcount: number;
+  date: string;                // YYYY-MM-DD 형식
   time: string;
   menuItems: { name: string; quantity: number; price: number }[];
   totalAmount: number;
@@ -308,6 +320,7 @@ interface Reservation {
   id: string;
   storeId: string;
   headcount: number;
+  date: string;                // YYYY-MM-DD 형식
   time: string;
   totalAmount: number;
   status: 'pending' | 'accepted' | 'rejected';
@@ -365,6 +378,11 @@ function validateReservationRequest(
   if (!req.headcount || req.headcount < 1) errors.push('인원수를 선택해주세요.');
   if (req.headcount && req.headcount > store.maxCapacity) {
     errors.push(`최대 수용 가능 인원은 ${store.maxCapacity}명입니다.`);
+  }
+  if (!req.date) errors.push('날짜를 선택해주세요.');
+  // 당일 예약 불가 검증
+  if (req.date && req.date <= todayStr) {
+    errors.push('당일 예약은 불가능합니다. 내일 이후 날짜를 선택해주세요.');
   }
   if (!req.time) errors.push('시간을 선택해주세요.');
   if (req.time && !availableTimes.includes(req.time)) {
