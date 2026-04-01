@@ -33,6 +33,9 @@ export interface MockReservation {
   headcount: number;
   date: string;
   time: string;
+  groupName: string;
+  representativeName: string;
+  phone: string;
   totalAmount: number;
   status: 'pending' | 'accepted' | 'rejected';
   adminNote: string | null;
@@ -256,6 +259,9 @@ export function createReservation(data: {
   headcount: number;
   date: string;
   time: string;
+  groupName: string;
+  representativeName: string;
+  phone: string;
   totalAmount: number;
   menuItems: { menuId: string; quantity: number }[];
   storeName: string;
@@ -268,6 +274,9 @@ export function createReservation(data: {
     headcount: data.headcount,
     date: data.date,
     time: data.time,
+    groupName: data.groupName,
+    representativeName: data.representativeName,
+    phone: data.phone,
     totalAmount: data.totalAmount,
     status: 'pending',
     adminNote: null,
@@ -292,6 +301,12 @@ export function getReservationById(id: string): MockReservation | undefined {
 
 export function getAllReservations(): MockReservation[] {
   return [...reservations].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export function getReservationsByUser(name: string, phone: string): MockReservation[] {
+  return reservations
+    .filter((r) => r.representativeName === name && r.phone === phone)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export function updateReservation(

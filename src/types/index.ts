@@ -58,6 +58,9 @@ export interface CreateReservationRequest {
   headcount: number;
   date: string;
   time: string;
+  groupName: string;           // 단체명(행사명)
+  representativeName: string;  // 대표자 이름
+  phone: string;               // 전화번호
   menuItems: { menuId: string; quantity: number }[];
   totalAmount: number;
   minOrderAmount: number;
@@ -131,6 +134,9 @@ export interface SlackReservationNotification {
   headcount: number;
   date: string;
   time: string;
+  groupName: string;
+  representativeName: string;
+  phone: string;
   menuItems: { name: string; quantity: number; price: number }[];
   totalAmount: number;
   minOrderAmount: number;

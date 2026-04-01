@@ -16,6 +16,9 @@ interface PendingReservation {
   headcount: number;
   date: string;
   time: string;
+  groupName: string;
+  representativeName: string;
+  phone: string;
   menuItems: PendingMenuItem[];
   totalAmount: number;
   minOrderAmount: number;
@@ -29,8 +32,17 @@ export default function ReservationConfirmPage() {
   const [reservation, setReservation] = useState<PendingReservation | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState('');
+  const [representativeName, setRepresentativeName] = useState('');
+  const [phone, setPhone] = useState('');
 
   useEffect(() => {
+    // Restore saved user info from localStorage
+    const savedName = localStorage.getItem('representativeName');
+    const savedPhone = localStorage.getItem('phone');
+    if (savedName) setRepresentativeName(savedName);
+    if (savedPhone) setPhone(savedPhone);
+
     const raw = sessionStorage.getItem('pendingReservation');
     if (!raw) {
       router.replace(`/stores/${storeId}`);
@@ -50,8 +62,18 @@ export default function ReservationConfirmPage() {
 
   const handleConfirm = async () => {
     if (!reservation || submitting) return;
+
+    // Validate required fields
+    if (!groupName.trim()) { setError('단체명(행사명)을 입력해주세요.'); return; }
+    if (!representativeName.trim()) { setError('대표자 이름을 입력해주세요.'); return; }
+    if (!phone.trim()) { setError('전화번호를 입력해주세요.'); return; }
+
     setSubmitting(true);
     setError(null);
+
+    // Save user info to localStorage for future visits
+    localStorage.setItem('representativeName', representativeName.trim());
+    localStorage.setItem('phone', phone.trim());
 
     try {
       const res = await fetch('/api/reservations', {
@@ -62,6 +84,9 @@ export default function ReservationConfirmPage() {
           headcount: reservation.headcount,
           date: reservation.date,
           time: reservation.time,
+          groupName: groupName.trim(),
+          representativeName: representativeName.trim(),
+          phone: phone.trim(),
           menuItems: reservation.menuItems.map((item) => ({
             menuId: item.menuId,
             quantity: item.quantity,
@@ -125,6 +150,41 @@ export default function ReservationConfirmPage() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">시간</span>
           <span className="font-semibold text-gray-900">{reservation.time}</span>
+        </div>
+      </div>
+
+      {/* 예약자 정보 입력 */}
+      <div className="mt-4 space-y-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-bold text-gray-900">예약자 정보</h2>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">단체명 (행사명)</label>
+          <input
+            type="text"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            placeholder="예: OO동아리 회식"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">대표자 이름</label>
+          <input
+            type="text"
+            value={representativeName}
+            onChange={(e) => setRepresentativeName(e.target.value)}
+            placeholder="홍길동"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">전화번호</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="010-1234-5678"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
         </div>
       </div>
 

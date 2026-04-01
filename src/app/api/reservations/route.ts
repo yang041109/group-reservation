@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getStoreById, createReservation, getAllReservations } from '@/lib/mock-data';
+import { getStoreById, createReservation, getAllReservations, getReservationsByUser } from '@/lib/mock-data';
 import { validateReservationRequest } from '@/lib/validation';
 import { sendSlackNotification } from '@/lib/slack';
 import type { CreateReservationRequest, CreateReservationResponse } from '@/types';
 
-export async function GET() {
-  const reservations = getAllReservations();
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const name = url.searchParams.get('name');
+  const phone = url.searchParams.get('phone');
+
+  const reservations = name && phone
+    ? getReservationsByUser(name, phone)
+    : getAllReservations();
 
   const result = reservations.map((r) => {
     const store = getStoreById(r.storeId);
@@ -13,6 +19,9 @@ export async function GET() {
       id: r.id,
       storeId: r.storeId,
       storeName: store?.name ?? '',
+      groupName: r.groupName,
+      representativeName: r.representativeName,
+      phone: r.phone,
       headcount: r.headcount,
       date: r.date,
       time: r.time,
@@ -59,6 +68,9 @@ export async function POST(request: Request) {
       headcount: body.headcount!,
       date: body.date!,
       time: body.time!,
+      groupName: body.groupName ?? '',
+      representativeName: body.representativeName ?? '',
+      phone: body.phone ?? '',
       totalAmount: body.totalAmount!,
       menuItems: body.menuItems ?? [],
       storeName: store.name,
@@ -70,6 +82,9 @@ export async function POST(request: Request) {
       headcount: reservation.headcount,
       date: reservation.date,
       time: reservation.time,
+      groupName: reservation.groupName,
+      representativeName: reservation.representativeName,
+      phone: reservation.phone,
       menuItems: reservation.menuItems.map((rm) => ({
         name: rm.name,
         quantity: rm.quantity,
