@@ -11,6 +11,7 @@ export async function GET() {
     const store = getStoreById(r.storeId);
     return {
       id: r.id,
+      storeId: r.storeId,
       storeName: store?.name ?? '',
       headcount: r.headcount,
       date: r.date,

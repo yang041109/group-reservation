@@ -204,6 +204,13 @@ export function updateReservation(
   return r;
 }
 
+export function deleteReservation(id: string): boolean {
+  const idx = reservations.findIndex((r) => r.id === id);
+  if (idx === -1) return false;
+  reservations.splice(idx, 1);
+  return true;
+}
+
 // --- Notification ---
 
 export function addNotification(data: {
