@@ -62,7 +62,8 @@ export default function StoreDetailPage() {
   useEffect(() => {
     async function fetchStore() {
       try {
-        const res = await fetch(`/api/stores/${storeId}`);
+        const dateParam = selectedDate ? `?date=${selectedDate}` : '';
+        const res = await fetch(`/api/stores/${storeId}${dateParam}`);
         if (res.status === 404) {
           setError('가게를 찾을 수 없습니다.');
           return;
@@ -80,7 +81,7 @@ export default function StoreDetailPage() {
       }
     }
     fetchStore();
-  }, [storeId]);
+  }, [storeId, selectedDate]);
 
   if (loading) {
     return (

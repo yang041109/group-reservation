@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
-import { getAllStores } from '@/lib/mock-data';
 import type { StoreCard as StoreCardType } from '@/types';
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedHeadcount, setSelectedHeadcount] = useState(0);
+  const [storeCards, setStoreCards] = useState<StoreCardType[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Restore from sessionStorage
   useEffect(() => {
@@ -27,18 +28,16 @@ export default function Home() {
     sessionStorage.setItem('selectedHeadcount', String(selectedHeadcount));
   }, [selectedHeadcount]);
 
-  const stores = getAllStores();
-
-  const storeCards: StoreCardType[] = stores.map((store) => ({
-    id: store.id,
-    name: store.name,
-    category: store.category,
-    images: store.images,
-    availableTimes: store.availableTimes,
-    reservedTimes: store.reservedTimes,
-    maxCapacity: store.maxCapacity,
-    minOrderRules: store.minOrderRules,
-  }));
+  // Fetch stores when date changes
+  useEffect(() => {
+    if (!selectedDate) return;
+    setLoading(true);
+    fetch(`/api/stores?date=${selectedDate}`)
+      .then((res) => res.json())
+      .then((data) => setStoreCards(data.stores ?? []))
+      .catch(() => setStoreCards([]))
+      .finally(() => setLoading(false));
+  }, [selectedDate]);
 
   // Filter stores by headcount capacity (0 = show all)
   const filteredStores = storeCards.filter((store) => {
@@ -70,6 +69,10 @@ export default function Home() {
       {!showStores ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
           <p className="text-base">날짜를 선택해주세요</p>
+        </div>
+      ) : loading ? (
+        <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
+          <p className="text-base">불러오는 중...</p>
         </div>
       ) : filteredStores.length === 0 ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-500">

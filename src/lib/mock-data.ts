@@ -16,8 +16,12 @@ export interface MockStore {
   name: string;
   category?: string;
   images: string[];
+  /** 기본 예약 가능 시간 (날짜별 데이터가 없을 때 사용) */
   availableTimes: string[];
+  /** 기본 예약된 시간 (날짜별 데이터가 없을 때 사용) */
   reservedTimes: string[];
+  /** 날짜별 예약 가능/예약됨 시간 오버라이드 (YYYY-MM-DD → { available, reserved }) */
+  dateSchedules?: Record<string, { availableTimes: string[]; reservedTimes: string[] }>;
   maxCapacity: number;
   minOrderRules: MinOrderRule[];
   menus: MenuItemData[];
@@ -47,6 +51,23 @@ export interface MockNotification {
   createdAt: Date;
 }
 
+// --- 날짜 헬퍼 ---
+
+function getDateStr(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 내일부터 7일간의 날짜
+const DAY1 = getDateStr(1);
+const DAY2 = getDateStr(2);
+const DAY3 = getDateStr(3);
+const DAY4 = getDateStr(4);
+const DAY5 = getDateStr(5);
+const DAY6 = getDateStr(6);
+const DAY7 = getDateStr(7);
+
 // --- 샘플 가게 데이터 ---
 
 const STORES: MockStore[] = [
@@ -63,6 +84,32 @@ const STORES: MockStore[] = [
       '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
     ],
     reservedTimes: ['13:00', '13:30', '14:00', '14:30', '17:00'],
+    dateSchedules: {
+      [DAY1]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '15:00', '15:30', '16:00', '16:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['13:00', '13:30', '14:00', '14:30', '17:00'],
+      },
+      [DAY2]: {
+        availableTimes: ['11:00', '11:30', '12:00', '15:00', '15:30', '18:00', '18:30', '19:00'],
+        reservedTimes: ['12:30', '13:00', '13:30', '14:00', '14:30', '16:00', '16:30', '17:00', '17:30', '19:30', '20:00', '20:30'],
+      },
+      [DAY3]: {
+        availableTimes: ['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'],
+      },
+      [DAY4]: {
+        availableTimes: [],
+        reservedTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+      },
+      [DAY5]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['14:00', '14:30'],
+      },
+      [DAY6]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '17:30', '18:00', '18:30', '19:00'],
+        reservedTimes: ['13:00', '13:30', '17:00', '19:30', '20:00'],
+      },
+    },
     maxCapacity: 30,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 5, minOrderAmount: 50000 },
@@ -90,6 +137,28 @@ const STORES: MockStore[] = [
       '16:00', '16:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
     ],
     reservedTimes: ['13:00', '14:00', '14:30', '15:00', '15:30', '17:00'],
+    dateSchedules: {
+      [DAY1]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '13:30', '16:00', '16:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['13:00', '14:00', '14:30', '15:00', '15:30', '17:00'],
+      },
+      [DAY2]: {
+        availableTimes: ['11:00', '11:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'],
+      },
+      [DAY3]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '16:00', '16:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+        reservedTimes: ['17:00'],
+      },
+      [DAY5]: {
+        availableTimes: [],
+        reservedTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'],
+      },
+      [DAY7]: {
+        availableTimes: ['12:00', '12:30', '18:00', '18:30', '19:00'],
+        reservedTimes: ['11:00', '11:30', '13:00', '17:00', '17:30', '19:30', '20:00', '20:30'],
+      },
+    },
     maxCapacity: 20,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 4, minOrderAmount: 40000 },
@@ -117,6 +186,28 @@ const STORES: MockStore[] = [
       '17:30', '18:00', '18:30', '19:00', '19:30', '20:00',
     ],
     reservedTimes: ['11:00', '13:00', '13:30', '17:00'],
+    dateSchedules: {
+      [DAY1]: {
+        availableTimes: ['11:30', '12:00', '12:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'],
+        reservedTimes: ['11:00', '13:00', '13:30', '17:00'],
+      },
+      [DAY2]: {
+        availableTimes: ['18:00', '18:30', '19:00'],
+        reservedTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '17:00', '17:30', '19:30', '20:00'],
+      },
+      [DAY3]: {
+        availableTimes: [],
+        reservedTimes: ['11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'],
+      },
+      [DAY4]: {
+        availableTimes: ['11:30', '12:00', '12:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'],
+        reservedTimes: ['11:00', '17:00'],
+      },
+      [DAY6]: {
+        availableTimes: ['11:00', '11:30', '12:00', '12:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'],
+        reservedTimes: [],
+      },
+    },
     maxCapacity: 12,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 4, minOrderAmount: 100000 },
@@ -146,6 +237,16 @@ export function getAllStores(): MockStore[] {
 
 export function getStoreById(id: string): MockStore | undefined {
   return STORES.find((s) => s.id === id);
+}
+
+/** 특정 날짜의 예약 가능/예약됨 시간을 반환. 날짜별 데이터가 없으면 기본값 사용 */
+export function getStoreScheduleForDate(
+  store: MockStore,
+  date: string,
+): { availableTimes: string[]; reservedTimes: string[] } {
+  const schedule = store.dateSchedules?.[date];
+  if (schedule) return schedule;
+  return { availableTimes: store.availableTimes, reservedTimes: store.reservedTimes };
 }
 
 // --- Reservation ---
