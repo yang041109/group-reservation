@@ -9,7 +9,7 @@ import type { StoreCard as StoreCardType } from '@/types';
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedHeadcount, setSelectedHeadcount] = useState(1);
+  const [selectedHeadcount, setSelectedHeadcount] = useState(0);
 
   // Restore from sessionStorage
   useEffect(() => {
@@ -40,8 +40,9 @@ export default function Home() {
     minOrderRules: store.minOrderRules,
   }));
 
-  // Filter stores by headcount capacity
+  // Filter stores by headcount capacity (0 = show all)
   const filteredStores = storeCards.filter((store) => {
+    if (selectedHeadcount === 0) return true;
     return store.maxCapacity >= selectedHeadcount;
   });
 
@@ -59,7 +60,7 @@ export default function Home() {
 
         <HeadcountSelector
           maxCapacity={100}
-          minCapacity={1}
+          minCapacity={0}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
         />

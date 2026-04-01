@@ -13,7 +13,7 @@ export default function HeadcountSelector({
   selectedHeadcount,
   onChange,
 }: HeadcountSelectorProps) {
-  const effectiveMin = Math.max(1, minCapacity);
+  const effectiveMin = Math.max(0, minCapacity);
 
   return (
     <div>
