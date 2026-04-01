@@ -176,6 +176,10 @@ export function getReservationById(id: string): MockReservation | undefined {
   return reservations.find((r) => r.id === id);
 }
 
+export function getAllReservations(): MockReservation[] {
+  return [...reservations].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 export function updateReservation(
   id: string,
   data: { status: string; adminNote?: string | null },

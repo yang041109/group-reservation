@@ -1,8 +1,29 @@
 import { NextResponse } from 'next/server';
-import { getStoreById, createReservation } from '@/lib/mock-data';
+import { getStoreById, createReservation, getAllReservations } from '@/lib/mock-data';
 import { validateReservationRequest } from '@/lib/validation';
 import { sendSlackNotification } from '@/lib/slack';
 import type { CreateReservationRequest, CreateReservationResponse } from '@/types';
+
+export async function GET() {
+  const reservations = getAllReservations();
+
+  const result = reservations.map((r) => {
+    const store = getStoreById(r.storeId);
+    return {
+      id: r.id,
+      storeName: store?.name ?? '',
+      headcount: r.headcount,
+      time: r.time,
+      totalAmount: r.totalAmount,
+      status: r.status,
+      adminNote: r.adminNote,
+      menuItems: r.menuItems,
+      createdAt: r.createdAt,
+    };
+  });
+
+  return NextResponse.json({ reservations: result });
+}
 
 export async function POST(request: Request) {
   try {
@@ -17,7 +38,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 유효성 검증
     const validation = validateReservationRequest(
       body,
       { maxCapacity: store.maxCapacity },
@@ -32,7 +52,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 예약 저장 (in-memory)
     const reservation = createReservation({
       storeId: store.id,
       headcount: body.headcount!,
@@ -43,7 +62,6 @@ export async function POST(request: Request) {
       menus: store.menus,
     });
 
-    // Slack 알림 (실패해도 예약은 성공)
     sendSlackNotification({
       storeName: store.name,
       headcount: reservation.headcount,

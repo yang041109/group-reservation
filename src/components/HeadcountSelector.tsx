@@ -30,7 +30,7 @@ export default function HeadcountSelector({
           </button>
           <button
             type="button"
-            disabled={selectedHeadcount - 10 < effectiveMin}
+            disabled={selectedHeadcount <= effectiveMin}
             onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 10))}
             className="flex h-6 w-9 items-center justify-center rounded-md border border-gray-200 text-xs text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -51,7 +51,7 @@ export default function HeadcountSelector({
           </button>
           <button
             type="button"
-            disabled={selectedHeadcount + 10 > maxCapacity}
+            disabled={selectedHeadcount >= maxCapacity}
             onClick={() => onChange(Math.min(maxCapacity, selectedHeadcount + 10))}
             className="flex h-6 w-9 items-center justify-center rounded-md border border-gray-200 text-xs text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >

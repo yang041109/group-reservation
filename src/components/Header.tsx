@@ -10,7 +10,15 @@ export default function Header() {
         <Link href="/" className="text-lg font-bold text-gray-900">
           우르르
         </Link>
-        <NotificationBadge />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/reservations"
+            className="text-sm text-gray-600 hover:text-gray-900 transition"
+          >
+            내 예약
+          </Link>
+          <NotificationBadge />
+        </div>
       </div>
     </header>
   );
