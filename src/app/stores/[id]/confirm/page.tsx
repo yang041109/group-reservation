@@ -54,7 +54,7 @@ export default function ReservationConfirmPage() {
     setError(null);
 
     try {
-      const res = await fetch('http://localhost:8080/api/reservations', {
+      const res = await fetch('/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,12 +62,9 @@ export default function ReservationConfirmPage() {
           headcount: reservation.headcount,
           date: reservation.date,
           time: reservation.time,
-          // [수정 포인트!] item.name과 item.price를 추가해서 백엔드로 보냅니다.
           menuItems: reservation.menuItems.map((item) => ({
             menuId: item.menuId,
-            name: item.name,      // 백엔드 엔티티의 'name' 필드와 일치
             quantity: item.quantity,
-            price: item.price     // 백엔드 엔티티의 'price' 필드와 일치
           })),
           totalAmount: reservation.totalAmount,
           minOrderAmount: reservation.minOrderAmount || 0,
