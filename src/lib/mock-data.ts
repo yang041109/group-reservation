@@ -57,8 +57,12 @@ const STORES: MockStore[] = [
     images: [
       'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=450&fit=crop',
     ],
-    availableTimes: ['11:30', '12:00', '12:30', '17:30', '18:00', '18:30', '19:00'],
-    reservedTimes: ['13:00', '13:30', '14:00', '17:00'],
+    availableTimes: [
+      '11:00', '11:30', '12:00', '12:30',
+      '15:00', '15:30', '16:00', '16:30',
+      '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
+    ],
+    reservedTimes: ['13:00', '13:30', '14:00', '14:30', '17:00'],
     maxCapacity: 30,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 5, minOrderAmount: 50000 },
@@ -81,8 +85,11 @@ const STORES: MockStore[] = [
     images: [
       'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=450&fit=crop',
     ],
-    availableTimes: ['12:00', '13:00', '18:00', '19:00', '20:00'],
-    reservedTimes: ['14:00', '15:00', '17:00'],
+    availableTimes: [
+      '11:00', '11:30', '12:00', '12:30', '13:30',
+      '16:00', '16:30', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
+    ],
+    reservedTimes: ['13:00', '14:00', '14:30', '15:00', '15:30', '17:00'],
     maxCapacity: 20,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 4, minOrderAmount: 40000 },
@@ -105,8 +112,11 @@ const STORES: MockStore[] = [
     images: [
       'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&h=450&fit=crop',
     ],
-    availableTimes: ['12:00', '18:00', '19:00'],
-    reservedTimes: ['13:00', '17:00'],
+    availableTimes: [
+      '11:30', '12:00', '12:30',
+      '17:30', '18:00', '18:30', '19:00', '19:30', '20:00',
+    ],
+    reservedTimes: ['11:00', '13:00', '13:30', '17:00'],
     maxCapacity: 12,
     minOrderRules: [
       { minHeadcount: 1, maxHeadcount: 4, minOrderAmount: 100000 },
