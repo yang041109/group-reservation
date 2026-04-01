@@ -22,28 +22,26 @@ function getCategoryEmoji(category?: string): string {
   return CATEGORY_EMOJI[category] ?? '🍽️';
 }
 
-/** Parse "HH:mm" → hour number */
-function parseHour(time: string): number {
-  return parseInt(time.split(':')[0], 10);
-}
-
 export default function StoreCard({ store }: { store: StoreCardType }) {
   const thumbnailUrl = store.images[0];
   const minCapacity = store.minOrderRules.length > 0
     ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
     : 1;
 
-  // Build timetable data
-  const allTimes = [...new Set([...(store.availableTimes || []), ...(store.reservedTimes || [])])].sort();
+  const availableSet = new Set(store.availableTimes || []);
   const reservedSet = new Set(store.reservedTimes || []);
 
-  const hourGroups = new Map<number, string[]>();
-  for (const time of allTimes) {
-    const hour = parseHour(time);
-    if (!hourGroups.has(hour)) hourGroups.set(hour, []);
-    hourGroups.get(hour)!.push(time);
-  }
-  const sortedHours = [...hourGroups.keys()].sort((a, b) => a - b);
+  // Fixed 11~20 hours, 2 slots per hour
+  const START_HOUR = 11;
+  const END_HOUR = 20;
+  const hours: number[] = [];
+  for (let h = START_HOUR; h <= END_HOUR; h++) hours.push(h);
+
+  const toTimeStr = (min: number) => {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
 
   return (
     <Link
@@ -85,40 +83,42 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
         </p>
 
         {/* 타임테이블 바 */}
-        {allTimes.length > 0 && (
-          <div className="mt-3">
-            {/* Hour labels */}
-            <div className="flex">
-              {sortedHours.map((hour) => {
-                const slots = hourGroups.get(hour)!;
-                return (
-                  <div
-                    key={hour}
-                    className="text-[10px] font-medium text-gray-400"
-                    style={{ width: `${(slots.length / allTimes.length) * 100}%` }}
-                  >
-                    {hour}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Slot bar */}
-            <div className="flex h-5 overflow-hidden rounded-md">
-              {allTimes.map((time) => {
+        <div className="mt-3">
+          {/* Hour labels */}
+          <div className="flex">
+            {hours.map((hour) => (
+              <div
+                key={hour}
+                className="text-[10px] font-medium text-gray-400"
+                style={{ width: `${(1 / hours.length) * 100}%` }}
+              >
+                {hour}
+              </div>
+            ))}
+          </div>
+          {/* Slot bar */}
+          <div className="flex h-5 overflow-hidden rounded-md">
+            {hours.flatMap((hour) => {
+              const slot0 = toTimeStr(hour * 60);
+              const slot1 = toTimeStr(hour * 60 + 30);
+              return [slot0, slot1].map((time) => {
                 const isReserved = reservedSet.has(time);
+                const isAvailable = availableSet.has(time);
+                let bg: string;
+                if (isReserved) bg = 'bg-gray-400';
+                else if (isAvailable) bg = 'bg-cyan-400';
+                else bg = 'bg-gray-200';
                 return (
                   <div
                     key={time}
-                    title={`${time}${isReserved ? ' (예약됨)' : ''}`}
-                    className={`flex-1 border-r border-white/30 last:border-r-0 ${
-                      isReserved ? 'bg-gray-400' : 'bg-cyan-400'
-                    }`}
+                    title={`${time}${isReserved ? ' (예약됨)' : isAvailable ? '' : ' (불가)'}`}
+                    className={`flex-1 border-r border-white/30 last:border-r-0 ${bg}`}
                   />
                 );
-              })}
-            </div>
+              });
+            })}
           </div>
-        )}
+        </div>
       </div>
     </Link>
   );
