@@ -4,6 +4,8 @@
 
 단체 예약 플랫폼은 사용자가 메인 홈에서 가게 카드를 탐색하고, 상세 화면에서 인원/시간 선택 및 메뉴 추가 후 예약을 진행하는 간소화된 단체 예약 서비스이다. 가게 데이터는 노션에서 관리하여 플랫폼에 동기화하며, 예약 접수 시 Slack을 통해 운영팀에 알림이 전달된다. 운영팀이 수락/거절하면 사이트 내 알림으로 사용자에게 결과가 전달된다.
 
+현재 프론트엔드는 mock 데이터 기반으로 동작하며, 백엔드 개발자가 Spring Boot로 구현한 API 서버에 점진적으로 연결한다. 백엔드 API가 가게 탐색(GET /api/stores), 가게 상세(GET /api/stores/{storeId}), 예약 생성(POST /api/reservations), 예약 조회(GET /api/reservations/check), 예약 취소(PATCH /api/reservations/{id}/cancel), 관리자 장부 조회(GET /api/reservations/admin/list)를 제공한다. 알림(notifications) 기능만 아직 백엔드 API가 없어 mock 데이터를 유지한다. 백엔드 API 응답은 공통 래퍼 형식 `{ success: true, data: ... }` / `{ success: false, message: "..." }`을 따르며, 관리자 장부 조회 API만 예외적으로 순수 배열을 반환한다.
+
 ## 용어 사전
 
 - **플랫폼**: 단체 예약 서비스를 제공하는 웹 시스템 전체
@@ -15,6 +17,12 @@
 - **최소_주문_금액_규칙**: 인원수 구간별 최소 주문 금액을 정의하는 규칙
 - **노션_동기화**: 노션 데이터베이스에서 가게 데이터를 플랫폼 데이터베이스로 가져오는 프로세스
 - **사이트_내_알림**: 플랫폼 웹사이트 내에서 사용자에게 표시되는 알림 메시지
+- **백엔드_API_서버**: Spring Boot 기반의 예약 처리 백엔드 서버 (기본 주소: http://localhost:8080)
+- **API_프록시**: Next.js API Route에서 백엔드_API_서버로 요청을 중계하는 서버 사이드 통신 방식
+- **백엔드_API_Base_URL**: 백엔드_API_서버의 기본 주소를 지정하는 환경 변수 (BACKEND_API_URL)
+- **점진적_마이그레이션**: 백엔드 API가 준비된 영역부터 mock 데이터를 실제 API 호출로 순차 전환하는 전략
+- **백엔드_공통_응답_래퍼**: 백엔드 API의 공통 응답 형식 `{ success: boolean, data?: any, message?: string }`
+- **타임슬롯**: 가게의 예약 가능한 시간 단위 (slotId로 식별)
 
 ## 요구사항
 
@@ -141,3 +149,100 @@
 4. THE 플랫폼 SHALL 사용자가 사이트_내_알림 목록을 조회할 수 있는 기능을 제공한다
 5. THE 플랫폼 SHALL 읽지 않은 사이트_내_알림의 개수를 표시한다
 6. WHEN 사용자가 사이트_내_알림을 확인하면, THE 플랫폼 SHALL 해당 알림을 읽음 상태로 변경한다
+
+
+### 요구사항 9: 백엔드 API 연결 환경 설정
+
+**사용자 스토리:** 개발자로서, 환경 변수를 통해 백엔드 API 서버 주소를 설정하고 싶다. 이를 통해 로컬 개발, 스테이징, 프로덕션 환경에서 각각 다른 백엔드 서버에 연결할 수 있다.
+
+#### 인수 조건
+
+1. THE 플랫폼 SHALL 환경 변수 BACKEND_API_URL을 통해 백엔드_API_Base_URL을 설정할 수 있도록 한다
+2. IF BACKEND_API_URL 환경 변수가 설정되지 않으면, THEN THE 플랫폼 SHALL 기본값으로 "http://localhost:8080"을 사용한다
+3. THE 플랫폼 SHALL .env.example 파일에 BACKEND_API_URL 환경 변수 항목을 포함한다
+
+### 요구사항 10: 예약 생성 API 백엔드 연결
+
+**사용자 스토리:** 사용자로서, 예약을 확정하면 실제 백엔드 서버에 예약 데이터가 저장되길 원한다. 이를 통해 예약 데이터가 영속적으로 관리되고 관리자가 조회할 수 있다.
+
+#### 인수 조건
+
+1. WHEN 사용자가 예약을 확정하면, THE 플랫폼 SHALL Next.js API Route(POST /api/reservations)에서 백엔드_API_서버의 POST /api/reservations 엔드포인트로 예약 데이터를 전달한다
+2. THE API_프록시 SHALL 프론트엔드의 예약 요청 데이터를 백엔드_API_서버의 요청 형식(userName, groupName, userPhone, userNote, storeId, slotId, headcount, selectedMenus)으로 변환하여 전송한다
+3. THE API_프록시 SHALL 백엔드_API_서버의 selectedMenus 형식에 맞게 각 메뉴 아이템의 menuId, quantity 필드만 포함하여 전송한다 (name, price는 백엔드에서 처리)
+4. THE API_프록시 SHALL totalAmount, minOrderAmount를 프론트엔드에서 전송하지 않는다 (최소 주문 금액 및 필수 메뉴 검증은 백엔드에서 수행)
+5. WHEN 백엔드_API_서버가 성공 응답 `{ success: true, data: ... }`을 반환하면, THE 플랫폼 SHALL 예약 성공으로 처리하고 예약 완료 화면으로 이동한다
+6. IF 백엔드_API_서버가 실패 응답 `{ success: false, message: "..." }`을 반환하면, THEN THE 플랫폼 SHALL message 값을 사용자에게 에러 메시지로 표시한다
+7. IF 백엔드_API_서버 요청이 실패하면(네트워크 오류 또는 5xx 응답), THEN THE 플랫폼 SHALL 사용자에게 "예약 처리 중 오류가 발생했습니다" 에러 메시지를 표시한다
+8. THE 플랫폼 SHALL 백엔드_API_서버 요청 실패 시에도 기존 mock 데이터 기반 예약 저장을 폴백으로 유지하지 않는다 (백엔드 연결 후에는 백엔드 응답에만 의존)
+9. THE 플랫폼 SHALL 백엔드_API_서버의 동시성 락 처리에 의한 중복 예약 방지 응답을 사용자에게 전달한다
+
+### 요구사항 11: 관리자 예약 목록 조회 백엔드 연결
+
+**사용자 스토리:** 관리자로서, 백엔드 서버에 저장된 실제 예약 목록을 조회하고 싶다. 이를 통해 모든 예약 현황을 정확하게 파악할 수 있다.
+
+#### 인수 조건
+
+1. WHEN 관리자가 예약 목록을 조회하면, THE 플랫폼 SHALL 백엔드_API_서버의 GET /api/reservations/admin/list 엔드포인트에서 예약 데이터를 가져온다
+2. THE 플랫폼 SHALL 백엔드_API_서버의 Reservation 응답 데이터(id, storeId, headcount, time, totalAmount, minOrderAmount, status, createdAt, menuItems)를 프론트엔드 표시 형식으로 변환한다
+3. IF 백엔드_API_서버 요청이 실패하면, THEN THE 플랫폼 SHALL "예약 목록을 불러올 수 없습니다" 에러 메시지를 표시한다
+
+### 요구사항 12: 점진적 마이그레이션 전략
+
+**사용자 스토리:** 개발자로서, 백엔드 API가 준비된 영역부터 실제 API로 전환하고, 아직 준비되지 않은 영역은 API가 추가될 때 즉시 전환할 수 있는 구조를 갖추고 싶다. 이를 통해 백엔드 개발 진행 상황에 맞춰 안정적이고 신속하게 전환할 수 있다.
+
+#### 인수 조건
+
+1. THE 플랫폼 SHALL 가게 목록 조회(GET /api/stores)를 백엔드_API_서버의 GET /api/stores?date=YYYY-MM-DD&headcount=N 엔드포인트로 프록시하여 연결한다
+2. THE 플랫폼 SHALL 가게 상세 조회(GET /api/stores/{storeId})를 백엔드_API_서버의 GET /api/stores/{storeId}?date=YYYY-MM-DD 엔드포인트로 프록시하여 연결한다
+3. THE 플랫폼 SHALL 예약 조회를 전화번호 기반으로 변경하여 백엔드_API_서버의 GET /api/reservations/check?userPhone=... 엔드포인트로 프록시하여 연결한다
+4. THE 플랫폼 SHALL 예약 취소를 PATCH 메서드로 변경하여 백엔드_API_서버의 PATCH /api/reservations/{reservationId}/cancel 엔드포인트로 프록시하여 연결한다
+5. THE 플랫폼 SHALL 알림(notifications) 기능은 백엔드 API가 추가될 때까지 임시로 mock 데이터를 사용하며, API가 준비되면 즉시 전환한다
+6. THE 플랫폼 SHALL 백엔드_API_서버와의 통신을 API_프록시 패턴(Next.js API Route → 백엔드)으로 구현하여 클라이언트가 백엔드 서버에 직접 접근하지 않도록 한다
+7. THE 플랫폼 SHALL 알림 데이터 영역의 데이터 소스를 mock과 백엔드 API 간에 쉽게 전환할 수 있는 구조로 구현한다
+
+### 요구사항 13: 백엔드 공통 응답 포맷 처리
+
+**사용자 스토리:** 개발자로서, 백엔드 API의 공통 응답 래퍼 형식을 일관되게 처리하고 싶다. 이를 통해 모든 API 호출에서 성공/실패 응답을 통일된 방식으로 다룰 수 있다.
+
+#### 인수 조건
+
+1. THE API_프록시 SHALL 백엔드_API_서버의 성공 응답 `{ success: true, data: ... }`에서 data 필드를 추출하여 프론트엔드에 전달한다
+2. WHEN 백엔드_API_서버가 `{ success: false, message: "..." }` 응답을 반환하면, THE API_프록시 SHALL message 값을 에러 메시지로 처리한다
+3. THE API_프록시 SHALL 관리자 장부 조회 API(GET /api/reservations/admin/list)의 응답을 예외로 처리하여 순수 배열 형태를 그대로 사용한다
+4. THE 백엔드_API_클라이언트 SHALL 공통 응답 래퍼 파싱 로직을 공유 함수로 구현하여 모든 API 호출에서 재사용한다
+
+### 요구사항 14: 가게 목록 및 상세 백엔드 연결
+
+**사용자 스토리:** 사용자로서, 가게 목록과 상세 정보를 실제 백엔드 서버에서 조회하고 싶다. 이를 통해 최신 가게 데이터와 실시간 타임라인 정보를 확인할 수 있다.
+
+#### 인수 조건
+
+1. WHEN 사용자가 메인 홈에서 날짜와 인원수를 선택하면, THE 플랫폼 SHALL Next.js API Route(GET /api/stores)에서 백엔드_API_서버의 GET /api/stores?date=YYYY-MM-DD&headcount=N 엔드포인트로 프록시하여 가게 목록을 조회한다
+2. THE 플랫폼 SHALL 백엔드_API_서버의 가게 목록 응답에서 백엔드_공통_응답_래퍼를 파싱하여 data 필드의 가게 목록과 11~20시 타임라인 데이터를 프론트엔드에 전달한다
+3. WHEN 사용자가 가게 상세 화면에 진입하면, THE 플랫폼 SHALL Next.js API Route(GET /api/stores/{storeId})에서 백엔드_API_서버의 GET /api/stores/{storeId}?date=YYYY-MM-DD 엔드포인트로 프록시하여 가게 상세, 메뉴판, 최소_주문_금액_규칙(minOrderRules)을 조회한다
+4. THE 플랫폼 SHALL 백엔드_API_서버의 가게 상세 응답에서 백엔드_공통_응답_래퍼를 파싱하여 data 필드의 가게 상세 데이터를 프론트엔드에 전달한다
+5. IF 백엔드_API_서버 요청이 실패하면, THEN THE 플랫폼 SHALL 사용자에게 "가게 정보를 불러올 수 없습니다" 에러 메시지를 표시한다
+
+### 요구사항 15: 예약 조회 백엔드 연결
+
+**사용자 스토리:** 사용자로서, 전화번호로 내 예약 목록을 조회하고 싶다. 이를 통해 실제 백엔드에 저장된 예약 현황을 확인할 수 있다.
+
+#### 인수 조건
+
+1. WHEN 사용자가 내 예약 페이지에서 전화번호를 입력하면, THE 플랫폼 SHALL Next.js API Route에서 백엔드_API_서버의 GET /api/reservations/check?userPhone=... 엔드포인트로 프록시하여 예약 목록을 조회한다
+2. THE 플랫폼 SHALL 백엔드_API_서버의 예약 조회 응답에서 백엔드_공통_응답_래퍼를 파싱하여 data 필드의 예약 목록과 주문 메뉴 상세를 프론트엔드에 전달한다
+3. IF 백엔드_API_서버 요청이 실패하면, THEN THE 플랫폼 SHALL 사용자에게 "예약 정보를 불러올 수 없습니다" 에러 메시지를 표시한다
+4. IF 해당 전화번호의 예약이 없으면, THEN THE 플랫폼 SHALL "아직 예약 내역이 없습니다" 안내 메시지를 표시한다
+
+### 요구사항 16: 예약 취소 백엔드 연결
+
+**사용자 스토리:** 사용자로서, 예약을 취소하면 실제 백엔드 서버에서 예약이 취소되고 타임슬롯이 재오픈되길 원한다. 이를 통해 취소된 시간대에 다른 사용자가 예약할 수 있다.
+
+#### 인수 조건
+
+1. WHEN 사용자가 예약 취소를 확인하면, THE 플랫폼 SHALL Next.js API Route에서 백엔드_API_서버의 PATCH /api/reservations/{reservationId}/cancel 엔드포인트로 프록시하여 예약을 취소한다
+2. THE 플랫폼 SHALL 예약 취소 요청에 PATCH HTTP 메서드를 사용한다
+3. WHEN 백엔드_API_서버가 성공 응답 `{ success: true, data: ... }`을 반환하면, THE 플랫폼 SHALL 예약 취소 성공으로 처리하고 예약 목록을 갱신한다
+4. IF 백엔드_API_서버가 실패 응답 `{ success: false, message: "..." }`을 반환하면, THEN THE 플랫폼 SHALL message 값을 사용자에게 에러 메시지로 표시한다
+5. IF 백엔드_API_서버 요청이 실패하면(네트워크 오류), THEN THE 플랫폼 SHALL 사용자에게 "예약 취소 처리 중 오류가 발생했습니다" 에러 메시지를 표시한다

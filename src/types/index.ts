@@ -10,6 +10,17 @@ export interface MinOrderRule {
   minOrderAmount: number;
 }
 
+// --- 슬롯 관련 (slots 테이블 대응) ---
+
+export interface TimeSlot {
+  slotId: string;
+  timeBlock: string;       // "11:00", "11:30" 등
+  isAvailable: boolean;
+  maxPeople: number;
+  /** 현재 예약된 인원수 */
+  currentHeadcount: number;
+}
+
 // --- 가게 관련 ---
 
 /** GET /api/stores response item */
@@ -18,8 +29,12 @@ export interface StoreCard {
   name: string;
   category?: string;
   images: string[];
+  /** @deprecated 하위 호환용 – timeline 사용 권장 */
   availableTimes: string[];
+  /** @deprecated 하위 호환용 – timeline 사용 권장 */
   reservedTimes: string[];
+  /** slots 테이블 기반 타임라인 */
+  timeline?: TimeSlot[];
   maxCapacity: number;
   minOrderRules: MinOrderRule[];
 }
@@ -30,7 +45,10 @@ export interface StoreDetail {
   name: string;
   images: string[];
   maxCapacity: number;
+  /** @deprecated 하위 호환용 – slots 사용 권장 */
   availableTimes: string[];
+  /** slots 테이블 기반 슬롯 목록 */
+  slots?: TimeSlot[];
   minOrderRules: MinOrderRule[];
 }
 
@@ -38,12 +56,15 @@ export interface MenuItemData {
   id: string;
   name: string;
   price: number;
+  /** 필수 메뉴 여부 (menus.is_required) */
+  isRequired?: boolean;
   category?: string;
 }
 
 // --- 예약 상태 ---
 
-export type ReservationStatus = 'pending' | 'accepted' | 'rejected';
+/** DB 상태값: CONFIRMED | CANCELED (백엔드 스키마 기준) */
+export type ReservationStatus = 'pending' | 'accepted' | 'rejected' | 'CONFIRMED' | 'CANCELED';
 
 export interface StatusTransitionResult {
   valid: boolean;
@@ -55,13 +76,14 @@ export interface StatusTransitionResult {
 /** POST /api/reservations request */
 export interface CreateReservationRequest {
   storeId: string;
+  storeName?: string;          // Slack 알림용 (선택)
   headcount: number;
   date: string;
   time: string;
   groupName: string;           // 단체명(행사명)
   representativeName: string;  // 대표자 이름
   phone: string;               // 전화번호
-  menuItems: { menuId: string; quantity: number }[];
+  menuItems: { menuId: string; name?: string; price?: number; quantity: number }[];
   totalAmount: number;
   minOrderAmount: number;
 }
@@ -143,6 +165,29 @@ export interface SlackReservationNotification {
   reservationId: string;
 }
 
+// --- 관리자 예약 뷰 ---
+
+export interface AdminReservationView {
+  id: string;
+  storeId: string;
+  storeName: string;
+  headcount: number;
+  time: string;
+  totalAmount: number;
+  minOrderAmount: number;
+  status: string;
+  createdAt: Date;
+  menuItems: {
+    menuId: string;
+    name: string;
+    quantity: number;
+    /** reservation_menus.price_at_time */
+    priceAtTime: number;
+    /** @deprecated 하위 호환 별칭 */
+    price: number;
+  }[];
+}
+
 // --- API 응답 래퍼 ---
 
 export interface GetStoresResponse {
@@ -152,6 +197,28 @@ export interface GetStoresResponse {
 export interface GetStoreDetailResponse {
   store: StoreDetail;
   menus: MenuItemData[];
+  slots?: TimeSlot[];
+  /** @deprecated 하위 호환용 */
   availableTimes: string[];
+  /** @deprecated 하위 호환용 */
   reservedTimes: string[];
+}
+
+// --- 전화번호 예약 조회 응답 (reservations + reservation_menus JOIN) ---
+
+export interface ReservationCheckItem {
+  reservationId: string;
+  storeId: string;
+  slotId: string;
+  timeBlock: string;
+  headcount: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  menus: {
+    menuId: string;
+    name: string;
+    quantity: number;
+    priceAtTime: number;
+  }[];
 }

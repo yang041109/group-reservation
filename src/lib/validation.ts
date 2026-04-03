@@ -42,6 +42,7 @@ export function validateReservationRequest(
   store: { maxCapacity: number },
   availableTimes: string[],
   minOrderRules: MinOrderRule[],
+  menuData?: MenuItemData[],
 ): ValidationResult {
   const errors: string[] = [];
 
@@ -106,6 +107,17 @@ export function validateReservationRequest(
     }
   }
 
+  // 필수 메뉴(is_required) 포함 여부 검증
+  if (menuData && req.menuItems) {
+    const requiredMenus = menuData.filter((m) => m.isRequired);
+    for (const required of requiredMenus) {
+      const selected = req.menuItems.find((item) => item.menuId === required.id);
+      if (!selected || selected.quantity < 1) {
+        errors.push(`필수 메뉴 "${required.name}"을(를) 선택해주세요.`);
+      }
+    }
+  }
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -133,6 +145,8 @@ const VALID_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
   pending: ['accepted', 'rejected'],
   accepted: [],
   rejected: [],
+  CONFIRMED: ['CANCELED'],
+  CANCELED: [],
 };
 
 /**

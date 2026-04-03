@@ -81,6 +81,7 @@ export default function ReservationConfirmPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeId: reservation.storeId,
+          storeName: reservation.storeName,
           headcount: reservation.headcount,
           date: reservation.date,
           time: reservation.time,
@@ -89,6 +90,8 @@ export default function ReservationConfirmPage() {
           phone: phone.trim(),
           menuItems: reservation.menuItems.map((item) => ({
             menuId: item.menuId,
+            name: item.name,
+            price: item.price,
             quantity: item.quantity,
           })),
           totalAmount: reservation.totalAmount,

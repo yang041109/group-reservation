@@ -4,6 +4,7 @@ import type {
   MenuItemData,
   MinOrderRule,
   NotificationData,
+  TimeSlot,
 } from '@/types';
 
 // ============================================================
@@ -25,6 +26,43 @@ export interface MockStore {
   maxCapacity: number;
   minOrderRules: MinOrderRule[];
   menus: MenuItemData[];
+}
+
+// --- 슬롯 헬퍼: availableTimes/reservedTimes → TimeSlot[] 변환 ---
+
+/** 슬롯별 예약 인원 시뮬레이션 데이터 (store-date-time → headcount) */
+const MOCK_SLOT_HEADCOUNTS: Record<string, number> = {};
+
+/** mock 슬롯 예약 인원 설정 (테스트/시드용) */
+export function setMockSlotHeadcount(storeId: string, date: string, time: string, headcount: number) {
+  MOCK_SLOT_HEADCOUNTS[`${storeId}-${date}-${time}`] = headcount;
+}
+
+export function buildTimeline(
+  store: MockStore,
+  date: string,
+): TimeSlot[] {
+  const schedule = getStoreScheduleForDate(store, date);
+  const allTimes = new Set([...schedule.availableTimes, ...schedule.reservedTimes]);
+  const sorted = [...allTimes].sort();
+  return sorted.map((time) => {
+    const isAvailable = schedule.availableTimes.includes(time);
+    const isReserved = schedule.reservedTimes.includes(time);
+    // 예약된 슬롯은 mock 인원 데이터 사용, 없으면 랜덤 시뮬레이션
+    const key = `${store.id}-${date}-${time}`;
+    let currentHeadcount = MOCK_SLOT_HEADCOUNTS[key] ?? 0;
+    if (isReserved && currentHeadcount === 0) {
+      // 예약된 슬롯에 시뮬레이션 인원 부여 (maxCapacity의 40~100%)
+      currentHeadcount = Math.floor(store.maxCapacity * (0.4 + Math.random() * 0.6));
+    }
+    return {
+      slotId: `slot-${store.id}-${date}-${time}`,
+      timeBlock: time,
+      isAvailable: isAvailable && !isReserved,
+      maxPeople: store.maxCapacity,
+      currentHeadcount,
+    };
+  });
 }
 
 export interface MockReservation {
@@ -124,7 +162,7 @@ const STORES: MockStore[] = [
       { id: 'menu-1-2', name: '된장찌개', price: 8000, category: '찌개' },
       { id: 'menu-1-3', name: '불고기', price: 15000, category: '메인' },
       { id: 'menu-1-4', name: '잡채', price: 12000, category: '메인' },
-      { id: 'menu-1-5', name: '공기밥', price: 1000, category: '사이드' },
+      { id: 'menu-1-5', name: '공기밥', price: 1000, category: '사이드', isRequired: true },
       { id: 'menu-1-6', name: '계란말이', price: 7000, category: '사이드' },
     ],
   },
@@ -368,3 +406,37 @@ export function markNotificationRead(id: string): MockNotification | undefined {
 export function getUnreadCount(): number {
   return notifications.filter((n) => !n.isRead).length;
 }
+
+// --- 시드: 슬롯별 예약 인원 시뮬레이션 ---
+// store-1 (맛있는 한식당, maxCapacity=30)
+(() => {
+  const sid = 'store-1';
+  // DAY1: 점심 시간대 일부 예약
+  setMockSlotHeadcount(sid, DAY1, '13:00', 25);
+  setMockSlotHeadcount(sid, DAY1, '13:30', 25);
+  setMockSlotHeadcount(sid, DAY1, '14:00', 18);
+  setMockSlotHeadcount(sid, DAY1, '14:30', 18);
+  setMockSlotHeadcount(sid, DAY1, '17:00', 30); // 꽉 참
+  // DAY2: 저녁 시간대 혼잡
+  setMockSlotHeadcount(sid, DAY2, '12:30', 20);
+  setMockSlotHeadcount(sid, DAY2, '13:00', 28);
+  setMockSlotHeadcount(sid, DAY2, '13:30', 28);
+  setMockSlotHeadcount(sid, DAY2, '17:00', 15);
+  setMockSlotHeadcount(sid, DAY2, '17:30', 22);
+
+  // store-2 (화덕 피자 하우스, maxCapacity=20)
+  const sid2 = 'store-2';
+  setMockSlotHeadcount(sid2, DAY1, '13:00', 20); // 꽉 참
+  setMockSlotHeadcount(sid2, DAY1, '14:00', 14);
+  setMockSlotHeadcount(sid2, DAY1, '14:30', 14);
+  setMockSlotHeadcount(sid2, DAY1, '15:00', 10);
+  setMockSlotHeadcount(sid2, DAY1, '15:30', 10);
+  setMockSlotHeadcount(sid2, DAY1, '17:00', 18);
+
+  // store-3 (스시 오마카세, maxCapacity=12)
+  const sid3 = 'store-3';
+  setMockSlotHeadcount(sid3, DAY1, '11:00', 12); // 꽉 참
+  setMockSlotHeadcount(sid3, DAY1, '13:00', 8);
+  setMockSlotHeadcount(sid3, DAY1, '13:30', 8);
+  setMockSlotHeadcount(sid3, DAY1, '17:00', 6);
+})();

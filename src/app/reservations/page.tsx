@@ -84,7 +84,7 @@ export default function MyReservationsPage() {
     if (!confirm('예약을 취소하시겠습니까?')) return;
     setCancellingId(id);
     try {
-      const res = await fetch(`/api/reservations/${id}/cancel`, { method: 'POST' });
+      const res = await fetch(`/api/reservations/${id}/cancel`, { method: 'PATCH' });
       if (res.ok) {
         setReservations((prev) => prev.filter((r) => r.id !== id));
       } else {

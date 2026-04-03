@@ -82,12 +82,12 @@ Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼
     - 읽지 않은 알림 개수 조회 함수 (getUnreadNotificationCount)
     - _Requirements: 7.1, 7.2, 7.3, 7.5, 7.6_
 
-  - [~] 2.13 Property 14 속성 테스트: 사이트 내 알림 생성 정확성
+  - [ ] 2.13 Property 14 속성 테스트: 사이트 내 알림 생성 정확성
     - **Property 14: 사이트 내 알림 생성 정확성**
     - 임의의 예약 상태 변경 생성 → 알림 타입 및 메시지 정확성 확인
     - **Validates: Requirements 7.1, 7.2**
 
-  - [~] 2.14 Property 15 속성 테스트: 사이트 내 알림 안내사항 포함
+  - [ ] 2.14 Property 15 속성 테스트: 사이트 내 알림 안내사항 포함
     - **Property 15: 사이트 내 알림 안내사항 포함**
     - 임의의 안내사항 포함 상태 변경 생성 → 알림에 안내사항 포함 확인
     - **Validates: Requirements 7.3**
@@ -288,6 +288,133 @@ Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼
     - 취소 불가 시 안내 메시지 표시
     - mock-data에 deleteReservation 함수 추가
     - _Requirements: 7.3, 7.4, 7.5, 7.6_
+
+- [x] 16. 백엔드 API 클라이언트 모듈 수정 (새 API 명세 반영)
+  - [x] 16.1 환경 변수 설정
+    - .env.example에 BACKEND_API_URL 항목 추가
+    - .env.local에 BACKEND_API_URL=http://localhost:8080 설정
+    - _Requirements: 9.3_
+
+  - [x] 16.2 backend-api.ts 수정 - 공통 응답 래퍼 파싱 및 새 API 함수 추가
+    - `parseBackendResponse<T>` 함수 추가: `{ success: true, data }` → data 추출, `{ success: false, message }` → BackendApiError throw
+    - `backendFetch`에 `rawResponse` 옵션 추가: true이면 래퍼 파싱 없이 원본 반환 (관리자 장부 조회용)
+    - `backendFetch` 기본 동작: JSON 응답에 `success` 필드가 있으면 자동으로 `parseBackendResponse` 적용
+    - 실패 응답(non-ok)도 래퍼 형식일 수 있으므로 JSON 파싱 시도 후 `{ success: false, message }` 처리
+    - 새 API 함수 추가: `getStores(date, headcount)`, `getStoreDetail(storeId, date)`, `getReservationsByPhone(userPhone)`, `cancelReservation(reservationId)`
+    - 기존 `createBackendReservation` → `createReservation`으로 변경, 새 요청 타입(`BackendCreateReservationRequest`) 사용
+    - 기존 `getAdminReservationList`에 `rawResponse: true` 옵션 적용 (순수 배열 응답)
+    - _Requirements: 9.1, 9.2, 13.1, 13.2, 13.3, 13.4_
+
+  - [x] 16.3 DTO 변환 함수 수정 - 새 필드 매핑
+    - `toBackendReservationRequest` 수정: 새 필드 매핑 (userName ← representativeName, groupName, userPhone ← phone, userNote, slotId ← time, selectedMenus ← menuItems의 menuId/quantity만)
+    - `toBackendReservationRequest`에서 totalAmount, minOrderAmount 제거 (백엔드에서 계산/검증)
+    - `BackendCreateReservationRequest` 타입 정의: userName, groupName, userPhone, userNote, storeId, slotId, headcount, selectedMenus
+    - 기존 `BackendReservationRequest`, `BackendMenuItemRequest` 타입 제거 또는 대체
+    - `fromBackendReservation`은 기존 유지
+    - _Requirements: 10.2, 10.3, 10.4_
+
+  - [x] 16.4 Property 15 속성 테스트: 환경 변수 기반 base URL 설정
+    - **Property 15: 백엔드 API Base URL 환경 변수 설정**
+    - 임의의 URL 문자열 생성 → BACKEND_API_URL 환경 변수 값이 base URL로 사용되는지 확인
+    - **Validates: Requirements 9.1, 9.2**
+
+  - [x] 16.5 Property 16 속성 테스트: DTO 변환 정확성 (새 필드)
+    - **Property 16: 프론트엔드 → 백엔드 예약 DTO 변환 정확성 (새 필드)**
+    - 임의의 프론트엔드 예약 요청 생성 → 백엔드 DTO 변환 시 userName, groupName, userPhone, userNote, slotId, selectedMenus 정확 매핑 확인
+    - totalAmount, minOrderAmount가 변환 결과에 포함되지 않는지 확인
+    - **Validates: Requirements 10.2, 10.3, 10.4**
+
+  - [x] 16.6 Property 17 속성 테스트: 공통 응답 래퍼 파싱
+    - **Property 17: 백엔드 공통 응답 래퍼 파싱**
+    - 임의의 백엔드 성공 응답 `{ success: true, data: X }` 생성 → parseBackendResponse가 data 값 X를 정확히 반환 확인
+    - 임의의 백엔드 실패 응답 `{ success: false, message: M }` 생성 → parseBackendResponse가 message 값 M을 포함하는 에러 발생 확인
+    - **Validates: Requirements 13.1, 13.2**
+
+  - [ ]* 16.7 Property 19 속성 테스트: 백엔드 → 프론트엔드 변환 정확성
+    - **Property 19: 백엔드 → 프론트엔드 예약 목록 변환 정확성**
+    - 임의의 백엔드 Reservation 응답 데이터 생성 → 프론트엔드 표시 형식 변환 시 모든 필드 정확 매핑 확인
+    - **Validates: Requirements 11.2**
+
+- [x] 17. POST /api/reservations API Route 수정 (새 필드 + 공통 래퍼 파싱)
+  - [x] 17.1 POST /api/reservations 핸들러 수정
+    - `toBackendReservationRequest`로 새 필드(userName, groupName, userPhone, userNote, slotId, selectedMenus) 매핑하여 백엔드 프록시
+    - 백엔드 성공 응답 `{ success: true, data }` → data에서 예약 정보 추출하여 CreateReservationResponse 반환
+    - 백엔드 실패 응답 `{ success: false, message }` → message를 에러 메시지로 반환
+    - 백엔드 네트워크 오류/5xx → "예약 처리 중 오류가 발생했습니다" 에러 반환
+    - mock 폴백 없음 (백엔드 응답에만 의존)
+    - Slack 알림 발송은 기존대로 유지 (백엔드 성공 후 발송)
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9_
+
+  - [ ]* 17.2 Property 18 속성 테스트: 백엔드 에러 시 에러 전파 및 폴백 미사용
+    - **Property 18: 백엔드 API 에러 시 에러 전파 및 폴백 미사용**
+    - 임의의 백엔드 에러 응답(네트워크 오류, 4xx, 5xx) 생성 → 에러 전파 확인 및 mock 폴백 미사용 확인
+    - **Validates: Requirements 10.5, 10.6, 10.7, 10.8**
+
+- [x] 18. 관리자 예약 목록 조회 API Route 수정 (rawResponse 옵션)
+  - [x] 18.1 GET /api/reservations/admin/list 수정
+    - `getAdminReservationList`가 `rawResponse: true` 옵션으로 백엔드 호출 (순수 배열 응답, 래퍼 파싱 없음)
+    - 백엔드 응답 → `fromBackendReservation`으로 프론트엔드 형식(AdminReservationView[]) 변환
+    - 백엔드 실패 시 "예약 목록을 불러올 수 없습니다" 에러 응답 반환
+    - _Requirements: 11.1, 11.2, 11.3, 13.3_
+
+- [x] 19. 체크포인트 - 백엔드 API 클라이언트 및 기존 API Route 수정 검증
+  - 모든 테스트가 통과하는지 확인하고, 질문이 있으면 사용자에게 문의하세요.
+
+- [x] 20. 가게 목록 API Route 수정 (GET /api/stores → 백엔드 프록시)
+  - [x] 20.1 GET /api/stores 핸들러를 백엔드 프록시로 전환
+    - mock-data의 `getAllStores`/`getStoreScheduleForDate` 대신 `getStores(date, headcount)` 백엔드 API 호출
+    - 백엔드 응답 `{ success: true, data: [...] }` → 공통 래퍼 파싱하여 가게 목록 + 타임라인 데이터 반환
+    - 쿼리 파라미터: date (YYYY-MM-DD), headcount (number) → 백엔드로 전달
+    - 백엔드 실패 시 "가게 정보를 불러올 수 없습니다" 에러 응답 반환
+    - _Requirements: 12.1, 12.6, 14.1, 14.2, 14.5_
+
+  - [ ]* 20.2 Property 20 속성 테스트: 가게 목록 백엔드 프록시 + 래퍼 파싱
+    - **Property 20: 가게 목록/상세 백엔드 프록시 + 래퍼 파싱**
+    - 임의의 날짜/인원수 생성 → 가게 목록 프록시가 백엔드 호출 후 래퍼 파싱하여 data 반환 확인
+    - **Validates: Requirements 12.1, 14.1, 14.2**
+
+- [x] 21. 가게 상세 API Route 수정 (GET /api/stores/{id} → 백엔드 프록시)
+  - [x] 21.1 GET /api/stores/[id] 핸들러를 백엔드 프록시로 전환
+    - mock-data의 `getStoreById`/`getStoreScheduleForDate` 대신 `getStoreDetail(storeId, date)` 백엔드 API 호출
+    - 백엔드 응답 `{ success: true, data: { store, menus, minOrderRules, ... } }` → 공통 래퍼 파싱하여 가게 상세 + 메뉴 + minOrderRules 반환
+    - 쿼리 파라미터: date (YYYY-MM-DD) → 백엔드로 전달
+    - 백엔드 실패 시 "가게 정보를 불러올 수 없습니다" 에러 응답 반환
+    - _Requirements: 12.2, 12.6, 14.3, 14.4, 14.5_
+
+- [x] 22. 예약 조회 API Route 추가 (GET /api/reservations/check → 백엔드 프록시)
+  - [x] 22.1 GET /api/reservations/check 엔드포인트 생성
+    - `src/app/api/reservations/check/route.ts` 파일 생성
+    - 쿼리 파라미터 `userPhone`을 받아 `getReservationsByPhone(userPhone)` 백엔드 API 호출
+    - 백엔드 응답 `{ success: true, data: [...] }` → 공통 래퍼 파싱하여 예약 목록 반환
+    - 백엔드 실패 시 "예약 정보를 불러올 수 없습니다" 에러 응답 반환
+    - 해당 전화번호의 예약이 없으면 빈 배열 반환
+    - _Requirements: 12.3, 12.6, 15.1, 15.2, 15.3, 15.4_
+
+  - [ ]* 22.2 Property 21 속성 테스트: 전화번호 기반 예약 조회 프록시 + 래퍼 파싱
+    - **Property 21: 전화번호 기반 예약 조회 프록시 + 래퍼 파싱**
+    - 임의의 전화번호 생성 → 예약 조회 프록시가 백엔드 check 엔드포인트 호출 후 래퍼 파싱하여 data 반환 확인
+    - **Validates: Requirements 12.3, 15.1, 15.2**
+
+- [x] 23. 예약 취소 API Route 수정 (PATCH /api/reservations/{id}/cancel → 백엔드 프록시)
+  - [x] 23.1 예약 취소 핸들러를 PATCH 메서드 + 백엔드 프록시로 전환
+    - `src/app/api/reservations/[id]/cancel/route.ts` 수정
+    - 기존 POST 핸들러 → PATCH 핸들러로 변경
+    - mock-data의 `getReservationById`/`deleteReservation` 대신 `cancelReservation(reservationId)` 백엔드 API 호출
+    - 백엔드 성공 응답 `{ success: true, data }` → 취소 성공 처리
+    - 백엔드 실패 응답 `{ success: false, message }` → message를 에러 메시지로 반환
+    - 백엔드 네트워크 오류 → "예약 취소 처리 중 오류가 발생했습니다" 에러 반환
+    - _Requirements: 12.4, 12.6, 16.1, 16.2, 16.3, 16.4, 16.5_
+
+  - [ ]* 23.2 Property 22 속성 테스트: 예약 취소 PATCH 프록시 + 래퍼 파싱
+    - **Property 22: 예약 취소 PATCH 프록시 + 래퍼 파싱**
+    - 임의의 예약 ID 생성 → 예약 취소 프록시가 PATCH 메서드로 백엔드 호출 후 래퍼 파싱하여 성공/실패 처리 확인
+    - **Validates: Requirements 12.4, 16.1, 16.2, 16.3, 16.4**
+
+- [x] 24. 체크포인트 - 전체 백엔드 API 연결 검증
+  - 모든 백엔드 프록시 API Route가 정상 동작하는지 확인
+  - 공통 응답 래퍼 파싱이 모든 API에서 일관되게 적용되는지 확인
+  - 관리자 장부 조회만 rawResponse(순수 배열)로 처리되는지 확인
+  - 모든 테스트가 통과하는지 확인하고, 질문이 있으면 사용자에게 문의하세요.
 
 ## Notes
 

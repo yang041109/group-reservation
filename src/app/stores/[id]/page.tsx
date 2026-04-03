@@ -107,6 +107,7 @@ export default function StoreDetailPage() {
   }
 
   const { store, menus, availableTimes, reservedTimes } = data;
+  const slots = data.slots ?? [];
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
@@ -161,6 +162,7 @@ export default function StoreDetailPage() {
         <TimeSelector
           availableTimes={availableTimes}
           reservedTimes={reservedTimes}
+          slots={slots}
           selectedTime={selectedTime}
           onChange={setSelectedTime}
         />
