@@ -64,7 +64,7 @@ export default function NotificationBadge() {
           setOpen((v) => !v);
           if (!open) fetchNotifications();
         }}
-        className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition"
+        className="relative rounded-full p-2 text-sky-200 hover:bg-indigo-700 hover:text-white transition"
         aria-label={`알림${unreadCount > 0 ? ` (${unreadCount}개 읽지 않음)` : ''}`}
         aria-expanded={open}
         aria-haspopup="true"
