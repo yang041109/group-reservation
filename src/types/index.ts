@@ -131,24 +131,6 @@ export interface ValidationResult {
   errors: string[];
 }
 
-// --- 노션 동기화 ---
-
-/** POST /api/admin/sync-notion response */
-export interface SyncNotionResponse {
-  syncedStores: number;
-  errors: string[];
-  lastSyncedAt: Date;
-}
-
-export interface NotionStoreData {
-  name: string;
-  images: string[];
-  menus: { name: string; price: number; category?: string }[];
-  availableTimes: string[];
-  maxCapacity: number;
-  minOrderRules: { minHeadcount: number; maxHeadcount: number; minOrderAmount: number }[];
-}
-
 // --- Slack ---
 
 export interface SlackReservationNotification {

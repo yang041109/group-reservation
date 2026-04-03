@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notionhq/client": "^5.14.0",
     "@slack/web-api": "^7.15.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^25.5.0",

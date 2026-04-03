@@ -2,13 +2,12 @@
 
 ## 개요
 
-단체 예약 플랫폼은 사용자가 메인 홈에서 가게 카드를 탐색하고, 상세 화면에서 인원/시간 선택 및 메뉴 추가 후 예약을 진행하는 간소화된 단체 예약 서비스이다. 가게 데이터는 노션에서 관리하며 플랫폼에 동기화하는 방식으로 운영된다. 예약이 접수되면 Slack을 통해 운영팀에 알림이 전달되며, 운영팀은 수락/거절 및 추가 안내사항을 전달할 수 있다. 운영팀의 처리 결과는 사이트 내 알림을 통해 사용자에게 전달된다.
+단체 예약 플랫폼은 사용자가 메인 홈에서 가게 카드를 탐색하고, 상세 화면에서 인원/시간 선택 및 메뉴 추가 후 예약을 진행하는 간소화된 단체 예약 서비스이다. 가게 데이터는 백엔드 DB에서 관리된다. 예약이 접수되면 Slack을 통해 운영팀에 알림이 전달되며, 운영팀은 수락/거절 및 추가 안내사항을 전달할 수 있다. 운영팀의 처리 결과는 사이트 내 알림을 통해 사용자에게 전달된다.
 
 백엔드 개발자가 Spring Boot로 구현한 API 서버가 가게 탐색, 가게 상세, 예약 생성, 예약 조회, 예약 취소, 관리자 장부 조회를 제공한다. 알림(notifications) 기능만 아직 백엔드 API가 없어 mock 데이터를 유지하며, API가 준비되면 즉시 전환할 수 있는 서비스 레이어 구조를 갖춘다. 백엔드 API 응답은 공통 래퍼 형식 `{ success: true, data: ... }` / `{ success: false, message: "..." }`을 따르며, 관리자 장부 조회 API만 예외적으로 순수 배열을 반환한다.
 
 핵심 흐름:
-1. 운영팀이 노션에서 가게 데이터 관리 → 플랫폼에 동기화
-2. 사용자가 메인 홈에서 날짜/인원수 선택 후 가게 카드 탐색
+1. 사용자가 메인 홈에서 날짜/인원수 선택 후 가게 카드 탐색
 3. 가게 카드 클릭 → 상세 화면에서 시간 선택 + 메뉴 추가 (최소 주문 금액 충족 필요)
 4. "예약하기" 클릭 → 예약 확인 화면 → "예약 확정" 클릭
 5. Next.js API Route → Spring Boot 백엔드로 예약 데이터 전달 (API 프록시 패턴)
@@ -33,7 +32,6 @@ graph TB
         AdminProxy["관리자 예약 목록 프록시"]
         NotificationService["알림 서비스 (mock)"]
         SlackService["Slack 알림 서비스"]
-        NotionSyncService["노션 동기화 서비스"]
         BackendClient["백엔드 API 클라이언트\n(src/lib/backend-api.ts)"]
     end
 
@@ -49,7 +47,6 @@ graph TB
 
     subgraph External["외부 서비스"]
         SlackAPI["Slack API"]
-        NotionAPI["Notion API"]
     end
 
     WebApp --> StoreProxy
@@ -77,7 +74,6 @@ graph TB
     AdminListAPI --> BackendDB
     ReservationProxy --> SlackService
     SlackService --> SlackAPI
-    NotionSyncService --> NotionAPI
     NotificationService -.->|mock 유지| NotificationService
 ```
 
@@ -87,7 +83,7 @@ graph TB
 - **API 레이어**: Next.js API Routes (프록시 + 서비스)
 - **백엔드**: Spring Boot (가게 탐색/상세, 예약 생성/조회/취소, 관리자 장부 조회)
 - **프론트엔드 데이터**: Mock 데이터 (알림만 - 백엔드 API 추가 시 전환)
-- **외부 연동**: Slack API (Incoming Webhooks + Interactive Messages), Notion API (데이터베이스 연동)
+- **외부 연동**: Slack API (Incoming Webhooks + Interactive Messages)
 - **배포**: Vercel
 
 ### 백엔드 API 연결 아키텍처
@@ -343,7 +339,6 @@ graph LR
 | 관리자 예약 목록 (GET) | **백엔드 연결** | ✅ GET /api/reservations/admin/list | Next.js → Spring Boot 프록시 (순수 배열) |
 | 알림 (notifications) | mock-data.ts | 미구현 | API Route에서 mock → backendFetch 호출로 변경 |
 | Slack 알림 | Slack API 직접 | 해당 없음 | 변경 없음 |
-| 노션 동기화 | Notion API 직접 | 해당 없음 | 변경 없음 |
 
 ## 컴포넌트 및 인터페이스
 
@@ -523,26 +518,6 @@ interface MarkNotificationReadResponse {
 }
 ```
 
-#### 노션 동기화 API
-
-```typescript
-// POST /api/admin/sync-notion - 노션 데이터 동기화
-interface SyncNotionResponse {
-  syncedStores: number;
-  errors: string[];
-  lastSyncedAt: Date;
-}
-
-interface NotionStoreData {
-  name: string;
-  images: string[];
-  menus: { name: string; price: number; category?: string }[];
-  availableTimes: string[];
-  maxCapacity: number;
-  minOrderRules: { minHeadcount: number; maxHeadcount: number; minOrderAmount: number }[];
-}
-```
-
 #### 백엔드 API 서버 인터페이스 (Spring Boot)
 
 ```typescript
@@ -627,7 +602,6 @@ interface Store {
   id: string;
   name: string;
   maxCapacity: number;
-  notionPageId?: string;
   lastSyncedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -829,12 +803,6 @@ function getUnreadNotificationCount(notifications: Notification[]): number {
 
 *정확성 속성(property)은 시스템의 모든 유효한 실행에서 참이어야 하는 특성 또는 동작이다. 속성은 사람이 읽을 수 있는 명세와 기계가 검증할 수 있는 정확성 보장 사이의 다리 역할을 한다.*
 
-### Property 1: 노션 데이터 동기화 정합성
-
-*For any* 노션_데이터_소스의 가게 데이터에 대해, 동기화 후 플랫폼 데이터베이스에 저장된 가게 정보(이름, 사진, 메뉴, 시간, 최소 주문 금액 규칙)는 노션 원본 데이터와 일치해야 한다.
-
-**Validates: Requirements 1.1, 1.2, 1.4**
-
 ### Property 2: 가게 카드 필수 정보 포함
 
 *For any* 가게 데이터에 대해, 메인 홈 가게_카드에는 가게 이름, 가게 사진(1장 이상), 예약 가능한 시간 목록, 최대 수용 가능 인원이 반드시 포함되어야 한다.
@@ -981,7 +949,6 @@ function getUnreadNotificationCount(notifications: Notification[]): number {
 |-----------|-----------|-----------|
 | 데이터베이스 연결 실패 | 재시도 후 "일시적인 오류" 메시지 표시 | 503 |
 | Slack 알림 발송 실패 | 재시도 큐에 등록 (최대 3회, 지수 백오프) | 500 (내부) |
-| 노션 API 연동 실패 | 오류 메시지 표시, 기존 데이터 유지 | 503 |
 | 등록된 가게 없음 | "현재 등록된 가게가 없습니다" 안내 메시지 표시 | 200 (빈 배열) |
 
 ### 백엔드 API 서버 연결 에러 (공통 응답 래퍼 기반)

@@ -2,15 +2,15 @@
 
 ## 개요
 
-Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼을 구현한다. 데이터 모델 및 유틸리티 함수부터 시작하여 API 라우트, 프론트엔드 페이지, 외부 연동(Slack, Notion) 순서로 점진적으로 구축한다.
+Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼을 구현한다. 데이터 모델 및 유틸리티 함수부터 시작하여 API 라우트, 프론트엔드 페이지, 외부 연동(Slack) 순서로 점진적으로 구축한다.
 
 ## Tasks
 
 - [x] 1. 프로젝트 초기 설정 및 데이터베이스 스키마 구성
   - [x] 1.1 Next.js 프로젝트 초기화 및 의존성 설치
     - Next.js (App Router), TypeScript, Tailwind CSS 프로젝트 생성
-    - PostgreSQL 클라이언트(prisma 또는 drizzle), fast-check, Slack SDK, Notion SDK 설치
-    - 환경 변수 설정 파일(.env.example) 생성: DATABASE_URL, SLACK_WEBHOOK_URL, SLACK_SIGNING_SECRET, NOTION_API_KEY, NOTION_DATABASE_ID
+    - PostgreSQL 클라이언트(prisma 또는 drizzle), fast-check, Slack SDK 설치
+    - 환경 변수 설정 파일(.env.example) 생성: DATABASE_URL, SLACK_WEBHOOK_URL, SLACK_SIGNING_SECRET, BACKEND_API_URL
     - _Requirements: 아키텍처 전반_
 
   - [x] 1.2 데이터베이스 스키마 정의
@@ -112,17 +112,9 @@ Next.js (App Router) + TypeScript + PostgreSQL 기반의 단체 예약 플랫폼
     - 존재하지 않는 가게 접근 시 404 반환
     - _Requirements: 3.1, 3.2, 3.4, 3.5, 3.6_
 
-  - [x] 4.3 POST /api/admin/sync-notion API 구현
-    - Notion API를 통해 가게 데이터 조회 및 PostgreSQL에 동기화
-    - 가게 이름, 사진, 메뉴, 예약 가능 시간, 최소 주문 금액 규칙 동기화
-    - 동기화 결과(syncedStores, errors, lastSyncedAt) 반환
-    - 노션 API 실패 시 기존 데이터 유지, 오류 메시지 반환
-    - _Requirements: 1.1, 1.2, 1.3, 1.4_
+  - [x] ~~4.3 POST /api/admin/sync-notion API~~ (제거됨 — 백엔드 DB 직접 연결로 대체)
 
-  - [ ]* 4.4 Property 1 속성 테스트: 노션 데이터 동기화 정합성
-    - **Property 1: 노션 데이터 동기화 정합성**
-    - 임의의 노션 가게 데이터 생성 → 동기화 후 플랫폼 데이터 일치 확인 (Notion API Mock 사용)
-    - **Validates: Requirements 1.1, 1.2, 1.4**
+  - [ ] ~~4.4 Property 1 속성 테스트: 노션 데이터 동기화 정합성~~ (제거됨)
 
 - [x] 5. 예약 관련 API 구현
   - [x] 5.1 POST /api/reservations API 구현
