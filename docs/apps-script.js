@@ -66,15 +66,42 @@ function sheetToObjects(sheetName) {
   const headers = data[0].map(h => String(h).trim());
   return data.slice(1).filter(row => row[0] !== '').map(row => {
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = row[i]; });
+    headers.forEach((h, i) => {
+      const val = row[i];
+      // Google Sheets가 Date 객체로 자동 변환한 경우 → YYYY-MM-DD 또는 HH:mm 문자열로 복원
+      if (val instanceof Date) {
+        if (h === 'date' || h === 'slotDate' || h === 'slot_date') {
+          obj[h] = Utilities.formatDate(val, 'Asia/Seoul', 'yyyy-MM-dd');
+        } else if (h === 'startTime' || h === 'endTime' || h === 'timeBlock' || h === 'time') {
+          obj[h] = Utilities.formatDate(val, 'Asia/Seoul', 'HH:mm');
+        } else {
+          obj[h] = val.toISOString();
+        }
+      } else {
+        obj[h] = val;
+      }
+    });
     return obj;
   });
 }
 
 function appendRow(sheetName, obj, headers) {
   const sheet = SS.getSheetByName(sheetName);
+  // 먼저 행 추가
+  const rowNum = sheet.getLastRow() + 1;
   const row = headers.map(h => obj[h] !== undefined ? obj[h] : '');
   sheet.appendRow(row);
+  
+  // 전화번호/날짜/시간 셀을 텍스트 서식으로 강제 설정
+  const textFields = ['userPhone', 'date', 'startTime', 'endTime', 'reservationId'];
+  textFields.forEach(field => {
+    const colIdx = headers.indexOf(field);
+    if (colIdx >= 0) {
+      const cell = sheet.getRange(rowNum, colIdx + 1);
+      cell.setNumberFormat('@'); // 텍스트 서식
+      cell.setValue(String(obj[field] || ''));
+    }
+  });
 }
 
 // ── 가게 목록 조회 ─────────────────────────────────────────────
@@ -298,9 +325,13 @@ function handleGetReservations(params) {
   const stores = sheetToObjects('store');
   const menus = sheetToObjects('menu');
 
-  const matched = reservations.filter(r =>
-    String(r.userPhone).replace(/[-\s]/g, '').trim() === phone
-  );
+  const matched = reservations.filter(r => {
+    // Sheets가 전화번호를 숫자로 변환할 수 있으므로 다양한 형식 대응
+    let rPhone = String(r.userPhone || '').replace(/[-\s']/g, '').trim();
+    // 숫자로 변환된 경우 (예: 1.01235E+10 → 10123456789) 앞에 0 붙이기
+    if (rPhone.length === 10 && !rPhone.startsWith('0')) rPhone = '0' + rPhone;
+    return rPhone === phone;
+  });
 
   const result = matched.map(r => {
     const sid = String(r.storeId).trim();
