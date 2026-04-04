@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
-import { resolveSlotHourRange } from '@/lib/slot-hour-range';
+import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
 import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
@@ -137,17 +137,18 @@ export default function StoreDetailPage() {
   const { store, menus, availableTimes, reservedTimes } = data;
   const slots = data.slots ?? store.slots ?? [];
   const orderedBlocks = slots.map((s) => s.timeBlock);
-  const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
-    slotStartHour: store.slotStartHour,
-    slotEndHour: store.slotEndHour,
-    availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
-    orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
-    timeBlocks: [
-      ...availableTimes,
-      ...reservedTimes,
-      ...orderedBlocks,
-    ],
-  });
+  const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
+  const { startHour, endHour, crossesMidnight } =
+    fromSheet ??
+    resolveSlotHourRange({
+      availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
+      orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
+      timeBlocks: [
+        ...availableTimes,
+        ...reservedTimes,
+        ...orderedBlocks,
+      ],
+    });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {

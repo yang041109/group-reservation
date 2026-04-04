@@ -6,6 +6,7 @@ import {
   generateSlotTimeBlocks,
   getHourLabels,
   resolveSlotHourRange,
+  slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
 
 /** Category → emoji mapping */
@@ -46,18 +47,19 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
     store.timeline?.map((t) => t.timeBlock) ?? [];
 
   const avail = store.availableTimes || [];
-  const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } = resolveSlotHourRange({
-    slotStartHour: store.slotStartHour,
-    slotEndHour: store.slotEndHour,
-    availableOnlyBlocks: avail.length > 0 ? avail : undefined,
-    orderedSlotTimeBlocks:
-      timelineBlocks.length >= 2 ? timelineBlocks : undefined,
-    timeBlocks: [
-      ...timelineBlocks,
-      ...avail,
-      ...(store.reservedTimes || []),
-    ],
-  });
+  const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
+  const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } =
+    fromSheet ??
+    resolveSlotHourRange({
+      availableOnlyBlocks: avail.length > 0 ? avail : undefined,
+      orderedSlotTimeBlocks:
+        timelineBlocks.length >= 2 ? timelineBlocks : undefined,
+      timeBlocks: [
+        ...timelineBlocks,
+        ...avail,
+        ...(store.reservedTimes || []),
+      ],
+    });
 
   const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
 

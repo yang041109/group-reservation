@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { seoulToday } from '@/lib/spring-api';
-import { resolveSlotHourRange } from '@/lib/slot-hour-range';
+import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import TimeSelector from '@/components/TimeSelector';
@@ -108,17 +108,18 @@ export default function StoreDetailPageClient() {
   const { store, menus, availableTimes, reservedTimes } = data;
   const slots = data.slots ?? store.slots ?? [];
   const orderedBlocks = slots.map((s) => s.timeBlock);
-  const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
-    slotStartHour: store.slotStartHour,
-    slotEndHour: store.slotEndHour,
-    availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
-    orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
-    timeBlocks: [
-      ...availableTimes,
-      ...reservedTimes,
-      ...orderedBlocks,
-    ],
-  });
+  const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
+  const { startHour, endHour, crossesMidnight } =
+    fromSheet ??
+    resolveSlotHourRange({
+      availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
+      orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
+      timeBlocks: [
+        ...availableTimes,
+        ...reservedTimes,
+        ...orderedBlocks,
+      ],
+    });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {

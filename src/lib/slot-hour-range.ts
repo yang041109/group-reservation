@@ -38,6 +38,19 @@ function collectMinutesFromBlock(block: string): number[] {
   return out;
 }
 
+/** slots 배열의 첫·끝 timeBlock으로 축 후보 (끝 < 시작 분이면 자정 넘김) */
+function resolutionFromOrderedEnds(first: string, last: string): SlotHourResolution | null {
+  const a = parseTimeToMinutes(first);
+  const b = parseTimeToMinutes(last);
+  if (a === null || b === null) return null;
+  const crossesMidnight = b < a;
+  return {
+    startHour: Math.floor(a / 60),
+    endHour: Math.floor(b / 60),
+    crossesMidnight,
+  };
+}
+
 /** 30분 단위 timeBlock → "영업 밤" 기준 분 (0~47*60+30) */
 export function timeBlockToExtendedMinutes(
   timeBlock: string,
@@ -147,6 +160,25 @@ export function normalizeSlotHour(v: unknown): number | undefined {
 }
 
 /**
+ * 시트의 slotStartHour·slotEndHour가 **둘 다** 있을 때만 사용.
+ * 막대 축은 이 값만 따르고(첫 칸 = 시작 시 :00, 끝 시까지 :30 포함), available/slots 추론으로 바꾸지 않는다.
+ * 하나라도 없으면 null → `resolveSlotHourRange`로 폴백.
+ */
+export function slotHourRangeFromSheet(
+  slotStartHour: unknown,
+  slotEndHour: unknown,
+): SlotHourResolution | null {
+  const sh = normalizeSlotHour(slotStartHour);
+  const eh = normalizeSlotHour(slotEndHour);
+  if (sh === undefined || eh === undefined) return null;
+  return {
+    startHour: sh,
+    endHour: eh,
+    crossesMidnight: eh < sh,
+  };
+}
+
+/**
  * 예약 가능 시간만 있을 때 축 추론 (전체 slots가 11~20이어도 available이 17~만 있으면 17부터)
  * 새벽(0~6) + 저녁(17~)이 같이 있으면 자정 넘김 영업으로 본다.
  */
@@ -196,24 +228,26 @@ export function resolveSlotHourRange(options: {
     };
   }
 
+  const orderedEnds =
+    orderedSlotTimeBlocks && orderedSlotTimeBlocks.length >= 2
+      ? resolutionFromOrderedEnds(
+          orderedSlotTimeBlocks[0],
+          orderedSlotTimeBlocks[orderedSlotTimeBlocks.length - 1],
+        )
+      : null;
+
+  // 자정 넘김 영업: 예약 가능 목록만으로 축을 잡으면(예: 저녁만 가능) 새벽 슬롯이 UI에서 통째로 사라짐 → 전체 슬롯(ordered) 축 우선
+  if (orderedEnds?.crossesMidnight) {
+    return orderedEnds;
+  }
+
   if (availableOnlyBlocks && availableOnlyBlocks.length > 0) {
     const inferred = inferRangeFromAvailableBlocks(availableOnlyBlocks);
     if (inferred) return inferred;
   }
 
-  if (orderedSlotTimeBlocks && orderedSlotTimeBlocks.length >= 2) {
-    const first = orderedSlotTimeBlocks[0];
-    const last = orderedSlotTimeBlocks[orderedSlotTimeBlocks.length - 1];
-    const a = parseTimeToMinutes(first);
-    const b = parseTimeToMinutes(last);
-    if (a !== null && b !== null) {
-      const crossesMidnight = b < a;
-      return {
-        startHour: Math.floor(a / 60),
-        endHour: Math.floor(b / 60),
-        crossesMidnight,
-      };
-    }
+  if (orderedEnds) {
+    return orderedEnds;
   }
 
   let minM = Infinity;

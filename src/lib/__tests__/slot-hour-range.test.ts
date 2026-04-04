@@ -3,6 +3,7 @@ import {
   generateSlotTimeBlocks,
   normalizeSlotHour,
   resolveSlotHourRange,
+  slotHourRangeFromSheet,
   slotOverlapsReservation,
 } from '../slot-hour-range';
 
@@ -10,6 +11,31 @@ describe('normalizeSlotHour', () => {
   it('parses HH:mm strings', () => {
     expect(normalizeSlotHour('17:00')).toBe(17);
     expect(normalizeSlotHour('03:30')).toBe(3);
+  });
+});
+
+describe('slotHourRangeFromSheet', () => {
+  it('returns null if either hour missing', () => {
+    expect(slotHourRangeFromSheet(17, undefined)).toBeNull();
+    expect(slotHourRangeFromSheet(undefined, 3)).toBeNull();
+  });
+
+  it('uses sheet hours only (12~22 same day)', () => {
+    const r = slotHourRangeFromSheet(12, 22);
+    expect(r).toEqual({
+      startHour: 12,
+      endHour: 22,
+      crossesMidnight: false,
+    });
+  });
+
+  it('detects overnight when end < start', () => {
+    const r = slotHourRangeFromSheet(17, 3);
+    expect(r).toEqual({
+      startHour: 17,
+      endHour: 3,
+      crossesMidnight: true,
+    });
   });
 });
 
@@ -65,6 +91,26 @@ describe('resolveSlotHourRange', () => {
     expect(r.crossesMidnight).toBe(true);
     expect(r.startHour).toBe(17);
     expect(r.endHour).toBe(2);
+  });
+
+  it('overnight ordered beats narrow availableOnly (새벽 마감이어도 축은 17~3 유지)', () => {
+    const fullOvernight = [
+      '17:00',
+      '17:30',
+      '20:00',
+      '20:30',
+      '23:30',
+      '00:00',
+      '03:00',
+      '03:30',
+    ];
+    const r = resolveSlotHourRange({
+      availableOnlyBlocks: ['17:00', '17:30', '20:00', '20:30'],
+      orderedSlotTimeBlocks: fullOvernight,
+    });
+    expect(r.crossesMidnight).toBe(true);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(3);
   });
 });
 
