@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cancelReservation, BackendApiError } from '@/lib/backend-api';
+import { cancelReservationInSheets, SheetsApiError } from '@/lib/sheets-api';
 
 export async function PATCH(
   _request: Request,
@@ -8,10 +8,10 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    const data = await cancelReservation(id);
+    const data = await cancelReservationInSheets(id);
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    if (error instanceof BackendApiError) {
+    if (error instanceof SheetsApiError) {
       return NextResponse.json(
         { error: error.responseBody },
         { status: error.statusCode },

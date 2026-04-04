@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getReservationsByPhone, BackendApiError } from '@/lib/backend-api';
+import { getReservationsByPhoneFromSheets, SheetsApiError } from '@/lib/sheets-api';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -13,10 +13,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await getReservationsByPhone(userPhone);
+    const data = await getReservationsByPhoneFromSheets(userPhone);
     return NextResponse.json({ reservations: data ?? [] });
   } catch (error) {
-    if (error instanceof BackendApiError) {
+    if (error instanceof SheetsApiError) {
       return NextResponse.json(
         { error: error.responseBody || '예약 정보를 불러올 수 없습니다' },
         { status: error.statusCode },
