@@ -46,6 +46,8 @@ export async function fetchSpringStoreCards(
       name: string;
       maxCapacity: number;
       imageUrl: string | null;
+      slotStartHour?: number;
+      slotEndHour?: number;
       timeline: { timeBlock: string; available?: boolean; isAvailable?: boolean }[];
     }[]
   >;
@@ -70,6 +72,8 @@ export async function fetchSpringStoreCards(
       reservedTimes,
       maxCapacity: row.maxCapacity,
       minOrderRules: [] as MinOrderRule[],
+      ...(typeof row.slotStartHour === 'number' ? { slotStartHour: row.slotStartHour } : {}),
+      ...(typeof row.slotEndHour === 'number' ? { slotEndHour: row.slotEndHour } : {}),
     } satisfies StoreCard;
   });
 }
@@ -87,7 +91,14 @@ export async function fetchSpringStoreDetail(
     throw new Error(`store detail ${res.status}`);
   }
   const body = (await res.json()) as SpringApiOk<{
-    store: { id: string; name: string; maxCapacity: number; imageUrl: string | null };
+    store: {
+      id: string;
+      name: string;
+      maxCapacity: number;
+      imageUrl: string | null;
+      slotStartHour?: number;
+      slotEndHour?: number;
+    };
     slots: { timeBlock: string; available?: boolean; isAvailable?: boolean }[];
     menus: { menuId: string; name: string; price: number; required?: boolean; isRequired?: boolean }[];
     minOrderRules: { minHeadcount: number; maxHeadcount: number; minOrderAmount: number }[];
@@ -101,6 +112,10 @@ export async function fetchSpringStoreDetail(
     name: d.store.name,
     images: d.store.imageUrl ? [d.store.imageUrl] : [],
     maxCapacity: d.store.maxCapacity,
+    ...(typeof d.store.slotStartHour === 'number'
+      ? { slotStartHour: d.store.slotStartHour }
+      : {}),
+    ...(typeof d.store.slotEndHour === 'number' ? { slotEndHour: d.store.slotEndHour } : {}),
     availableTimes: d.slots.filter((s) => slotBookable(s)).map((s) => s.timeBlock),
     minOrderRules: d.minOrderRules.map((r) => ({
       minHeadcount: r.minHeadcount,

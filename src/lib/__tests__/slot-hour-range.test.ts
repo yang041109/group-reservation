@@ -1,0 +1,41 @@
+import { describe, expect, it } from 'vitest';
+import {
+  generateSlotTimeBlocks,
+  resolveSlotHourRange,
+  slotOverlapsReservation,
+} from '../slot-hour-range';
+
+describe('resolveSlotHourRange', () => {
+  it('treats end < start as overnight', () => {
+    const r = resolveSlotHourRange({ slotStartHour: 17, slotEndHour: 3 });
+    expect(r.crossesMidnight).toBe(true);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(3);
+  });
+
+  it('same-day when end >= start', () => {
+    const r = resolveSlotHourRange({ slotStartHour: 11, slotEndHour: 21 });
+    expect(r.crossesMidnight).toBe(false);
+  });
+});
+
+describe('generateSlotTimeBlocks', () => {
+  it('overnight includes evening then early hours', () => {
+    const blocks = generateSlotTimeBlocks(17, 3, true);
+    expect(blocks[0]).toBe('17:00');
+    expect(blocks).toContain('23:30');
+    expect(blocks).toContain('00:00');
+    expect(blocks[blocks.length - 1]).toBe('03:30');
+  });
+});
+
+describe('slotOverlapsReservation', () => {
+  it('detects reservation crossing midnight', () => {
+    expect(
+      slotOverlapsReservation('23:30', '22:00', '02:00', true, 17, 3),
+    ).toBe(true);
+    expect(
+      slotOverlapsReservation('02:00', '22:00', '02:00', true, 17, 3),
+    ).toBe(true);
+  });
+});

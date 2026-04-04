@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
+import { resolveSlotHourRange } from '@/lib/slot-hour-range';
 import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
@@ -132,7 +133,16 @@ export default function StoreDetailPage() {
   }
 
   const { store, menus, availableTimes, reservedTimes } = data;
-  const slots = data.slots ?? [];
+  const slots = data.slots ?? store.slots ?? [];
+  const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
+    slotStartHour: store.slotStartHour,
+    slotEndHour: store.slotEndHour,
+    timeBlocks: [
+      ...availableTimes,
+      ...reservedTimes,
+      ...slots.map((s) => s.timeBlock),
+    ],
+  });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
@@ -188,6 +198,9 @@ export default function StoreDetailPage() {
           availableTimes={availableTimes}
           reservedTimes={reservedTimes}
           slots={slots}
+          startHour={startHour}
+          endHour={endHour}
+          crossesMidnight={crossesMidnight}
           selectedTime={selectedTime}
           onChange={setSelectedTime}
         />

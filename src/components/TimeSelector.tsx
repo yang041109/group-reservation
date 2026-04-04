@@ -2,6 +2,11 @@
 
 import { useMemo } from 'react';
 import type { TimeSlot } from '@/types';
+import {
+  generateSlotTimeBlocks,
+  getHourLabels,
+  timeBlockToExtendedMinutes,
+} from '@/lib/slot-hour-range';
 
 interface TimeSelectorProps {
   availableTimes: string[];
@@ -12,26 +17,12 @@ interface TimeSelectorProps {
   onChange: (time: string) => void;
   startHour?: number;
   endHour?: number;
+  /** true면 endHour < startHour (예: 17~3시) 자정 넘김 영업 */
+  crossesMidnight?: boolean;
 }
 
-function toMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function toTimeStr(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function generateAllSlots(startHour: number, endHour: number): string[] {
-  const slots: string[] = [];
-  for (let h = startHour; h <= endHour; h++) {
-    slots.push(toTimeStr(h * 60));
-    slots.push(toTimeStr(h * 60 + 30));
-  }
-  return slots;
+function toTimeStr(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 type SlotStatus = 'available' | 'reserved' | 'unavailable' | 'full';
@@ -56,20 +47,26 @@ export default function TimeSelector({
   onChange,
   startHour = 11,
   endHour = 20,
+  crossesMidnight = false,
 }: TimeSelectorProps) {
   const { startTime, endTime } = useMemo(() => {
     if (!selectedTime) return { startTime: null, endTime: null };
     if (selectedTime.includes(' - ')) {
       const [s, e] = selectedTime.split(' - ');
-      return { startTime: s, endTime: e };
+      return { startTime: s.trim(), endTime: e.trim() };
     }
     return { startTime: selectedTime, endTime: null };
   }, [selectedTime]);
 
+  const ext = useMemo(
+    () => (t: string) =>
+      timeBlockToExtendedMinutes(t, crossesMidnight, startHour, endHour),
+    [crossesMidnight, startHour, endHour],
+  );
+
   const availableSet = useMemo(() => new Set(availableTimes), [availableTimes]);
   const reservedSet = useMemo(() => new Set(reservedTimes), [reservedTimes]);
 
-  // slots 맵 구성
   const slotMap = useMemo(() => {
     const map = new Map<string, TimeSlot>();
     if (slots) {
@@ -78,7 +75,10 @@ export default function TimeSelector({
     return map;
   }, [slots]);
 
-  const allSlots = useMemo(() => generateAllSlots(startHour, endHour), [startHour, endHour]);
+  const allSlots = useMemo(
+    () => generateSlotTimeBlocks(startHour, endHour, crossesMidnight),
+    [startHour, endHour, crossesMidnight],
+  );
 
   const getSlotInfo = (time: string): { status: SlotStatus; remaining: number; maxPeople: number; currentHeadcount: number; ratio: number } => {
     const slot = slotMap.get(time);
@@ -89,17 +89,15 @@ export default function TimeSelector({
       if (!slot.isAvailable) return { status: 'reserved', remaining, maxPeople: slot.maxPeople, currentHeadcount: slot.currentHeadcount, ratio };
       return { status: 'available', remaining, maxPeople: slot.maxPeople, currentHeadcount: slot.currentHeadcount, ratio };
     }
-    // 폴백
     if (reservedSet.has(time)) return { status: 'reserved', remaining: 0, maxPeople: 0, currentHeadcount: 0, ratio: 1 };
     if (availableSet.has(time)) return { status: 'available', remaining: 0, maxPeople: 0, currentHeadcount: 0, ratio: 0 };
     return { status: 'unavailable', remaining: 0, maxPeople: 0, currentHeadcount: 0, ratio: 0 };
   };
 
-  const hours = useMemo(() => {
-    const result: number[] = [];
-    for (let h = startHour; h <= endHour; h++) result.push(h);
-    return result;
-  }, [startHour, endHour]);
+  const hours = useMemo(
+    () => getHourLabels(startHour, endHour, crossesMidnight),
+    [startHour, endHour, crossesMidnight],
+  );
 
   const ROW_SIZE = 10;
   const hourRows: number[][] = [];
@@ -110,17 +108,17 @@ export default function TimeSelector({
   const isInRange = (time: string): boolean => {
     if (!startTime) return false;
     if (!endTime) return time === startTime;
-    const t = toMinutes(time);
-    return t >= toMinutes(startTime) && t <= toMinutes(endTime);
+    const t = ext(time);
+    return t >= ext(startTime) && t <= ext(endTime);
   };
 
   const rangeHasBlockedSlot = (from: string, to: string): boolean => {
-    const lo = toMinutes(from);
-    const hi = toMinutes(to);
-    return allSlots.some((t) => {
-      const m = toMinutes(t);
+    const lo = ext(from);
+    const hi = ext(to);
+    return allSlots.some((slotT) => {
+      const m = ext(slotT);
       if (m < lo || m > hi) return false;
-      const info = getSlotInfo(t);
+      const info = getSlotInfo(slotT);
       return info.status !== 'available';
     });
   };
@@ -132,47 +130,57 @@ export default function TimeSelector({
     if (!startTime || endTime) {
       onChange(time);
     } else {
-      const sMin = toMinutes(startTime);
-      const tMin = toMinutes(time);
-      if (tMin === sMin) { onChange(time); return; }
-      const [lo, hi] = sMin < tMin ? [startTime, time] : [time, startTime];
-      if (rangeHasBlockedSlot(lo, hi)) { onChange(time); return; }
-      onChange(`${lo} - ${hi}`);
+      const e1 = ext(startTime);
+      const e2 = ext(time);
+      if (e2 === e1) {
+        onChange(time);
+        return;
+      }
+      const [loStr, hiStr] = e1 <= e2 ? [startTime, time] : [time, startTime];
+      if (rangeHasBlockedSlot(loStr, hiStr)) {
+        onChange(time);
+        return;
+      }
+      onChange(`${loStr} - ${hiStr}`);
     }
   };
 
   const rangeDuration = useMemo(() => {
     if (!startTime) return 0;
     if (!endTime) return 0.5;
-    return (toMinutes(endTime) - toMinutes(startTime) + 30) / 60;
-  }, [startTime, endTime]);
+    return (ext(endTime) - ext(startTime) + 30) / 60;
+  }, [startTime, endTime, ext]);
 
-  // 선택 범위 내 최소 잔여 인원 계산
   const rangeMinRemaining = useMemo(() => {
     if (!startTime) return null;
-    const lo = toMinutes(startTime);
-    const hi = endTime ? toMinutes(endTime) : lo;
+    const lo = ext(startTime);
+    const hi = endTime ? ext(endTime) : lo;
     let min = Infinity;
     for (const t of allSlots) {
-      const m = toMinutes(t);
+      const m = ext(t);
       if (m >= lo && m <= hi) {
         const info = getSlotInfo(t);
         if (info.maxPeople > 0) min = Math.min(min, info.remaining);
       }
     }
     return min === Infinity ? null : min;
-  }, [startTime, endTime, allSlots, slotMap]);
+  }, [startTime, endTime, allSlots, ext, slotMap, availableSet, reservedSet]);
 
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700">🕐 예약 시간</h3>
+      {crossesMidnight && (
+        <p className="mt-1 text-[10px] text-gray-500">
+          자정 이후 막대는 <span className="font-medium">다음 날 새벽</span> 시간입니다. (예: 0 = 00:00)
+        </p>
+      )}
       <div className="mt-3 space-y-3">
         {hourRows.map((rowHours, rowIdx) => (
           <div key={rowIdx}>
             <div className="flex">
               {rowHours.map((hour) => (
                 <div
-                  key={hour}
+                  key={`${rowIdx}-${hour}`}
                   className="text-xs font-medium text-gray-500"
                   style={{ width: `${(1 / rowHours.length) * 100}%` }}
                 >
@@ -180,11 +188,10 @@ export default function TimeSelector({
                 </div>
               ))}
             </div>
-            {/* 히트맵 슬롯 바 */}
             <div className="flex h-9 overflow-hidden rounded-md">
               {rowHours.flatMap((hour) => {
-                const slot0 = toTimeStr(hour * 60);
-                const slot1 = toTimeStr(hour * 60 + 30);
+                const slot0 = toTimeStr(hour, 0);
+                const slot1 = toTimeStr(hour, 30);
                 return [slot0, slot1].map((time) => {
                   const info = getSlotInfo(time);
                   const inRange = isInRange(time);
@@ -199,7 +206,6 @@ export default function TimeSelector({
                     bgClass = getOccupancyBg(info.ratio, info.status);
                   }
 
-                  // 잔여 인원 텍스트 (슬롯 데이터가 있을 때만)
                   const showCount = info.maxPeople > 0 && info.status !== 'unavailable';
                   const remaining = info.remaining;
 
@@ -235,7 +241,6 @@ export default function TimeSelector({
         ))}
       </div>
 
-      {/* 범례 */}
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-400" />여유</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-yellow-300" />보통</span>

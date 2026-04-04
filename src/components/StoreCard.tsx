@@ -2,6 +2,11 @@
 
 import Link from 'next/link';
 import type { StoreCard as StoreCardType, TimeSlot } from '@/types';
+import {
+  generateSlotTimeBlocks,
+  getHourLabels,
+  resolveSlotHourRange,
+} from '@/lib/slot-hour-range';
 
 /** Category → emoji mapping */
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -31,33 +36,26 @@ function getOccupancyColor(ratio: number): string {
   return 'bg-emerald-400';                    // 비어있음
 }
 
-const START_HOUR = 11;
-const END_HOUR = 20;
-
-function toTimeStr(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/** 11:00~20:30 전체 슬롯 생성 */
-function generateAllSlots(): string[] {
-  const slots: string[] = [];
-  for (let h = START_HOUR; h <= END_HOUR; h++) {
-    slots.push(toTimeStr(h * 60));
-    slots.push(toTimeStr(h * 60 + 30));
-  }
-  return slots;
-}
-
 export default function StoreCard({ store }: { store: StoreCardType }) {
   const thumbnailUrl = store.images[0];
   const minCapacity = store.minOrderRules.length > 0
     ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
     : 1;
 
-  const hours: number[] = [];
-  for (let h = START_HOUR; h <= END_HOUR; h++) hours.push(h);
+  const timelineBlocks =
+    store.timeline?.map((t) => t.timeBlock) ?? [];
+
+  const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } = resolveSlotHourRange({
+    slotStartHour: store.slotStartHour,
+    slotEndHour: store.slotEndHour,
+    timeBlocks: [
+      ...timelineBlocks,
+      ...(store.availableTimes || []),
+      ...(store.reservedTimes || []),
+    ],
+  });
+
+  const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
 
   // timeline이 있으면 히트맵, 없으면 기존 방식 폴백
   const timelineMap = new Map<string, TimeSlot>();
@@ -69,7 +67,7 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
 
   const availableSet = new Set(store.availableTimes || []);
   const reservedSet = new Set(store.reservedTimes || []);
-  const allSlots = generateAllSlots();
+  const allSlots = generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
 
   return (
     <Link

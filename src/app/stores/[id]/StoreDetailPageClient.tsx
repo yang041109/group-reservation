@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { seoulToday } from '@/lib/spring-api';
+import { resolveSlotHourRange } from '@/lib/slot-hour-range';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import TimeSelector from '@/components/TimeSelector';
@@ -105,6 +106,16 @@ export default function StoreDetailPageClient() {
   }
 
   const { store, menus, availableTimes, reservedTimes } = data;
+  const slots = data.slots ?? store.slots ?? [];
+  const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
+    slotStartHour: store.slotStartHour,
+    slotEndHour: store.slotEndHour,
+    timeBlocks: [
+      ...availableTimes,
+      ...reservedTimes,
+      ...slots.map((s) => s.timeBlock),
+    ],
+  });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
@@ -145,6 +156,10 @@ export default function StoreDetailPageClient() {
         <TimeSelector
           availableTimes={availableTimes}
           reservedTimes={reservedTimes}
+          slots={slots}
+          startHour={startHour}
+          endHour={endHour}
+          crossesMidnight={crossesMidnight}
           selectedTime={selectedTime}
           onChange={setSelectedTime}
         />

@@ -16,6 +16,8 @@ export async function GET(request: Request) {
       category: s.category || '',
       images: s.imageUrl ? [s.imageUrl] : [],
       maxCapacity: s.maxCapacity,
+      ...(typeof s.slotStartHour === 'number' ? { slotStartHour: s.slotStartHour } : {}),
+      ...(typeof s.slotEndHour === 'number' ? { slotEndHour: s.slotEndHour } : {}),
       timeline: s.timeline,
       availableTimes: Array.isArray(s.timeline)
         ? (s.timeline as Record<string, unknown>[]).filter((t) => t.isAvailable).map((t) => t.timeBlock)

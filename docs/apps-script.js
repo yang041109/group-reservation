@@ -104,6 +104,45 @@ function appendRow(sheetName, obj, headers) {
   });
 }
 
+// ── 가게별 예약 슬롯 시간축 (store 시트 컬럼, 없으면 11~20) ─────
+// slotEndHour < slotStartHour 이면 자정 넘김 (예: 17~3 = 저녁~새벽)
+
+function getSlotHourRangeFromStore(store) {
+  const DEFAULT_START = 11;
+  const DEFAULT_END = 20;
+  let start = parseInt(store.slotStartHour, 10);
+  let end = parseInt(store.slotEndHour, 10);
+  if (isNaN(start) || start < 0 || start > 23) start = DEFAULT_START;
+  if (isNaN(end) || end < 0 || end > 23) end = DEFAULT_END;
+  var crossesMidnight = end < start;
+  return { slotStartHour: start, slotEndHour: end, crossesMidnight: crossesMidnight };
+}
+
+function hhmmToMinutes(s) {
+  var p = String(s).trim().split(':');
+  var h = parseInt(p[0], 10);
+  var m = parseInt(p[1] || '0', 10);
+  if (isNaN(h) || isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+function timeToExtendedMinutes(timeStr, crossesMidnight, startHour, endHour) {
+  var mins = hhmmToMinutes(timeStr);
+  if (!crossesMidnight) return mins;
+  var h = (mins / 60) | 0;
+  if (h >= startHour) return mins;
+  if (h <= endHour) return mins + 24 * 60;
+  return mins;
+}
+
+function slotOverlapsReservation(slotTime, resStart, resEnd, crossesMidnight, startHour, endHour) {
+  var sm = timeToExtendedMinutes(slotTime, crossesMidnight, startHour, endHour);
+  var lo = timeToExtendedMinutes(String(resStart).trim(), crossesMidnight, startHour, endHour);
+  var hi = timeToExtendedMinutes(String(resEnd).trim(), crossesMidnight, startHour, endHour);
+  if (hi < lo) hi += 24 * 60;
+  return sm >= lo && sm <= hi;
+}
+
 // ── 가게 목록 조회 ─────────────────────────────────────────────
 
 function handleGetStores(params) {
@@ -119,6 +158,10 @@ function handleGetStores(params) {
     const cap = parseInt(store.maxCapacity) || 0;
     const storeMenus = menus.filter(m => String(m.storeId).trim() === sid);
     const storeRules = rules.filter(r => String(r.storeId).trim() === sid);
+    const range = getSlotHourRangeFromStore(store);
+    var slotStartHour = range.slotStartHour;
+    var slotEndHour = range.slotEndHour;
+    var crossesMidnight = range.crossesMidnight;
 
     // 해당 날짜의 확정 예약에서 시간대별 예약 인원 합산
     const confirmedRes = reservations.filter(r =>
@@ -127,8 +170,7 @@ function handleGetStores(params) {
       String(r.status).trim() === 'CONFIRMED'
     );
 
-    // 11:00~20:30 슬롯 생성
-    const timeline = buildSlots(cap, confirmedRes);
+    const timeline = buildSlots(cap, confirmedRes, slotStartHour, slotEndHour, crossesMidnight);
 
     return {
       storeId: sid,
@@ -137,6 +179,8 @@ function handleGetStores(params) {
       maxCapacity: cap,
       imageUrl: store.imageUrl || '',
       description: store.description || '',
+      slotStartHour: slotStartHour,
+      slotEndHour: slotEndHour,
       timeline: timeline,
       minOrderRules: storeRules.map(r => ({
         minHeadcount: parseInt(r.minHeadcount) || 0,
@@ -167,7 +211,11 @@ function handleGetStoreDetail(params) {
   );
 
   const cap = parseInt(store.maxCapacity) || 0;
-  const slots = buildSlots(cap, reservations);
+  const range = getSlotHourRangeFromStore(store);
+  var slotStartHour = range.slotStartHour;
+  var slotEndHour = range.slotEndHour;
+  var crossesMidnight = range.crossesMidnight;
+  const slots = buildSlots(cap, reservations, slotStartHour, slotEndHour, crossesMidnight);
 
   return {
     success: true,
@@ -177,6 +225,8 @@ function handleGetStoreDetail(params) {
         name: store.name,
         images: store.imageUrl ? [store.imageUrl] : [],
         maxCapacity: cap,
+        slotStartHour: slotStartHour,
+        slotEndHour: slotEndHour,
         availableTimes: slots.filter(s => s.isAvailable).map(s => s.timeBlock),
         slots: slots,
         minOrderRules: rules.map(r => ({
@@ -199,19 +249,31 @@ function handleGetStoreDetail(params) {
   };
 }
 
-// ── 슬롯 생성 (11:00~20:30, 30분 단위) ────────────────────────
+// ── 슬롯 생성 (자정 넘김: startHour > endHour 인 경우 저녁~새벽) ──
 
-function buildSlots(maxPeople, confirmedReservations) {
+function buildSlots(maxPeople, confirmedReservations, startHour, endHour, crossesMidnight) {
+  const h0 = typeof startHour === 'number' ? startHour : 11;
+  const h1 = typeof endHour === 'number' ? endHour : 20;
+  const cross = !!crossesMidnight;
+  const slotTimes = [];
+  function pushHour(h) {
+    slotTimes.push(String(h).padStart(2, '0') + ':00');
+    slotTimes.push(String(h).padStart(2, '0') + ':30');
+  }
+  if (!cross) {
+    for (let h = h0; h <= h1; h++) pushHour(h);
+  } else {
+    for (let h = h0; h <= 23; h++) pushHour(h);
+    for (let h = 0; h <= h1; h++) pushHour(h);
+  }
   const slots = [];
-  for (let h = 11; h <= 20; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-      // 해당 시간대에 걸치는 예약의 인원 합산
+  for (let i = 0; i < slotTimes.length; i++) {
+    const time = slotTimes[i];
       let booked = 0;
       confirmedReservations.forEach(r => {
         const start = String(r.startTime).trim();
         const end = String(r.endTime).trim();
-        if (time >= start && time <= end) {
+        if (slotOverlapsReservation(time, start, end, cross, h0, h1)) {
           booked += parseInt(r.headcount) || 0;
         }
       });
@@ -223,7 +285,6 @@ function buildSlots(maxPeople, confirmedReservations) {
         maxPeople: maxPeople,
         currentHeadcount: booked,
       });
-    }
   }
   return slots;
 }
@@ -246,6 +307,10 @@ function handleCreateReservation(body) {
   if (!store) return { success: false, message: '가게를 찾을 수 없습니다.' };
 
   const cap = parseInt(store.maxCapacity) || 0;
+  const range = getSlotHourRangeFromStore(store);
+  var slotStartHour = range.slotStartHour;
+  var slotEndHour = range.slotEndHour;
+  var crossesMidnight = range.crossesMidnight;
   const existing = sheetToObjects('reservation').filter(r =>
     String(r.storeId).trim() === storeId &&
     String(r.date).trim() === date &&
@@ -253,9 +318,14 @@ function handleCreateReservation(body) {
   );
 
   // 요청 시간대의 최소 잔여 인원 확인
-  const slots = buildSlots(cap, existing);
-  const targetSlots = slots.filter(s => s.timeBlock >= startTime && s.timeBlock <= endTime);
-  const minRemaining = Math.min(...targetSlots.map(s => cap - s.currentHeadcount));
+  const slots = buildSlots(cap, existing, slotStartHour, slotEndHour, crossesMidnight);
+  const targetSlots = slots.filter(function (s) {
+    return slotOverlapsReservation(s.timeBlock, startTime, endTime, crossesMidnight, slotStartHour, slotEndHour);
+  });
+  if (!targetSlots.length) {
+    return { success: false, message: '선택한 시간이 예약 가능한 슬롯에 없습니다.' };
+  }
+  const minRemaining = Math.min.apply(null, targetSlots.map(function (s) { return cap - s.currentHeadcount; }));
 
   if (headcount > minRemaining) {
     return { success: false, message: `해당 시간대 잔여 인원(${minRemaining}명)을 초과합니다.` };
