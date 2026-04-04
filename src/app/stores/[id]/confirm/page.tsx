@@ -61,6 +61,11 @@ export default function ReservationConfirmPage() {
     if (!groupName.trim()) { setError('단체명(행사명)을 입력해주세요.'); return; }
     if (!representativeName.trim()) { setError('대표자 이름을 입력해주세요.'); return; }
     if (!phone.trim()) { setError('전화번호를 입력해주세요.'); return; }
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 11 || !phoneDigits.startsWith('010')) {
+      setError('전화번호 11자리를 정확히 입력해주세요. (예: 010-0000-0000)');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -184,6 +189,9 @@ export default function ReservationConfirmPage() {
             placeholder="010-0000-0000"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
+          <p className="mt-1.5 text-xs text-blue-600">
+            📱 예약 확인은 전화번호로 조회됩니다. 정확하게 입력해주세요.
+          </p>
         </div>
       </div>
 
