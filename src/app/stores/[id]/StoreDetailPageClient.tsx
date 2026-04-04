@@ -107,13 +107,15 @@ export default function StoreDetailPageClient() {
 
   const { store, menus, availableTimes, reservedTimes } = data;
   const slots = data.slots ?? store.slots ?? [];
+  const orderedBlocks = slots.map((s) => s.timeBlock);
   const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
     slotStartHour: store.slotStartHour,
     slotEndHour: store.slotEndHour,
+    orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
     timeBlocks: [
       ...availableTimes,
       ...reservedTimes,
-      ...slots.map((s) => s.timeBlock),
+      ...orderedBlocks,
     ],
   });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);

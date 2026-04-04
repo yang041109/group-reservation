@@ -121,28 +121,49 @@ export function getHourLabels(
   return r;
 }
 
+/** 시트/JSON에서 온 값 (문자열 "17" 등) → 0~23 시간 */
+export function normalizeSlotHour(v: unknown): number | undefined {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === 'string' && v.trim() === '') return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return undefined;
+  const h = Math.trunc(n);
+  if (h < 0 || h > 23) return undefined;
+  return h;
+}
+
 export function resolveSlotHourRange(options: {
-  slotStartHour?: number;
-  slotEndHour?: number;
+  slotStartHour?: unknown;
+  slotEndHour?: unknown;
+  /** API timeline/slots 배열 순서 (첫·끝 timeBlock으로 자정 넘김 추론) */
+  orderedSlotTimeBlocks?: string[];
   timeBlocks?: string[];
 }): SlotHourResolution {
-  const { slotStartHour, slotEndHour, timeBlocks } = options;
-  if (
-    typeof slotStartHour === 'number' &&
-    typeof slotEndHour === 'number' &&
-    Number.isInteger(slotStartHour) &&
-    Number.isInteger(slotEndHour) &&
-    slotStartHour >= 0 &&
-    slotStartHour <= 23 &&
-    slotEndHour >= 0 &&
-    slotEndHour <= 23
-  ) {
+  const { orderedSlotTimeBlocks, timeBlocks } = options;
+  const slotStartHour = normalizeSlotHour(options.slotStartHour);
+  const slotEndHour = normalizeSlotHour(options.slotEndHour);
+  if (slotStartHour !== undefined && slotEndHour !== undefined) {
     const crossesMidnight = slotEndHour < slotStartHour;
     return {
       startHour: slotStartHour,
       endHour: slotEndHour,
       crossesMidnight,
     };
+  }
+
+  if (orderedSlotTimeBlocks && orderedSlotTimeBlocks.length >= 2) {
+    const first = orderedSlotTimeBlocks[0];
+    const last = orderedSlotTimeBlocks[orderedSlotTimeBlocks.length - 1];
+    const a = parseTimeToMinutes(first);
+    const b = parseTimeToMinutes(last);
+    if (a !== null && b !== null) {
+      const crossesMidnight = b < a;
+      return {
+        startHour: Math.floor(a / 60),
+        endHour: Math.floor(b / 60),
+        crossesMidnight,
+      };
+    }
   }
 
   let minM = Infinity;

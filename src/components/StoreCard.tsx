@@ -48,6 +48,8 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
   const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } = resolveSlotHourRange({
     slotStartHour: store.slotStartHour,
     slotEndHour: store.slotEndHour,
+    orderedSlotTimeBlocks:
+      timelineBlocks.length >= 2 ? timelineBlocks : undefined,
     timeBlocks: [
       ...timelineBlocks,
       ...(store.availableTimes || []),

@@ -13,9 +13,25 @@ describe('resolveSlotHourRange', () => {
     expect(r.endHour).toBe(3);
   });
 
+  it('accepts string hours from sheet JSON', () => {
+    const r = resolveSlotHourRange({ slotStartHour: '17', slotEndHour: '3' });
+    expect(r.crossesMidnight).toBe(true);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(3);
+  });
+
   it('same-day when end >= start', () => {
     const r = resolveSlotHourRange({ slotStartHour: 11, slotEndHour: 21 });
     expect(r.crossesMidnight).toBe(false);
+  });
+
+  it('infers overnight from ordered timeline first/last block', () => {
+    const r = resolveSlotHourRange({
+      orderedSlotTimeBlocks: ['17:00', '17:30', '03:00', '03:30'],
+    });
+    expect(r.crossesMidnight).toBe(true);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(3);
   });
 });
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeSlotHour } from '@/lib/slot-hour-range';
 import { getStoresFromSheets, SheetsApiError } from '@/lib/sheets-api';
 
 export async function GET(request: Request) {
@@ -10,14 +11,17 @@ export async function GET(request: Request) {
     const data = await getStoresFromSheets(date, headcount) as Record<string, unknown>[];
 
     // Sheets 응답 → 프론트 StoreCard 형식 변환
-    const stores = data.map((s: Record<string, unknown>) => ({
+    const stores = data.map((s: Record<string, unknown>) => {
+      const ssh = normalizeSlotHour(s.slotStartHour);
+      const seh = normalizeSlotHour(s.slotEndHour);
+      return {
       id: s.storeId,
       name: s.name,
       category: s.category || '',
       images: s.imageUrl ? [s.imageUrl] : [],
       maxCapacity: s.maxCapacity,
-      ...(typeof s.slotStartHour === 'number' ? { slotStartHour: s.slotStartHour } : {}),
-      ...(typeof s.slotEndHour === 'number' ? { slotEndHour: s.slotEndHour } : {}),
+      ...(ssh !== undefined ? { slotStartHour: ssh } : {}),
+      ...(seh !== undefined ? { slotEndHour: seh } : {}),
       timeline: s.timeline,
       availableTimes: Array.isArray(s.timeline)
         ? (s.timeline as Record<string, unknown>[]).filter((t) => t.isAvailable).map((t) => t.timeBlock)
@@ -26,7 +30,8 @@ export async function GET(request: Request) {
         ? (s.timeline as Record<string, unknown>[]).filter((t) => !t.isAvailable).map((t) => t.timeBlock)
         : [],
       minOrderRules: s.minOrderRules || [],
-    }));
+    };
+    });
 
     return NextResponse.json({ stores });
   } catch (error) {
