@@ -13,8 +13,11 @@ export default function MenuSection({
   quantities,
   onChange,
 }: MenuSectionProps) {
-  // Group menus by category (items without category go into "기타")
-  const grouped = menus.reduce<Record<string, MenuItemData[]>>((acc, menu) => {
+  // 필수 메뉴를 맨 위로, 나머지는 카테고리별 그룹핑
+  const requiredMenus = menus.filter((m) => m.isRequired);
+  const optionalMenus = menus.filter((m) => !m.isRequired);
+
+  const grouped = optionalMenus.reduce<Record<string, MenuItemData[]>>((acc, menu) => {
     const category = menu.category || '기타';
     if (!acc[category]) acc[category] = [];
     acc[category].push(menu);
@@ -37,7 +40,61 @@ export default function MenuSection({
       {menus.length === 0 ? (
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
       ) : (
-        Object.entries(grouped).map(([category, items]) => (
+        <>
+          {/* 필수 메뉴 */}
+          {requiredMenus.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-red-500">
+                ⚠️ 필수 메뉴 (반드시 선택)
+              </h3>
+              <ul className="space-y-2">
+                {requiredMenus.map((menu) => {
+                  const qty = quantities[menu.id] ?? 0;
+                  return (
+                    <li
+                      key={menu.id}
+                      className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                        qty > 0 ? 'border-green-300 bg-green-50' : 'border-red-200 bg-red-50'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {menu.name}
+                        </span>
+                        <span className="ml-1 text-xs font-bold text-red-500">필수</span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {menu.price.toLocaleString()}원
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={qty <= 0}
+                          onClick={() => handleQuantityChange(menu.id, -1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-[1.5rem] text-center text-sm font-bold text-gray-900">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityChange(menu.id, 1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* 선택 메뉴 (카테고리별) */}
+          {Object.entries(grouped).map(([category, items]) => (
           <div key={category}>
             <h3 className="mb-2 text-sm font-semibold text-gray-600">
               {category}
@@ -84,6 +141,7 @@ export default function MenuSection({
             </ul>
           </div>
         ))
+        </>
       )}
     </div>
   );

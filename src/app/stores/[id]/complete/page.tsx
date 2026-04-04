@@ -9,11 +9,11 @@ export default function ReservationCompletePage() {
         <div className="text-5xl">🎉</div>
 
         <h1 className="mt-4 text-2xl font-bold text-gray-900">
-          예약이 완료되었습니다
+          예약이 확정되었습니다!
         </h1>
 
         <p className="mt-2 text-sm text-gray-500">
-          운영팀이 확인 후 알림을 보내드립니다
+          선택하신 시간에 방문해주세요
         </p>
 
         <Link

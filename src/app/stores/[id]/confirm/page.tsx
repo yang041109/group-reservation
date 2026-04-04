@@ -37,12 +37,6 @@ export default function ReservationConfirmPage() {
   const [phone, setPhone] = useState('');
 
   useEffect(() => {
-    // Restore saved user info from localStorage
-    const savedName = localStorage.getItem('representativeName');
-    const savedPhone = localStorage.getItem('phone');
-    if (savedName) setRepresentativeName(savedName);
-    if (savedPhone) setPhone(savedPhone);
-
     const raw = sessionStorage.getItem('pendingReservation');
     if (!raw) {
       router.replace(`/stores/${storeId}`);
@@ -70,10 +64,6 @@ export default function ReservationConfirmPage() {
 
     setSubmitting(true);
     setError(null);
-
-    // Save user info to localStorage for future visits
-    localStorage.setItem('representativeName', representativeName.trim());
-    localStorage.setItem('phone', phone.trim());
 
     try {
       const res = await fetch('/api/reservations', {
@@ -184,8 +174,14 @@ export default function ReservationConfirmPage() {
           <input
             type="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="010-1234-5678"
+            onChange={(e) => {
+              const nums = e.target.value.replace(/\D/g, '').slice(0, 11);
+              let formatted = nums;
+              if (nums.length > 3 && nums.length <= 7) formatted = `${nums.slice(0, 3)}-${nums.slice(3)}`;
+              else if (nums.length > 7) formatted = `${nums.slice(0, 3)}-${nums.slice(3, 7)}-${nums.slice(7)}`;
+              setPhone(formatted);
+            }}
+            placeholder="010-0000-0000"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
