@@ -32,7 +32,9 @@ export default function Home() {
   useEffect(() => {
     if (!selectedDate) return;
     setLoading(true);
-    fetch(`/api/stores?date=${selectedDate}`)
+    fetch(`/api/stores?date=${encodeURIComponent(selectedDate)}`, {
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => setStoreCards(data.stores ?? []))
       .catch(() => setStoreCards([]))

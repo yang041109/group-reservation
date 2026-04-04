@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStoreDetailFromSheets, SheetsApiError } from '@/lib/sheets-api';
 
+export const dynamic = 'force-dynamic';
+
+const NO_STORE = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+};
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -11,17 +17,17 @@ export async function GET(
 
   try {
     const data = await getStoreDetailFromSheets(id, date);
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof SheetsApiError) {
       return NextResponse.json(
         { error: error.responseBody || '가게 정보를 불러올 수 없습니다' },
-        { status: error.statusCode },
+        { status: error.statusCode, headers: NO_STORE },
       );
     }
     return NextResponse.json(
       { error: '가게 정보를 불러올 수 없습니다' },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
   }
 }

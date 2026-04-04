@@ -85,7 +85,9 @@ export default function StoreDetailPage() {
         const dateParam = dateVal
           ? `?date=${encodeURIComponent(dateVal)}`
           : '';
-        const res = await fetch(`/api/stores/${storeId}${dateParam}`);
+        const res = await fetch(`/api/stores/${storeId}${dateParam}`, {
+          cache: 'no-store',
+        });
         if (res.status === 404) {
           if (!cancelled) setError('가게를 찾을 수 없습니다.');
           return;

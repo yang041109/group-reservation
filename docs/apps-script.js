@@ -107,11 +107,37 @@ function appendRow(sheetName, obj, headers) {
 // ── 가게별 예약 슬롯 시간축 (store 시트 컬럼, 없으면 11~20) ─────
 // slotEndHour < slotStartHour 이면 자정 넘김 (예: 17~3 = 저녁~새벽)
 
+/** 시트 1행 헤더가 조금 달라도 읽기 (빈칸·대소문자 등) */
+function firstDefinedField(obj, keys) {
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+    var v = obj[k];
+    if (v === '' || v === null || v === undefined) continue;
+    return v;
+  }
+  return undefined;
+}
+
 function getSlotHourRangeFromStore(store) {
   const DEFAULT_START = 11;
   const DEFAULT_END = 20;
-  let start = parseInt(store.slotStartHour, 10);
-  let end = parseInt(store.slotEndHour, 10);
+  var startRaw = firstDefinedField(store, [
+    'slotStartHour',
+    'SlotStartHour',
+    'slot_start_hour',
+    'startHour',
+    'openHour',
+  ]);
+  var endRaw = firstDefinedField(store, [
+    'slotEndHour',
+    'SlotEndHour',
+    'slot_end_hour',
+    'endHour',
+    'closeHour',
+  ]);
+  var start = parseInt(startRaw, 10);
+  var end = parseInt(endRaw, 10);
   if (isNaN(start) || start < 0 || start > 23) start = DEFAULT_START;
   if (isNaN(end) || end < 0 || end > 23) end = DEFAULT_END;
   var crossesMidnight = end < start;

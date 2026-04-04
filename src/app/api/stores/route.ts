@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { normalizeSlotHour } from '@/lib/slot-hour-range';
 import { getStoresFromSheets, SheetsApiError } from '@/lib/sheets-api';
 
+export const dynamic = 'force-dynamic';
+
+const NO_STORE = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+};
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const date = url.searchParams.get('date') ?? '';
@@ -33,17 +39,17 @@ export async function GET(request: Request) {
     };
     });
 
-    return NextResponse.json({ stores });
+    return NextResponse.json({ stores }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof SheetsApiError) {
       return NextResponse.json(
         { error: error.responseBody || '가게 정보를 불러올 수 없습니다' },
-        { status: error.statusCode },
+        { status: error.statusCode, headers: NO_STORE },
       );
     }
     return NextResponse.json(
       { error: '가게 정보를 불러올 수 없습니다' },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
   }
 }
