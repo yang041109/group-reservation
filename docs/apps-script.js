@@ -74,6 +74,14 @@ function sheetToObjects(sheetName) {
           obj[h] = Utilities.formatDate(val, 'Asia/Seoul', 'yyyy-MM-dd');
         } else if (h === 'startTime' || h === 'endTime' || h === 'timeBlock' || h === 'time') {
           obj[h] = Utilities.formatDate(val, 'Asia/Seoul', 'HH:mm');
+        } else if (
+          h === 'slotStartHour' || h === 'slotEndHour' ||
+          h === 'SlotStartHour' || h === 'SlotEndHour' ||
+          h === 'slot_start_hour' || h === 'slot_end_hour' ||
+          h === '슬롯시작' || h === '슬롯종료' || h === '예약시작시' || h === '예약종료시'
+        ) {
+          // 시트에서 "시간" 서식이면 Date로 들어옴 → 0~23 시 정수로만 쓴다 (parseInt 실패 방지)
+          obj[h] = parseInt(Utilities.formatDate(val, 'Asia/Seoul', 'HH'), 10);
         } else {
           obj[h] = val.toISOString();
         }
@@ -119,6 +127,34 @@ function firstDefinedField(obj, keys) {
   return undefined;
 }
 
+/** 시트/JSON 값 → 0~23 시 (실패 시 NaN). 숫자·"17"·"17:00"·ISO 문자열(시간 부분) 대응 */
+function coerceHourFromSheetValue(v) {
+  if (v === '' || v === null || v === undefined) return NaN;
+  if (v instanceof Date) {
+    return parseInt(Utilities.formatDate(v, 'Asia/Seoul', 'HH'), 10);
+  }
+  if (typeof v === 'number' && isFinite(v)) {
+    var hn = Math.floor(v);
+    if (hn >= 0 && hn <= 23) return hn;
+    return NaN;
+  }
+  var s = String(v).trim();
+  var hm = /^(\d{1,2})\s*:\s*(\d{2})/.exec(s);
+  if (hm) {
+    var hh = parseInt(hm[1], 10);
+    if (hh >= 0 && hh <= 23) return hh;
+    return NaN;
+  }
+  var isoM = /T(\d{2}):/.exec(s);
+  if (isoM) {
+    var ih = parseInt(isoM[1], 10);
+    if (ih >= 0 && ih <= 23) return ih;
+  }
+  var n = parseInt(s, 10);
+  if (!isNaN(n) && n >= 0 && n <= 23) return n;
+  return NaN;
+}
+
 function getSlotHourRangeFromStore(store) {
   const DEFAULT_START = 11;
   const DEFAULT_END = 20;
@@ -128,6 +164,8 @@ function getSlotHourRangeFromStore(store) {
     'slot_start_hour',
     'startHour',
     'openHour',
+    '슬롯시작',
+    '예약시작시',
   ]);
   var endRaw = firstDefinedField(store, [
     'slotEndHour',
@@ -135,9 +173,11 @@ function getSlotHourRangeFromStore(store) {
     'slot_end_hour',
     'endHour',
     'closeHour',
+    '슬롯종료',
+    '예약종료시',
   ]);
-  var start = parseInt(startRaw, 10);
-  var end = parseInt(endRaw, 10);
+  var start = coerceHourFromSheetValue(startRaw);
+  var end = coerceHourFromSheetValue(endRaw);
   if (isNaN(start) || start < 0 || start > 23) start = DEFAULT_START;
   if (isNaN(end) || end < 0 || end > 23) end = DEFAULT_END;
   var crossesMidnight = end < start;

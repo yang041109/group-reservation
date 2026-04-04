@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeSlotHour } from '@/lib/slot-hour-range';
 import { getStoreDetailFromSheets, SheetsApiError } from '@/lib/sheets-api';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,25 @@ export async function GET(
   const date = url.searchParams.get('date') ?? '';
 
   try {
-    const data = await getStoreDetailFromSheets(id, date);
+    const raw = (await getStoreDetailFromSheets(id, date)) as Record<string, unknown>;
+    const store = raw.store;
+    const data =
+      store && typeof store === 'object' && !Array.isArray(store)
+        ? (() => {
+            const s = store as Record<string, unknown>;
+            const ssh = normalizeSlotHour(s.slotStartHour);
+            const seh = normalizeSlotHour(s.slotEndHour);
+            const { slotStartHour: _a, slotEndHour: _b, ...rest } = s;
+            return {
+              ...raw,
+              store: {
+                ...rest,
+                ...(ssh !== undefined ? { slotStartHour: ssh } : {}),
+                ...(seh !== undefined ? { slotEndHour: seh } : {}),
+              },
+            };
+          })()
+        : raw;
     return NextResponse.json(data, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof SheetsApiError) {

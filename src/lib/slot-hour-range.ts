@@ -121,10 +121,24 @@ export function getHourLabels(
   return r;
 }
 
-/** 시트/JSON에서 온 값 (문자열 "17" 등) → 0~23 시간 */
+/** 시트/JSON에서 온 값 (숫자, "17", "17:00", Apps Script가 넣은 ISO 등) → 0~23 시간 */
 export function normalizeSlotHour(v: unknown): number | undefined {
   if (v === null || v === undefined) return undefined;
   if (typeof v === 'string' && v.trim() === '') return undefined;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    const hm = /^(\d{1,2})\s*:\s*(\d{2})/.exec(t);
+    if (hm) {
+      const hh = parseInt(hm[1], 10);
+      if (hh >= 0 && hh <= 23) return hh;
+      return undefined;
+    }
+    const iso = /T(\d{2}):/.exec(t);
+    if (iso) {
+      const hh = parseInt(iso[1], 10);
+      if (hh >= 0 && hh <= 23) return hh;
+    }
+  }
   const n = Number(v);
   if (!Number.isFinite(n)) return undefined;
   const h = Math.trunc(n);

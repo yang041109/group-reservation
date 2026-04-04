@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateSlotTimeBlocks,
+  normalizeSlotHour,
   resolveSlotHourRange,
   slotOverlapsReservation,
 } from '../slot-hour-range';
+
+describe('normalizeSlotHour', () => {
+  it('parses HH:mm strings', () => {
+    expect(normalizeSlotHour('17:00')).toBe(17);
+    expect(normalizeSlotHour('03:30')).toBe(3);
+  });
+});
 
 describe('resolveSlotHourRange', () => {
   it('treats end < start as overnight', () => {
