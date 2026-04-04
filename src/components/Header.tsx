@@ -48,7 +48,7 @@ function StoreIcon() {
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-indigo-100 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900">
+    <header className="sticky top-0 z-40 border-b border-sky-200 bg-gradient-to-r from-sky-500 via-blue-500 to-sky-500">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         {/* 로고 + 졸라맨 애니메이션 */}
         <Link href="/" className="flex items-center gap-1.5 group">
