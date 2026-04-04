@@ -12,6 +12,13 @@ describe('normalizeSlotHour', () => {
     expect(normalizeSlotHour('17:00')).toBe(17);
     expect(normalizeSlotHour('03:30')).toBe(3);
   });
+
+  it('coerces numeric strings with trim via Number()', () => {
+    expect(normalizeSlotHour(' 17 ')).toBe(17);
+    expect(normalizeSlotHour('3')).toBe(3);
+    expect(normalizeSlotHour('  09  ')).toBe(9);
+    expect(normalizeSlotHour('22.9')).toBe(22);
+  });
 });
 
 describe('slotHourRangeFromSheet', () => {
@@ -52,6 +59,20 @@ describe('resolveSlotHourRange', () => {
     expect(r.crossesMidnight).toBe(true);
     expect(r.startHour).toBe(17);
     expect(r.endHour).toBe(3);
+  });
+
+  it('when both sheet hours parse, ignores available/ordered entirely', () => {
+    const r = resolveSlotHourRange({
+      slotStartHour: ' 17 ',
+      slotEndHour: '3',
+      availableOnlyBlocks: ['20:00'],
+      orderedSlotTimeBlocks: ['11:00', '11:30', '20:00'],
+    });
+    expect(r).toEqual({
+      startHour: 17,
+      endHour: 3,
+      crossesMidnight: true,
+    });
   });
 
   it('same-day when end >= start', () => {

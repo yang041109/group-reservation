@@ -1,9 +1,12 @@
 /**
- * 타임슬롯 히트맵/선택기의 시간축(시 단위)을 결정한다.
- * - API가 slotStartHour / slotEndHour 를 주면 그대로 사용
- * - **끝 시 < 시작 시** (예: 17 ~ 3) → 자정 넘김 영업으로 간주 (술집 등)
- * - 없으면 timeBlock 문자열(HH:MM)들에서 최소·최대 시각을 추론 (같은 날만)
- * - 추론 불가 시 기본 11~20시
+ * 슬롯 막대 축, 30분 블록, 예약 겹침(자정 넘김) 판별.
+ *
+ * 【막대 축 원칙】
+ * `slotStartHour`·`slotEndHour`가 둘 다 **유효한 0~23 시로 파싱되면**
+ * availableTimes·ordered slots·timeBlocks 등 **어떤 추론도 쓰지 않고** 그 두 값만 사용한다.
+ * (추론 폴백으로 11~20에 붙는 오류를 막기 위함.)
+ *
+ * 파싱은 숫자·문자열 모두 `Number()` 포함해 단단히 처리한다.
  */
 
 export const DEFAULT_SLOT_START_HOUR = 11;
@@ -12,9 +15,10 @@ export const DEFAULT_SLOT_END_HOUR = 20;
 export interface SlotHourResolution {
   startHour: number;
   endHour: number;
-  /** true면 startHour(저녁) ~ 자정 ~ endHour(새벽) 까지 슬롯 생성 */
   crossesMidnight: boolean;
 }
+
+// ── 시각 문자열 파싱 (timeBlock 등) ─────────────────────────────
 
 function parseTimeToMinutes(t: string): number | null {
   const s = t.trim();
@@ -26,10 +30,8 @@ function parseTimeToMinutes(t: string): number | null {
   return h * 60 + min;
 }
 
-/** "11:00 - 13:00" 같은 범위면 시작·끝 모두 반영 */
 function collectMinutesFromBlock(block: string): number[] {
   const parts = block.split(' - ').map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 0) return [];
   const out: number[] = [];
   for (const p of parts) {
     const mins = parseTimeToMinutes(p);
@@ -38,7 +40,6 @@ function collectMinutesFromBlock(block: string): number[] {
   return out;
 }
 
-/** slots 배열의 첫·끝 timeBlock으로 축 후보 (끝 < 시작 분이면 자정 넘김) */
 function resolutionFromOrderedEnds(first: string, last: string): SlotHourResolution | null {
   const a = parseTimeToMinutes(first);
   const b = parseTimeToMinutes(last);
@@ -51,7 +52,8 @@ function resolutionFromOrderedEnds(first: string, last: string): SlotHourResolut
   };
 }
 
-/** 30분 단위 timeBlock → "영업 밤" 기준 분 (0~47*60+30) */
+// ── 예약 겹침 · 슬롯 나열 ─────────────────────────────────────
+
 export function timeBlockToExtendedMinutes(
   timeBlock: string,
   crossesMidnight: boolean,
@@ -81,23 +83,12 @@ export function slotOverlapsReservation(
     startHour,
     endHour,
   );
-  let lo = timeBlockToExtendedMinutes(
-    resStart.trim(),
-    businessCrossesMidnight,
-    startHour,
-    endHour,
-  );
-  let hi = timeBlockToExtendedMinutes(
-    resEnd.trim(),
-    businessCrossesMidnight,
-    startHour,
-    endHour,
-  );
+  let lo = timeBlockToExtendedMinutes(resStart.trim(), businessCrossesMidnight, startHour, endHour);
+  let hi = timeBlockToExtendedMinutes(resEnd.trim(), businessCrossesMidnight, startHour, endHour);
   if (hi < lo) hi += 24 * 60;
   return slotM >= lo && slotM <= hi;
 }
 
-/** 30분 슬롯 문자열 목록 (예: 17:00 … 23:30, 00:00 … 03:30) */
 export function generateSlotTimeBlocks(
   startHour: number,
   endHour: number,
@@ -117,7 +108,6 @@ export function generateSlotTimeBlocks(
   return out;
 }
 
-/** 시간 눈금 (표시용), 자정 넘김이면 17…23, 0…3 */
 export function getHourLabels(
   startHour: number,
   endHour: number,
@@ -134,25 +124,47 @@ export function getHourLabels(
   return r;
 }
 
-/** 시트/JSON에서 온 값 (숫자, "17", "17:00", Apps Script가 넣은 ISO 등) → 0~23 시간 */
+// ── 시트/API 시각 정규화 (문자열·숫자 모두) ───────────────────
+
+/**
+ * 시트·JSON 값 → 0~23 시.
+ * - 문자열은 trim 후 `HH:mm`·ISO `Txx:` 우선, 그다음 **Number(문자열)** 로 숫자만 있는 경우 처리.
+ * - `Number(" 17 ")` === 17 처럼 공백 포함 문자열도 통과시키기 위해 반드시 Number 단계를 탄다.
+ */
 export function normalizeSlotHour(v: unknown): number | undefined {
   if (v === null || v === undefined) return undefined;
-  if (typeof v === 'string' && v.trim() === '') return undefined;
-  if (typeof v === 'string') {
-    const t = v.trim();
-    const hm = /^(\d{1,2})\s*:\s*(\d{2})/.exec(t);
-    if (hm) {
-      const hh = parseInt(hm[1], 10);
-      if (hh >= 0 && hh <= 23) return hh;
-      return undefined;
-    }
-    const iso = /T(\d{2}):/.exec(t);
-    if (iso) {
-      const hh = parseInt(iso[1], 10);
-      if (hh >= 0 && hh <= 23) return hh;
-    }
+  if (typeof v === 'boolean') return undefined;
+
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) return undefined;
+    const h = Math.trunc(v);
+    return h >= 0 && h <= 23 ? h : undefined;
   }
-  const n = Number(v);
+
+  if (typeof v === 'bigint') {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return undefined;
+    const h = Math.trunc(n);
+    return h >= 0 && h <= 23 ? h : undefined;
+  }
+
+  const s = typeof v === 'string' ? v.trim() : String(v).trim();
+  if (s === '') return undefined;
+
+  const hm = /^(\d{1,2})\s*:\s*(\d{2})/.exec(s);
+  if (hm) {
+    const hh = parseInt(hm[1], 10);
+    if (hh >= 0 && hh <= 23) return hh;
+    return undefined;
+  }
+
+  const iso = /T(\d{2}):/.exec(s);
+  if (iso) {
+    const hh = parseInt(iso[1], 10);
+    if (hh >= 0 && hh <= 23) return hh;
+  }
+
+  const n = Number(s);
   if (!Number.isFinite(n)) return undefined;
   const h = Math.trunc(n);
   if (h < 0 || h > 23) return undefined;
@@ -160,9 +172,7 @@ export function normalizeSlotHour(v: unknown): number | undefined {
 }
 
 /**
- * 시트의 slotStartHour·slotEndHour가 **둘 다** 있을 때만 사용.
- * 막대 축은 이 값만 따르고(첫 칸 = 시작 시 :00, 끝 시까지 :30 포함), available/slots 추론으로 바꾸지 않는다.
- * 하나라도 없으면 null → `resolveSlotHourRange`로 폴백.
+ * 시트에 시작·끝 시가 **둘 다** 있을 때만 막대 축. 없으면 null → 폴백에서 `resolveSlotHourRange` 사용.
  */
 export function slotHourRangeFromSheet(
   slotStartHour: unknown,
@@ -178,10 +188,7 @@ export function slotHourRangeFromSheet(
   };
 }
 
-/**
- * 예약 가능 시간만 있을 때 축 추론 (전체 slots가 11~20이어도 available이 17~만 있으면 17부터)
- * 새벽(0~6) + 저녁(17~)이 같이 있으면 자정 넘김 영업으로 본다.
- */
+/** 시트 시각 없을 때: 예약 가능 timeBlock만으로 축 추론 */
 export function inferRangeFromAvailableBlocks(blocks: string[]): SlotHourResolution | null {
   const hours: number[] = [];
   for (const raw of blocks) {
@@ -207,26 +214,31 @@ export function inferRangeFromAvailableBlocks(blocks: string[]): SlotHourResolut
   };
 }
 
-export function resolveSlotHourRange(options: {
+export interface ResolveSlotHourRangeOptions {
   slotStartHour?: unknown;
   slotEndHour?: unknown;
-  /** 예약 가능한 timeBlock만 (우선 추론에 사용) */
   availableOnlyBlocks?: string[];
-  /** API timeline/slots 배열 순서 (첫·끝 timeBlock으로 자정 넘김 추론) */
   orderedSlotTimeBlocks?: string[];
   timeBlocks?: string[];
-}): SlotHourResolution {
-  const { orderedSlotTimeBlocks, timeBlocks, availableOnlyBlocks } = options;
-  const slotStartHour = normalizeSlotHour(options.slotStartHour);
-  const slotEndHour = normalizeSlotHour(options.slotEndHour);
-  if (slotStartHour !== undefined && slotEndHour !== undefined) {
-    const crossesMidnight = slotEndHour < slotStartHour;
+}
+
+/**
+ * 막대 축 결정.
+ * 1) `slotStartHour`·`slotEndHour` 둘 다 파싱 성공 → **즉시 반환** (다른 필드 무시).
+ * 2) 아니면 ordered / available / timeBlocks / 기본값 순 폴백.
+ */
+export function resolveSlotHourRange(options: ResolveSlotHourRangeOptions): SlotHourResolution {
+  const sh = normalizeSlotHour(options.slotStartHour);
+  const eh = normalizeSlotHour(options.slotEndHour);
+  if (sh !== undefined && eh !== undefined) {
     return {
-      startHour: slotStartHour,
-      endHour: slotEndHour,
-      crossesMidnight,
+      startHour: sh,
+      endHour: eh,
+      crossesMidnight: eh < sh,
     };
   }
+
+  const { orderedSlotTimeBlocks, timeBlocks, availableOnlyBlocks } = options;
 
   const orderedEnds =
     orderedSlotTimeBlocks && orderedSlotTimeBlocks.length >= 2
@@ -236,7 +248,6 @@ export function resolveSlotHourRange(options: {
         )
       : null;
 
-  // 자정 넘김 영업: 예약 가능 목록만으로 축을 잡으면(예: 저녁만 가능) 새벽 슬롯이 UI에서 통째로 사라짐 → 전체 슬롯(ordered) 축 우선
   if (orderedEnds?.crossesMidnight) {
     return orderedEnds;
   }
