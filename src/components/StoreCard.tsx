@@ -45,14 +45,16 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
   const timelineBlocks =
     store.timeline?.map((t) => t.timeBlock) ?? [];
 
+  const avail = store.availableTimes || [];
   const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } = resolveSlotHourRange({
     slotStartHour: store.slotStartHour,
     slotEndHour: store.slotEndHour,
+    availableOnlyBlocks: avail.length > 0 ? avail : undefined,
     orderedSlotTimeBlocks:
       timelineBlocks.length >= 2 ? timelineBlocks : undefined,
     timeBlocks: [
       ...timelineBlocks,
-      ...(store.availableTimes || []),
+      ...avail,
       ...(store.reservedTimes || []),
     ],
   });

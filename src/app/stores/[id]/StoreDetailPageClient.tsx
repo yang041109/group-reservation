@@ -111,6 +111,7 @@ export default function StoreDetailPageClient() {
   const { startHour, endHour, crossesMidnight } = resolveSlotHourRange({
     slotStartHour: store.slotStartHour,
     slotEndHour: store.slotEndHour,
+    availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
     orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
     timeBlocks: [
       ...availableTimes,

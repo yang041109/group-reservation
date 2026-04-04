@@ -132,14 +132,45 @@ export function normalizeSlotHour(v: unknown): number | undefined {
   return h;
 }
 
+/**
+ * 예약 가능 시간만 있을 때 축 추론 (전체 slots가 11~20이어도 available이 17~만 있으면 17부터)
+ * 새벽(0~6) + 저녁(17~)이 같이 있으면 자정 넘김 영업으로 본다.
+ */
+export function inferRangeFromAvailableBlocks(blocks: string[]): SlotHourResolution | null {
+  const hours: number[] = [];
+  for (const raw of blocks) {
+    const m = parseTimeToMinutes(raw.trim());
+    if (m === null) continue;
+    hours.push(Math.floor(m / 60));
+  }
+  if (hours.length === 0) return null;
+
+  const lowBand = hours.filter((h) => h <= 6);
+  const highBand = hours.filter((h) => h >= 17);
+  if (lowBand.length > 0 && highBand.length > 0) {
+    return {
+      startHour: Math.min(...highBand),
+      endHour: Math.max(...lowBand),
+      crossesMidnight: true,
+    };
+  }
+  return {
+    startHour: Math.min(...hours),
+    endHour: Math.max(...hours),
+    crossesMidnight: false,
+  };
+}
+
 export function resolveSlotHourRange(options: {
   slotStartHour?: unknown;
   slotEndHour?: unknown;
+  /** 예약 가능한 timeBlock만 (우선 추론에 사용) */
+  availableOnlyBlocks?: string[];
   /** API timeline/slots 배열 순서 (첫·끝 timeBlock으로 자정 넘김 추론) */
   orderedSlotTimeBlocks?: string[];
   timeBlocks?: string[];
 }): SlotHourResolution {
-  const { orderedSlotTimeBlocks, timeBlocks } = options;
+  const { orderedSlotTimeBlocks, timeBlocks, availableOnlyBlocks } = options;
   const slotStartHour = normalizeSlotHour(options.slotStartHour);
   const slotEndHour = normalizeSlotHour(options.slotEndHour);
   if (slotStartHour !== undefined && slotEndHour !== undefined) {
@@ -149,6 +180,11 @@ export function resolveSlotHourRange(options: {
       endHour: slotEndHour,
       crossesMidnight,
     };
+  }
+
+  if (availableOnlyBlocks && availableOnlyBlocks.length > 0) {
+    const inferred = inferRangeFromAvailableBlocks(availableOnlyBlocks);
+    if (inferred) return inferred;
   }
 
   if (orderedSlotTimeBlocks && orderedSlotTimeBlocks.length >= 2) {

@@ -33,6 +33,31 @@ describe('resolveSlotHourRange', () => {
     expect(r.startHour).toBe(17);
     expect(r.endHour).toBe(3);
   });
+
+  it('prefers availableOnlyBlocks over wide ordered timeline (no gray 11~16)', () => {
+    const r = resolveSlotHourRange({
+      availableOnlyBlocks: ['17:00', '18:00', '19:00'],
+      orderedSlotTimeBlocks: [
+        '11:00',
+        '11:30',
+        '12:00',
+        '20:00',
+        '20:30',
+      ],
+    });
+    expect(r.crossesMidnight).toBe(false);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(19);
+  });
+
+  it('infers overnight from availableOnlyBlocks (새벽 + 저녁)', () => {
+    const r = resolveSlotHourRange({
+      availableOnlyBlocks: ['17:00', '23:30', '00:00', '02:30'],
+    });
+    expect(r.crossesMidnight).toBe(true);
+    expect(r.startHour).toBe(17);
+    expect(r.endHour).toBe(2);
+  });
 });
 
 describe('generateSlotTimeBlocks', () => {

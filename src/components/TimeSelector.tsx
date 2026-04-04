@@ -8,6 +8,9 @@ import {
   timeBlockToExtendedMinutes,
 } from '@/lib/slot-hour-range';
 
+/** 30분 슬롯 한 칸 너비(px) — 길면 가로 스크롤 */
+const SLOT_CELL_PX = 36;
+
 interface TimeSelectorProps {
   availableTimes: string[];
   reservedTimes?: string[];
@@ -21,10 +24,6 @@ interface TimeSelectorProps {
   crossesMidnight?: boolean;
 }
 
-function toTimeStr(hour: number, minute: number): string {
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
 type SlotStatus = 'available' | 'reserved' | 'unavailable' | 'full';
 
 /** 점유율 → 배경색 (선택 안 된 상태) */
@@ -32,7 +31,6 @@ function getOccupancyBg(ratio: number, status: SlotStatus): string {
   if (status === 'full') return 'bg-red-400 cursor-not-allowed';
   if (status === 'reserved') return 'bg-gray-400 cursor-not-allowed';
   if (status === 'unavailable') return 'bg-gray-200 cursor-not-allowed';
-  // available
   if (ratio >= 0.8) return 'bg-orange-300 hover:bg-orange-400 cursor-pointer';
   if (ratio >= 0.5) return 'bg-yellow-300 hover:bg-yellow-400 cursor-pointer';
   if (ratio > 0) return 'bg-emerald-300 hover:bg-emerald-400 cursor-pointer';
@@ -99,12 +97,6 @@ export default function TimeSelector({
     [startHour, endHour, crossesMidnight],
   );
 
-  const ROW_SIZE = 10;
-  const hourRows: number[][] = [];
-  for (let i = 0; i < hours.length; i += ROW_SIZE) {
-    hourRows.push(hours.slice(i, i + ROW_SIZE));
-  }
-
   const isInRange = (time: string): boolean => {
     if (!startTime) return false;
     if (!endTime) return time === startTime;
@@ -166,6 +158,8 @@ export default function TimeSelector({
     return min === Infinity ? null : min;
   }, [startTime, endTime, allSlots, ext, slotMap, availableSet, reservedSet]);
 
+  const labelWidth = SLOT_CELL_PX * 2;
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700">🕐 예약 시간</h3>
@@ -174,71 +168,73 @@ export default function TimeSelector({
           자정 이후 막대는 <span className="font-medium">다음 날 새벽</span> 시간입니다. (예: 0 = 00:00)
         </p>
       )}
-      <div className="mt-3 space-y-3">
-        {hourRows.map((rowHours, rowIdx) => (
-          <div key={rowIdx}>
-            <div className="flex">
-              {rowHours.map((hour) => (
-                <div
-                  key={`${rowIdx}-${hour}`}
-                  className="text-xs font-medium text-gray-500"
-                  style={{ width: `${(1 / rowHours.length) * 100}%` }}
-                >
-                  {hour}
-                </div>
-              ))}
-            </div>
-            <div className="flex h-9 overflow-hidden rounded-md">
-              {rowHours.flatMap((hour) => {
-                const slot0 = toTimeStr(hour, 0);
-                const slot1 = toTimeStr(hour, 30);
-                return [slot0, slot1].map((time) => {
-                  const info = getSlotInfo(time);
-                  const inRange = isInRange(time);
-                  const isStart = time === startTime;
+      <p className="mt-1 text-[10px] text-gray-400">
+        막대가 길면 좌우로 스크롤할 수 있어요.
+      </p>
 
-                  let bgClass: string;
-                  if (isStart && !endTime) {
-                    bgClass = 'bg-blue-600';
-                  } else if (inRange) {
-                    bgClass = 'bg-blue-500';
-                  } else {
-                    bgClass = getOccupancyBg(info.ratio, info.status);
-                  }
-
-                  const showCount = info.maxPeople > 0 && info.status !== 'unavailable';
-                  const remaining = info.remaining;
-
-                  let titleText = time;
-                  if (info.status === 'full') titleText = `${time} (마감)`;
-                  else if (info.status === 'reserved') titleText = `${time} (예약불가)`;
-                  else if (info.status === 'unavailable') titleText = `${time} (불가)`;
-                  else if (showCount) titleText = `${time} — 잔여 ${remaining}명 / 최대 ${info.maxPeople}명`;
-
-                  return (
-                    <button
-                      key={time}
-                      type="button"
-                      disabled={info.status !== 'available'}
-                      onClick={() => handleSlotClick(time)}
-                      title={titleText}
-                      className={`flex-1 border-r border-white/30 last:border-r-0 transition-colors relative flex items-center justify-center ${bgClass}`}
-                      aria-label={titleText}
-                    >
-                      {showCount && (
-                        <span className={`text-[9px] font-bold leading-none ${
-                          inRange || isStart ? 'text-white' : info.status === 'full' ? 'text-white/80' : 'text-gray-700/70'
-                        }`}>
-                          {remaining > 0 ? remaining : '✕'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                });
-              })}
-            </div>
+      <div
+        className="mt-2 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch]"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div className="inline-block min-w-min align-top">
+          <div className="flex border-b border-gray-100 pb-0.5">
+            {hours.map((hour) => (
+              <div
+                key={`h-${hour}-${startHour}-${endHour}-${crossesMidnight}`}
+                className="flex-shrink-0 text-center text-xs font-medium text-gray-500"
+                style={{ width: labelWidth }}
+              >
+                {hour}
+              </div>
+            ))}
           </div>
-        ))}
+          <div className="flex h-9 overflow-hidden rounded-md">
+            {allSlots.map((time) => {
+              const info = getSlotInfo(time);
+              const inRange = isInRange(time);
+              const isStart = time === startTime;
+
+              let bgClass: string;
+              if (isStart && !endTime) {
+                bgClass = 'bg-blue-600';
+              } else if (inRange) {
+                bgClass = 'bg-blue-500';
+              } else {
+                bgClass = getOccupancyBg(info.ratio, info.status);
+              }
+
+              const showCount = info.maxPeople > 0 && info.status !== 'unavailable';
+              const remaining = info.remaining;
+
+              let titleText = time;
+              if (info.status === 'full') titleText = `${time} (마감)`;
+              else if (info.status === 'reserved') titleText = `${time} (예약불가)`;
+              else if (info.status === 'unavailable') titleText = `${time} (불가)`;
+              else if (showCount) titleText = `${time} — 잔여 ${remaining}명 / 최대 ${info.maxPeople}명`;
+
+              return (
+                <button
+                  key={time}
+                  type="button"
+                  disabled={info.status !== 'available'}
+                  onClick={() => handleSlotClick(time)}
+                  title={titleText}
+                  style={{ width: SLOT_CELL_PX, minWidth: SLOT_CELL_PX }}
+                  className={`flex-shrink-0 border-r border-white/30 last:border-r-0 transition-colors relative flex items-center justify-center ${bgClass}`}
+                  aria-label={titleText}
+                >
+                  {showCount && (
+                    <span className={`text-[9px] font-bold leading-none ${
+                      inRange || isStart ? 'text-white' : info.status === 'full' ? 'text-white/80' : 'text-gray-700/70'
+                    }`}>
+                      {remaining > 0 ? remaining : '✕'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
