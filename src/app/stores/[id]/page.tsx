@@ -137,6 +137,7 @@ export default function StoreDetailPage() {
   const { store, menus, availableTimes, reservedTimes } = data;
   const slots = data.slots ?? store.slots ?? [];
   const orderedBlocks = slots.map((s) => s.timeBlock);
+  console.log('🔥 노션에서 온 원본 데이터:', store.slotStartHour, store.slotEndHour);
   const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
   const { startHour, endHour, crossesMidnight } =
     fromSheet ??

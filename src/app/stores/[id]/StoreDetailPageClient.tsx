@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { seoulToday } from '@/lib/spring-api';
 import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
 import HeadcountSelector from '@/components/HeadcountSelector';
@@ -18,69 +17,105 @@ function getMinOrderAmount(headcount: number, rules: MinOrderRule[]): number {
   return rule ? rule.minOrderAmount : 0;
 }
 
+function isYmd(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
 export default function StoreDetailPageClient() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const storeId = params.id as string;
-  const dateParam = searchParams.get('date');
-  const date =
-    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : seoulToday();
 
   const [data, setData] = useState<GetStoreDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedHeadcount, setSelectedHeadcount] = useState(1);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    let cancelled = false;
+
+    const dateParam = searchParams.get('date');
+    const savedDate = sessionStorage.getItem('selectedDate');
+    let dateVal: string | null = null;
+    if (dateParam && isYmd(dateParam)) {
+      dateVal = dateParam;
+    } else if (savedDate && isYmd(savedDate)) {
+      dateVal = savedDate;
+    }
+
+    const savedHeadcountRaw = sessionStorage.getItem('selectedHeadcount');
+    let headcount = 1;
+    if (savedHeadcountRaw) {
+      const n = parseInt(savedHeadcountRaw, 10);
+      if (!Number.isNaN(n) && n > 0) headcount = n;
+    }
+
+    let timeVal: string | null = null;
+    const menuQty: Record<string, number> = {};
+
     const raw = sessionStorage.getItem('pendingReservation');
     if (raw) {
       try {
-        const pending = JSON.parse(raw);
+        const pending = JSON.parse(raw) as {
+          storeId?: string;
+          headcount?: number;
+          date?: string;
+          time?: string | null;
+          menuItems?: { menuId: string; quantity: number }[];
+        };
         if (pending.storeId === storeId) {
-          setSelectedHeadcount(pending.headcount ?? 1);
-          setSelectedTime(pending.time ?? null);
+          if (pending.headcount && pending.headcount > 0) headcount = pending.headcount;
+          if (pending.date && isYmd(pending.date)) dateVal = pending.date;
+          timeVal = pending.time ?? null;
           if (pending.menuItems) {
-            const restored: Record<string, number> = {};
             for (const item of pending.menuItems) {
-              if (item.quantity > 0) restored[item.menuId] = item.quantity;
+              if (item.quantity > 0) menuQty[item.menuId] = item.quantity;
             }
-            setMenuQuantities(restored);
           }
         }
       } catch {
         // ignore
       }
     }
-  }, [storeId]);
 
-  useEffect(() => {
+    setSelectedDate(dateVal);
+    setSelectedHeadcount(headcount);
+    setSelectedTime(timeVal);
+    setMenuQuantities(menuQty);
+
     async function fetchStore() {
+      setLoading(true);
+      setError(null);
       try {
-        const res = await fetch(
-          `/api/stores/${storeId}?date=${encodeURIComponent(date)}`,
-        );
+        const qp = dateVal ? `?date=${encodeURIComponent(dateVal)}` : '';
+        const res = await fetch(`/api/stores/${storeId}${qp}`, { cache: 'no-store' });
         if (res.status === 404) {
-          setError('가게를 찾을 수 없습니다.');
+          if (!cancelled) setError('가게를 찾을 수 없습니다.');
           return;
         }
         if (!res.ok) {
-          setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
+          if (!cancelled) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
           return;
         }
         const json: GetStoreDetailResponse = await res.json();
-        setData(json);
+        if (!cancelled) setData(json);
       } catch {
-        setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
+        if (!cancelled) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     fetchStore();
-  }, [storeId, date]);
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, searchParams]);
 
   if (loading) {
     return (
@@ -127,6 +162,14 @@ export default function StoreDetailPageClient() {
     return sum + (menu ? menu.price * qty : 0);
   }, 0);
 
+  const dateDisplay = selectedDate
+    ? (() => {
+        const d = new Date(`${selectedDate}T00:00:00`);
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        return `${d.getMonth() + 1}/${d.getDate()} (${days[d.getDay()]})`;
+      })()
+    : null;
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gray-100">
@@ -144,6 +187,18 @@ export default function StoreDetailPageClient() {
       </div>
 
       <h1 className="mt-4 text-2xl font-bold text-gray-900">{store.name}</h1>
+
+      <div className="mt-4 flex items-center gap-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        {dateDisplay && <span>📅 {dateDisplay}</span>}
+        <span>👥 {selectedHeadcount}명</span>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="ml-auto text-xs text-blue-500 hover:underline"
+        >
+          변경
+        </button>
+      </div>
 
       <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <HeadcountSelector
@@ -190,6 +245,7 @@ export default function StoreDetailPageClient() {
 
       <ReserveButton
         selectedHeadcount={selectedHeadcount}
+        selectedDate={selectedDate}
         selectedTime={selectedTime}
         totalAmount={totalAmount}
         minOrderAmount={minOrderAmount}
