@@ -18,13 +18,13 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
     .join('\n');
 
   return {
-    text: `🔔 새 예약 신청 도착!`,
+    text: `🔔 새 예약이 접수되었습니다!`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*🔔 새 예약 신청 도착!*`,
+          text: `*🔔 새 예약 접수*`,
         },
       },
       {
@@ -39,7 +39,6 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
             `*날짜:* ${data.date}`,
             `*시간:* ${data.time}`,
             `*총 금액:* ${data.totalAmount.toLocaleString()}원`,
-            `*최소 주문 금액:* ${data.minOrderAmount.toLocaleString()}원`,
           ].join('\n'),
         },
       },
@@ -49,35 +48,6 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
           type: 'mrkdwn',
           text: `*선택 메뉴:*\n${menuText}`,
         },
-      },
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: '✅ 수락' },
-            action_id: 'accept_reservation',
-            value: data.reservationId,
-            style: 'primary',
-          },
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: '❌ 거절' },
-            action_id: 'reject_reservation',
-            value: data.reservationId,
-            style: 'danger',
-          },
-        ],
-      },
-      {
-        type: 'input',
-        element: {
-          type: 'plain_text_input',
-          action_id: 'admin_note',
-          placeholder: { type: 'plain_text', text: '추가 안내사항을 입력하세요...' },
-        },
-        label: { type: 'plain_text', text: '추가 안내사항' },
-        optional: true,
       },
     ],
   };
