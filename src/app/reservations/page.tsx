@@ -11,6 +11,7 @@ interface ReservationItem {
   storeName: string;
   slotId: string;
   timeBlock: string;
+  date: string;
   headcount: number;
   totalAmount: number;
   status: string;
@@ -123,16 +124,39 @@ export default function MyReservationsPage() {
           </Link>
         </div>
       ) : (
-        <div className="mt-6 space-y-4">
-          {reservations.map((r) => {
+        (() => {
+          const today = new Date().toISOString().slice(0, 10);
+          
+          // 당일 예약 (CONFIRMED + 오늘)
+          const todayRes = reservations.filter(
+            (r) => r.status === 'CONFIRMED' && (r.date || '') === today
+          );
+          // 다가오는 예약 (CONFIRMED + 내일 이후)
+          const upcoming = reservations.filter(
+            (r) => r.status === 'CONFIRMED' && (r.date || '') > today
+          );
+          // 지난/취소 예약
+          const past = reservations.filter(
+            (r) => r.status !== 'CONFIRMED' || (r.date || '') < today
+          );
+
+          const renderCard = (r: ReservationItem, isToday = false) => {
             const rid = r.reservationId || r.id;
             const status = STATUS_LABEL[r.status] ?? { text: r.status, color: 'bg-gray-100 text-gray-700', emoji: '📋' };
-            const cancellable = r.status === 'CONFIRMED';
+            const cancellable = r.status === 'CONFIRMED' && (r.date || '') >= today;
             const isCancelling = cancellingId === rid;
 
+            const cardBorder = isToday
+              ? 'border-2 border-yellow-400 bg-yellow-50'
+              : 'border border-gray-200 bg-white';
+
             return (
-              <div key={rid} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                {/* 가게명 + 상태 */}
+              <div key={rid} className={`rounded-xl p-5 shadow-sm ${cardBorder}`}>
+                {isToday && (
+                  <div className="mb-2 inline-block rounded-full bg-yellow-400 px-3 py-0.5 text-xs font-bold text-yellow-900">
+                    🔔 오늘 예약
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-bold text-gray-900">
                     {r.storeName || r.storeId}
@@ -141,15 +165,12 @@ export default function MyReservationsPage() {
                     {status.emoji} {status.text}
                   </span>
                 </div>
-
-                {/* 예약 정보 */}
                 <div className="space-y-1.5 text-sm text-gray-600">
+                  {r.date && <p>📅 날짜: {r.date}</p>}
                   <p>👥 인원: {r.headcount}명</p>
                   <p>🕐 시간: {r.timeBlock}</p>
                   <p>💰 금액: {(r.totalAmount || 0).toLocaleString()}원</p>
                 </div>
-
-                {/* 메뉴 */}
                 {r.menus && r.menus.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <p className="text-xs font-semibold text-gray-500 mb-1">🍽️ 주문 메뉴</p>
@@ -164,8 +185,6 @@ export default function MyReservationsPage() {
                     </div>
                   </div>
                 )}
-
-                {/* 취소 버튼 */}
                 {cancellable && (
                   <div className="mt-4 pt-3 border-t border-gray-100">
                     <button
@@ -184,8 +203,42 @@ export default function MyReservationsPage() {
                 )}
               </div>
             );
-          })}
-        </div>
+          };
+
+          return (
+            <div className="mt-6 space-y-6">
+              {/* 오늘 예약 */}
+              {todayRes.length > 0 && (
+                <div>
+                  <h2 className="text-base font-bold text-yellow-700 mb-3">🔔 오늘 예약</h2>
+                  <div className="space-y-4">{todayRes.map((r) => renderCard(r, true))}</div>
+                </div>
+              )}
+
+              {/* 다가오는 예약 */}
+              {upcoming.length > 0 && (
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 mb-3">📌 다가오는 예약</h2>
+                  <div className="space-y-4">{upcoming.map((r) => renderCard(r))}</div>
+                </div>
+              )}
+
+              {todayRes.length === 0 && upcoming.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-sm">다가오는 예약이 없습니다</p>
+                </div>
+              )}
+
+              {/* 지난/취소 예약 */}
+              {past.length > 0 && (
+                <div>
+                  <h2 className="text-base font-bold text-gray-400 mb-3">📁 지난 예약</h2>
+                  <div className="space-y-4 opacity-60">{past.map((r) => renderCard(r))}</div>
+                </div>
+              )}
+            </div>
+          );
+        })()
       )}
     </main>
   );

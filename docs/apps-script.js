@@ -501,6 +501,7 @@ function handleGetReservations(params) {
       reservationId: r.reservationId,
       storeId: sid,
       storeName: store ? store.name : sid,
+      date: String(r.date || '').trim(),
       timeBlock: r.startTime + ' ~ ' + r.endTime,
       headcount: parseInt(r.headcount) || 0,
       totalAmount: parseInt(r.totalAmount) || 0,
