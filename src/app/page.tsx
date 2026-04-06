@@ -34,7 +34,12 @@ export default function Home() {
     setLoading(true);
     fetch(`/api/stores?date=${encodeURIComponent(selectedDate)}`, { cache: 'no-store' })
       .then((res) => res.json())
-      .then((data) => setStoreCards(data.stores ?? []))
+      .then((data) => {
+        const stores = data.stores ?? [];
+        setStoreCards(stores);
+        // 가게 데이터를 캐시 → 상세 페이지에서 재사용
+        try { sessionStorage.setItem('cachedStores', JSON.stringify(stores)); } catch {}
+      })
       .catch(() => setStoreCards([]))
       .finally(() => setLoading(false));
   }, [selectedDate]);

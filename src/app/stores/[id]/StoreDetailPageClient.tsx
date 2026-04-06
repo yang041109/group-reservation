@@ -89,8 +89,44 @@ export default function StoreDetailPageClient() {
     setMenuQuantities(menuQty);
 
     async function fetchStore() {
-      setLoading(true);
       setError(null);
+
+      // 1단계: 캐시된 가게 데이터로 즉시 표시
+      let usedCache = false;
+      try {
+        const cached = sessionStorage.getItem('cachedStores');
+        if (cached) {
+          const stores = JSON.parse(cached) as Record<string, unknown>[];
+          const found = stores.find((s) => s.id === storeId);
+          if (found) {
+            // 캐시에서 기본 정보 + 타임라인 즉시 세팅
+            const cacheData: GetStoreDetailResponse = {
+              store: {
+                id: String(found.id),
+                name: String(found.name || ''),
+                images: Array.isArray(found.images) ? found.images as string[] : [],
+                maxCapacity: Number(found.maxCapacity) || 0,
+                availableTimes: Array.isArray(found.availableTimes) ? found.availableTimes as string[] : [],
+                slots: Array.isArray(found.timeline) ? found.timeline as any[] : undefined,
+                minOrderRules: Array.isArray(found.minOrderRules) ? found.minOrderRules as any[] : [],
+              },
+              menus: [], // 메뉴는 아직 없음 → 2단계에서 로딩
+              slots: Array.isArray(found.timeline) ? found.timeline as any[] : undefined,
+              availableTimes: Array.isArray(found.availableTimes) ? found.availableTimes as string[] : [],
+              reservedTimes: Array.isArray(found.reservedTimes) ? found.reservedTimes as string[] : [],
+            };
+            if (!cancelled) {
+              setData(cacheData);
+              setLoading(false);
+              usedCache = true;
+            }
+          }
+        }
+      } catch {}
+
+      if (!usedCache) setLoading(true);
+
+      // 2단계: Sheets에서 전체 데이터 (메뉴 포함) 가져오기
       try {
         const qp = dateVal ? `?date=${encodeURIComponent(dateVal)}` : '';
         const res = await fetch(`/api/stores/${storeId}${qp}`, { cache: 'no-store' });
@@ -99,13 +135,13 @@ export default function StoreDetailPageClient() {
           return;
         }
         if (!res.ok) {
-          if (!cancelled) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
+          if (!cancelled && !usedCache) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
           return;
         }
         const json: GetStoreDetailResponse = await res.json();
         if (!cancelled) setData(json);
       } catch {
-        if (!cancelled) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
+        if (!cancelled && !usedCache) setError('가게 정보를 불러오는 중 오류가 발생했습니다.');
       } finally {
         if (!cancelled) setLoading(false);
       }
