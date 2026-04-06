@@ -181,7 +181,7 @@ export default function TimeSelector({
             {hours.map((hour) => (
               <div
                 key={`h-${hour}-${startHour}-${endHour}-${crossesMidnight}`}
-                className="flex-shrink-0 text-center text-xs font-medium text-gray-500"
+                className="flex-shrink-0 text-left text-xs font-medium text-gray-500 pl-0.5"
                 style={{ width: labelWidth }}
               >
                 {hour}
