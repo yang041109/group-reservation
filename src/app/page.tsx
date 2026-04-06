@@ -32,7 +32,7 @@ export default function Home() {
   // 캐시된 데이터에서 가게 카드 생성 (즉시)
   const storeCards: StoreCardType[] = stores.map((s) => {
     const timeline = selectedDate
-      ? buildSlotsForDate(s.storeId, selectedDate, s.maxCapacity, reservations)
+      ? buildSlotsForDate(s.storeId, selectedDate, s.maxCapacity, reservations, s.slotStartHour, s.slotEndHour)
       : [];
     return {
       id: s.storeId,

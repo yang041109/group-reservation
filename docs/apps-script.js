@@ -552,6 +552,7 @@ function handleGetAllData() {
   const storeList = stores.map(store => {
     const sid = String(store.storeId).trim();
     const cap = parseInt(store.maxCapacity) || 0;
+    const range = getSlotHourRangeFromStore(store);
     return {
       storeId: sid,
       name: store.name,
@@ -559,6 +560,8 @@ function handleGetAllData() {
       maxCapacity: cap,
       imageUrl: store.imageUrl || '',
       description: store.description || '',
+      slotStartHour: range.slotStartHour,
+      slotEndHour: range.slotEndHour,
       menus: menus.filter(m => String(m.storeId).trim() === sid).map(m => ({
         id: String(m.menuId).trim(),
         name: m.name,

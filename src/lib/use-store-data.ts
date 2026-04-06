@@ -12,6 +12,8 @@ export interface CachedStore {
   maxCapacity: number;
   imageUrl: string;
   description: string;
+  slotStartHour?: number;
+  slotEndHour?: number;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
 }
@@ -72,17 +74,22 @@ export function buildSlotsForDate(
   date: string,
   maxPeople: number,
   reservations: CachedReservation[],
+  slotStartHour?: number,
+  slotEndHour?: number,
 ): TimeSlot[] {
+  const startH = slotStartHour ?? 11;
+  const endH = slotEndHour ?? 20;
+  const crossesMidnight = endH < startH;
+
   // 해당 가게 + 날짜의 확정 예약 필터
   const matching = reservations.filter(
     (r) => r.storeId === storeId && r.date === date,
   );
 
   const slots: TimeSlot[] = [];
-  for (let h = 11; h <= 20; h++) {
+  const pushSlots = (h: number) => {
     for (let m = 0; m < 60; m += 30) {
       const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      // 해당 시간대에 걸치는 예약의 인원 합산
       let booked = 0;
       matching.forEach((r) => {
         if (time >= r.startTime && time <= r.endTime) {
@@ -98,6 +105,14 @@ export function buildSlotsForDate(
         currentHeadcount: booked,
       });
     }
+  };
+
+  if (!crossesMidnight) {
+    for (let h = startH; h <= endH; h++) pushSlots(h);
+  } else {
+    for (let h = startH; h <= 23; h++) pushSlots(h);
+    for (let h = 0; h <= endH; h++) pushSlots(h);
   }
+
   return slots;
 }
