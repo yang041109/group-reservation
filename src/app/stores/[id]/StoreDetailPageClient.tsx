@@ -91,29 +91,34 @@ export default function StoreDetailPageClient() {
     async function fetchStore() {
       setError(null);
 
-      // 1단계: 캐시된 가게 데이터로 즉시 표시
+      // 1단계: SWR 캐시에서 즉시 표시
       let usedCache = false;
       try {
-        const cached = sessionStorage.getItem('cachedStores');
-        if (cached) {
-          const stores = JSON.parse(cached) as Record<string, unknown>[];
-          const found = stores.find((s) => s.id === storeId);
+        const cachedRaw = sessionStorage.getItem('cachedStoresRaw');
+        const cachedRes = sessionStorage.getItem('cachedReservations');
+        if (cachedRaw) {
+          const allStores = JSON.parse(cachedRaw);
+          const found = allStores.find((s: any) => s.storeId === storeId);
           if (found) {
-            // 캐시에서 기본 정보 + 타임라인 즉시 세팅
+            const resData = cachedRes ? JSON.parse(cachedRes) : [];
+            const { buildSlotsForDate } = await import('@/lib/use-store-data');
+            const slots = dateVal
+              ? buildSlotsForDate(storeId, dateVal, found.maxCapacity, resData)
+              : [];
             const cacheData: GetStoreDetailResponse = {
               store: {
-                id: String(found.id),
-                name: String(found.name || ''),
-                images: Array.isArray(found.images) ? found.images as string[] : [],
-                maxCapacity: Number(found.maxCapacity) || 0,
-                availableTimes: Array.isArray(found.availableTimes) ? found.availableTimes as string[] : [],
-                slots: Array.isArray(found.timeline) ? found.timeline as any[] : undefined,
-                minOrderRules: Array.isArray(found.minOrderRules) ? found.minOrderRules as any[] : [],
+                id: found.storeId,
+                name: found.name,
+                images: found.imageUrl ? [found.imageUrl] : [],
+                maxCapacity: found.maxCapacity,
+                availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
+                slots,
+                minOrderRules: found.minOrderRules || [],
               },
-              menus: [], // 메뉴는 아직 없음 → 2단계에서 로딩
-              slots: Array.isArray(found.timeline) ? found.timeline as any[] : undefined,
-              availableTimes: Array.isArray(found.availableTimes) ? found.availableTimes as string[] : [],
-              reservedTimes: Array.isArray(found.reservedTimes) ? found.reservedTimes as string[] : [],
+              menus: found.menus || [],
+              slots,
+              availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
+              reservedTimes: slots.filter((s: any) => !s.isAvailable).map((s: any) => s.timeBlock),
             };
             if (!cancelled) {
               setData(cacheData);
@@ -126,12 +131,12 @@ export default function StoreDetailPageClient() {
 
       if (!usedCache) setLoading(true);
 
-      // 2단계: Sheets에서 전체 데이터 (메뉴 포함) 가져오기
+      // 2단계: Sheets에서 최신 데이터 가져오기 (백그라운드)
       try {
         const qp = dateVal ? `?date=${encodeURIComponent(dateVal)}` : '';
         const res = await fetch(`/api/stores/${storeId}${qp}`, { cache: 'no-store' });
         if (res.status === 404) {
-          if (!cancelled) setError('가게를 찾을 수 없습니다.');
+          if (!cancelled && !usedCache) setError('가게를 찾을 수 없습니다.');
           return;
         }
         if (!res.ok) {

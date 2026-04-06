@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
+import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
 import type { StoreCard as StoreCardType } from '@/types';
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedHeadcount, setSelectedHeadcount] = useState(0);
-  const [storeCards, setStoreCards] = useState<StoreCardType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { stores, reservations, isLoading } = useAllData();
 
   // Restore from sessionStorage
   useEffect(() => {
@@ -28,21 +28,32 @@ export default function Home() {
     sessionStorage.setItem('selectedHeadcount', String(selectedHeadcount));
   }, [selectedHeadcount]);
 
-  // Fetch stores when date changes
+  // 캐시된 데이터에서 가게 카드 생성 (즉시)
+  const storeCards: StoreCardType[] = stores.map((s) => {
+    const timeline = selectedDate
+      ? buildSlotsForDate(s.storeId, selectedDate, s.maxCapacity, reservations)
+      : [];
+    return {
+      id: s.storeId,
+      name: s.name,
+      category: s.category,
+      images: s.imageUrl ? [s.imageUrl] : [],
+      maxCapacity: s.maxCapacity,
+      timeline,
+      availableTimes: timeline.filter((t) => t.isAvailable).map((t) => t.timeBlock),
+      reservedTimes: timeline.filter((t) => !t.isAvailable).map((t) => t.timeBlock),
+      minOrderRules: s.minOrderRules,
+    };
+  });
+
+  // 캐시 데이터를 sessionStorage에 저장 (상세 페이지에서 재사용)
   useEffect(() => {
-    if (!selectedDate) return;
-    setLoading(true);
-    fetch(`/api/stores?date=${encodeURIComponent(selectedDate)}`, { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        const stores = data.stores ?? [];
-        setStoreCards(stores);
-        // 가게 데이터를 캐시 → 상세 페이지에서 재사용
-        try { sessionStorage.setItem('cachedStores', JSON.stringify(stores)); } catch {}
-      })
-      .catch(() => setStoreCards([]))
-      .finally(() => setLoading(false));
-  }, [selectedDate]);
+    if (storeCards.length > 0) {
+      try { sessionStorage.setItem('cachedStores', JSON.stringify(storeCards)); } catch {}
+      try { sessionStorage.setItem('cachedStoresRaw', JSON.stringify(stores)); } catch {}
+      try { sessionStorage.setItem('cachedReservations', JSON.stringify(reservations)); } catch {}
+    }
+  }, [storeCards, stores, reservations]);
 
   // Filter stores by headcount capacity (0 = show all)
   const filteredStores = storeCards.filter((store) => {
@@ -58,10 +69,8 @@ export default function Home() {
         날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다
       </p>
 
-      {/* 날짜 + 인원수 선택 영역 */}
       <div className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
-
         <HeadcountSelector
           maxCapacity={100}
           minCapacity={0}
@@ -70,14 +79,14 @@ export default function Home() {
         />
       </div>
 
-      {/* 가게 리스트 */}
-      {!showStores ? (
+      {isLoading ? (
+        <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
+          <div className="animate-pulse text-4xl mb-3">🏪</div>
+          <p className="text-base">가게 정보를 불러오는 중...</p>
+        </div>
+      ) : !showStores ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
           <p className="text-base">날짜를 선택해주세요</p>
-        </div>
-      ) : loading ? (
-        <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
-          <p className="text-base">불러오는 중...</p>
         </div>
       ) : filteredStores.length === 0 ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-500">

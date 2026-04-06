@@ -23,6 +23,9 @@ function doGet(e) {
       case 'cancelReservation':
         result = handleCancelReservation(e.parameter);
         break;
+      case 'getAllData':
+        result = handleGetAllData();
+        break;
       default:
         result = { success: false, message: 'Unknown action: ' + action };
     }
@@ -526,4 +529,58 @@ function handleCancelReservation(params) {
     }
   }
   return { success: false, message: '예약을 찾을 수 없습니다.' };
+}
+
+// ── 전체 데이터 한 번에 가져오기 (SWR 캐싱용) ──────────────────
+
+function handleGetAllData() {
+  const stores = sheetToObjects('store');
+  const menus = sheetToObjects('menu');
+  const rules = sheetToObjects('rule');
+  const reservations = sheetToObjects('reservation');
+
+  const storeList = stores.map(store => {
+    const sid = String(store.storeId).trim();
+    const cap = parseInt(store.maxCapacity) || 0;
+    return {
+      storeId: sid,
+      name: store.name,
+      category: store.category || '',
+      maxCapacity: cap,
+      imageUrl: store.imageUrl || '',
+      description: store.description || '',
+      menus: menus.filter(m => String(m.storeId).trim() === sid).map(m => ({
+        id: String(m.menuId).trim(),
+        name: m.name,
+        price: parseInt(m.price) || 0,
+        category: m.category || '',
+        isRequired: String(m.isRequired).toLowerCase() === 'true',
+      })),
+      minOrderRules: rules.filter(r => String(r.storeId).trim() === sid).map(r => ({
+        minHeadcount: parseInt(r.minHeadcount) || 0,
+        maxHeadcount: parseInt(r.maxHeadcount) || 0,
+        minOrderAmount: parseInt(r.minOrderAmount) || 0,
+      })),
+    };
+  });
+
+  // 확정된 예약만 (CANCELED 제외)
+  const confirmedReservations = reservations
+    .filter(r => String(r.status).trim() === 'CONFIRMED')
+    .map(r => ({
+      reservationId: r.reservationId,
+      storeId: String(r.storeId).trim(),
+      headcount: parseInt(r.headcount) || 0,
+      date: String(r.date).trim(),
+      startTime: String(r.startTime).trim(),
+      endTime: String(r.endTime).trim(),
+    }));
+
+  return {
+    success: true,
+    data: {
+      stores: storeList,
+      reservations: confirmedReservations,
+    },
+  };
 }
