@@ -28,3 +28,20 @@
 .running-stickman {
   animation: stickman-run 0.6s ease-in-out infinite, stickman-bounce 0.3s ease-in-out infinite;
 }
+
+/* 통통한 졸라맨 로딩 애니메이션 */
+@keyframes chubby-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-12px);
+  }
+  60% {
+    transform: translateY(-4px);
+  }
+}
+
+.chubby-stickman {
+  animation: chubby-bounce 0.8s ease-in-out infinite;
+}

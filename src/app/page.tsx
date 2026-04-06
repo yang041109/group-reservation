@@ -5,6 +5,7 @@ import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
+import LoadingStickmen from '@/components/LoadingStickmen';
 import type { StoreCard as StoreCardType } from '@/types';
 
 export default function Home() {
@@ -80,10 +81,7 @@ export default function Home() {
       </div>
 
       {isLoading ? (
-        <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
-          <div className="animate-pulse text-4xl mb-3">🏪</div>
-          <p className="text-base">가게 정보를 불러오는 중...</p>
-        </div>
+        <LoadingStickmen message="가게 정보를 불러오는 중..." />
       ) : !showStores ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
           <p className="text-base">날짜를 선택해주세요</p>
