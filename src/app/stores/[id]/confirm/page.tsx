@@ -97,7 +97,12 @@ export default function ReservationConfirmPage() {
       if (!res.ok) {
         const data = await res.json();
         const msg = data.errors?.join(', ') || data.error || '예약 처리 중 오류가 발생했습니다.';
-        setError(msg);
+        // 잔여 인원 초과 에러인 경우 친화적 메시지
+        if (msg.includes('잔여 인원') || msg.includes('초과')) {
+          setError(`⚠️ 방금 다른 예약이 들어왔어요!\n${msg}\n시간대를 변경하거나 인원수를 조정해주세요.`);
+        } else {
+          setError(msg);
+        }
         setSubmitting(false);
         return;
       }
@@ -248,8 +253,15 @@ export default function ReservationConfirmPage() {
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mt-4 rounded-xl bg-red-50 px-5 py-3 text-sm text-red-700">
-          {error}
+        <div className="mt-4 rounded-xl border-2 border-red-300 bg-red-50 px-5 py-4 text-sm">
+          <div className="whitespace-pre-line text-red-700 font-medium">{error}</div>
+          <button
+            type="button"
+            onClick={() => { setError(null); router.back(); }}
+            className="mt-3 w-full rounded-lg bg-red-100 py-2 text-xs font-bold text-red-600 hover:bg-red-200 transition"
+          >
+            ← 시간대 다시 선택하기
+          </button>
         </div>
       )}
 
