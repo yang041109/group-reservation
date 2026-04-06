@@ -26,6 +26,15 @@ function doGet(e) {
       case 'getAllData':
         result = handleGetAllData();
         break;
+      case 'createReservation':
+        // GET 폴백: POST가 리다이렉트로 실패할 때 payload 파라미터로 전달
+        try {
+          var payload = JSON.parse(e.parameter.payload || '{}');
+          result = handleCreateReservation(payload);
+        } catch(err) {
+          result = { success: false, message: 'payload 파싱 실패: ' + err.message };
+        }
+        break;
       default:
         result = { success: false, message: 'Unknown action: ' + action };
     }

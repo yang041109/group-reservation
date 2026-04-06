@@ -29,12 +29,32 @@ async function sheetsGet<T>(params: Record<string, string>): Promise<T> {
 
 async function sheetsPost<T>(body: Record<string, unknown>): Promise<T> {
   if (!SHEETS_URL) throw new SheetsApiError(500, 'SHEETS_URL이 설정되지 않았습니다.');
+  
+  // Apps Script는 POST 시 302 리다이렉트를 하므로 redirect: 'follow' 필수
   const res = await fetch(SHEETS_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' }, // Apps Script는 text/plain 권장
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(body),
+    redirect: 'follow',
     cache: 'no-store',
   });
+
+  // 리다이렉트 후 응답이 HTML이면 (Apps Script 에러 페이지) GET 폴백 시도
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    // GET 방식으로 폴백: body를 URL 파라미터로 전달
+    const fallbackUrl = `${SHEETS_URL}?action=${encodeURIComponent(body.action as string)}&payload=${encodeURIComponent(JSON.stringify(body))}`;
+    const fallbackRes = await fetch(fallbackUrl, { cache: 'no-store', redirect: 'follow' });
+    if (!fallbackRes.ok) {
+      throw new SheetsApiError(fallbackRes.status, await fallbackRes.text());
+    }
+    const fallbackJson = await fallbackRes.json();
+    if (fallbackJson.success === false) {
+      throw new SheetsApiError(400, fallbackJson.message || '요청 처리에 실패했습니다.');
+    }
+    return fallbackJson.data ?? fallbackJson;
+  }
+
   if (!res.ok) {
     throw new SheetsApiError(res.status, await res.text());
   }
@@ -82,9 +102,10 @@ export interface SheetsCreateReservationRequest {
 }
 
 export async function createReservationInSheets(data: SheetsCreateReservationRequest) {
-  return sheetsPost<unknown>({
+  // Apps Script POST는 리다이렉트 문제가 있으므로 GET + payload 파라미터로 전송
+  return sheetsGet<unknown>({
     action: 'createReservation',
-    data,
+    payload: JSON.stringify(data),
   });
 }
 
