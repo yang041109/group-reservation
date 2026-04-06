@@ -250,7 +250,15 @@ export default function TimeSelector({
         <div className="mt-2 space-y-1">
           <p className="text-sm text-blue-600 font-medium">
             {endTime
-              ? `선택: ${startTime} ~ ${endTime} (${rangeDuration % 1 === 0 ? `${rangeDuration}시간` : `${Math.floor(rangeDuration)}시간 30분`})`
+              ? (() => {
+                  // 끝 시간 = 마지막 슬롯 + 30분 (슬롯이 30분 단위이므로)
+                  const endMin = ext(endTime) + 30;
+                  const endH = Math.floor(endMin / 60) % 24;
+                  const endM = endMin % 60;
+                  const displayEnd = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+                  const duration = (ext(endTime) - ext(startTime) + 30) / 60;
+                  return `선택: ${startTime} ~ ${displayEnd} (${duration % 1 === 0 ? `${duration}시간` : `${Math.floor(duration)}시간 30분`})`;
+                })()
               : `선택: ${startTime} (다른 시간을 클릭하면 범위 선택)`}
           </p>
           {rangeMinRemaining !== null && (
