@@ -5,7 +5,16 @@ import type { CreateReservationRequest, CreateReservationResponse } from '@/type
 const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as CreateReservationRequest;
+  let body: CreateReservationRequest;
+  try {
+    body = (await request.json()) as CreateReservationRequest;
+  } catch {
+    return NextResponse.json({ error: '요청 데이터를 읽을 수 없습니다.' }, { status: 400 });
+  }
+
+  if (!body.storeId || !body.date || !body.time) {
+    return NextResponse.json({ error: '필수 정보(가게, 날짜, 시간)가 누락되었습니다.' }, { status: 400 });
+  }
 
   // 시간 범위 파싱
   let startTime = body.time;
