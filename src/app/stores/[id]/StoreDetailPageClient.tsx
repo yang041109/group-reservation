@@ -103,7 +103,7 @@ export default function StoreDetailPageClient() {
             const resData = cachedRes ? JSON.parse(cachedRes) : [];
             const { buildSlotsForDate } = await import('@/lib/use-store-data');
             const slots = dateVal
-              ? buildSlotsForDate(storeId, dateVal, found.maxCapacity, resData)
+              ? buildSlotsForDate(storeId, dateVal, found.maxCapacity, resData, found.slotStartHour, found.slotEndHour)
               : [];
             const cacheData: GetStoreDetailResponse = {
               store: {
@@ -111,6 +111,8 @@ export default function StoreDetailPageClient() {
                 name: found.name,
                 images: found.imageUrl ? [found.imageUrl] : [],
                 maxCapacity: found.maxCapacity,
+                slotStartHour: found.slotStartHour,
+                slotEndHour: found.slotEndHour,
                 availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
                 slots,
                 minOrderRules: found.minOrderRules || [],
