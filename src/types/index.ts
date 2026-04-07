@@ -90,6 +90,7 @@ export interface CreateReservationRequest {
   groupName: string;           // 단체명(행사명)
   representativeName: string;  // 대표자 이름
   phone: string;               // 전화번호
+  userNote?: string;           // 요청사항 (선택)
   menuItems: { menuId: string; name?: string; price?: number; quantity: number }[];
   totalAmount: number;
   minOrderAmount: number;

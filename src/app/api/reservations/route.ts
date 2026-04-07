@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         userName: body.representativeName,
         groupName: body.groupName,
         userPhone: body.phone,
-        userNote: '',
+        userNote: body.userNote || '',
         headcount: body.headcount,
         date: body.date,
         startTime,

@@ -36,14 +36,14 @@ export default function MyReservationsPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [phone, setPhone] = useState('010');
+  const [name, setName] = useState('');
+  const [phoneLast4, setPhoneLast4] = useState('');
 
-  async function fetchReservations(searchPhone: string) {
+  async function fetchReservations(searchName: string, searchPhone4: string) {
     setLoading(true);
     setSearched(true);
     try {
-      const raw = searchPhone.replace(/\D/g, '');
-      const res = await fetch(`/api/reservations/check?userPhone=${encodeURIComponent(raw)}`);
+      const res = await fetch(`/api/reservations/check?userName=${encodeURIComponent(searchName)}&phoneLast4=${encodeURIComponent(searchPhone4)}`);
       if (res.ok) {
         const data = await res.json();
         setReservations(data.reservations ?? []);
@@ -56,9 +56,8 @@ export default function MyReservationsPage() {
   }
 
   function handleSearch() {
-    const raw = phone.replace(/\D/g, '');
-    if (raw.length < 10) return;
-    fetchReservations(raw);
+    if (!name.trim() || phoneLast4.replace(/\D/g, '').length !== 4) return;
+    fetchReservations(name.trim(), phoneLast4.replace(/\D/g, ''));
   }
 
   async function handleCancel(id: string) {
@@ -81,7 +80,7 @@ export default function MyReservationsPage() {
     }
   }
 
-  const phoneValid = phone.replace(/\D/g, '').length >= 10;
+  const phoneValid = name.trim().length > 0 && phoneLast4.replace(/\D/g, '').length === 4;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -89,12 +88,20 @@ export default function MyReservationsPage() {
 
       {/* 조회 폼 */}
       <div className="mt-6 space-y-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-sm text-gray-500">예약 시 입력한 전화번호로 조회합니다</p>
+        <p className="text-sm text-gray-500">예약자 이름과 전화번호 뒷 4자리로 조회합니다</p>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="예약자 이름"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+        />
         <input
           type="tel"
-          value={phone}
-          onChange={(e) => setPhone(formatPhone(e.target.value))}
-          placeholder="010-0000-0000"
+          value={phoneLast4}
+          onChange={(e) => setPhoneLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          placeholder="전화번호 뒷 4자리"
+          maxLength={4}
           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
         />

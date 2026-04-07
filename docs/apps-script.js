@@ -20,6 +20,9 @@ function doGet(e) {
       case 'getReservations':
         result = handleGetReservations(e.parameter);
         break;
+      case 'getReservationsByNamePhone4':
+        result = handleGetReservationsByNamePhone4(e.parameter);
+        break;
       case 'cancelReservation':
         result = handleCancelReservation(e.parameter);
         break;
@@ -596,4 +599,55 @@ function handleGetAllData() {
       reservations: confirmedReservations,
     },
   };
+}
+
+// ── 이름 + 전화번호 뒷4자리로 예약 조회 ────────────────────────
+
+function handleGetReservationsByNamePhone4(params) {
+  const userName = (params.userName || '').trim();
+  const phone4 = (params.phoneLast4 || '').trim();
+  if (!userName || !phone4) return { success: false, message: '이름과 전화번호 뒷4자리를 입력해주세요.' };
+
+  const reservations = sheetToObjects('reservation');
+  const stores = sheetToObjects('store');
+  const menus = sheetToObjects('menu');
+
+  const matched = reservations.filter(r => {
+    const rName = String(r.userName || '').trim();
+    const rPhone = String(r.userPhone || '').replace(/[-\s']/g, '').trim();
+    // 이름 일치 + 전화번호 뒷4자리 일치
+    return rName === userName && rPhone.slice(-4) === phone4;
+  });
+
+  const result = matched.map(r => {
+    const sid = String(r.storeId).trim();
+    const store = stores.find(s => String(s.storeId).trim() === sid);
+    let parsedMenus = [];
+    try { parsedMenus = JSON.parse(r.menuItems || '[]'); } catch(e) {}
+
+    const menuDetails = parsedMenus.map(sm => {
+      const menu = menus.find(m => String(m.menuId).trim() === String(sm.menuId).trim());
+      return {
+        menuId: sm.menuId,
+        name: menu ? menu.name : sm.menuId,
+        quantity: parseInt(sm.quantity) || 0,
+        priceAtTime: menu ? parseInt(menu.price) || 0 : 0,
+      };
+    });
+
+    return {
+      reservationId: r.reservationId,
+      storeId: sid,
+      storeName: store ? store.name : sid,
+      date: String(r.date || '').trim(),
+      timeBlock: r.startTime + ' ~ ' + r.endTime,
+      headcount: parseInt(r.headcount) || 0,
+      totalAmount: parseInt(r.totalAmount) || 0,
+      status: r.status,
+      createdAt: r.createdAt,
+      menus: menuDetails,
+    };
+  });
+
+  return { success: true, data: result };
 }

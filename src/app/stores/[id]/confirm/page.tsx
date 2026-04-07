@@ -35,6 +35,7 @@ export default function ReservationConfirmPage() {
   const [groupName, setGroupName] = useState('');
   const [representativeName, setRepresentativeName] = useState('');
   const [phone, setPhone] = useState('');
+  const [userNote, setUserNote] = useState('');
 
   useEffect(() => {
     const raw = sessionStorage.getItem('pendingReservation');
@@ -83,6 +84,7 @@ export default function ReservationConfirmPage() {
           groupName: groupName.trim(),
           representativeName: representativeName.trim(),
           phone: phone.trim(),
+          userNote: userNote.trim(),
           menuItems: reservation.menuItems.map((item) => ({
             menuId: item.menuId,
             name: item.name,
@@ -195,8 +197,18 @@ export default function ReservationConfirmPage() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
           <p className="mt-1.5 text-xs text-blue-600">
-            📱 예약 확인은 전화번호로 조회됩니다. 정확하게 입력해주세요.
+            📱 예약 확인은 이름과 전화번호 뒷 4자리로 조회됩니다.
           </p>
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">요청사항 (선택)</label>
+          <textarea
+            value={userNote}
+            onChange={(e) => setUserNote(e.target.value)}
+            placeholder="예: 조용한 자리 원해요, 생일 파티입니다 등"
+            rows={2}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
+          />
         </div>
       </div>
 
