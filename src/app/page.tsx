@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 
@@ -8,6 +8,7 @@ export default function LandingPage() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const navigatedRef = useRef(false);
+  const [isDataReady, setIsDataReady] = useState(false);
 
   useEffect(() => {
     router.prefetch('/search');
@@ -44,6 +45,7 @@ export default function LandingPage() {
         // SWR 캐시 채워두기( /search 진입 시 즉시 렌더 목적 )
         await mutate('allData', json.data, { populateCache: true, revalidate: false });
         sessionStorage.setItem('landingPrefetchedAllData', '1');
+        setIsDataReady(true);
 
         const elapsed = Date.now() - startedAt;
         const remain = Math.max(0, MIN_LANDING_MS - elapsed);
@@ -63,8 +65,11 @@ export default function LandingPage() {
 
   return (
     <div
-      className="relative flex min-h-screen cursor-pointer items-center justify-center overflow-hidden bg-white"
+      className={`relative flex min-h-screen items-center justify-center overflow-hidden bg-white ${
+        isDataReady ? 'cursor-pointer' : 'cursor-wait'
+      }`}
       onClick={() => {
+        if (!isDataReady) return;
         if (navigatedRef.current) return;
         navigatedRef.current = true;
         router.push('/search');
@@ -73,6 +78,7 @@ export default function LandingPage() {
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
+          if (!isDataReady) return;
           if (navigatedRef.current) return;
           navigatedRef.current = true;
           router.push('/search');
@@ -126,7 +132,9 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <p className="landing-hint text-sm text-gray-400">화면을 탭하여 바로 시작하기 ✨</p>
+        <p className="landing-hint text-sm text-gray-400">
+          {isDataReady ? '화면을 탭하여 바로 시작하기 ✨' : '가게 정보를 불러오는 중...'}
+        </p>
       </div>
     </div>
   );
