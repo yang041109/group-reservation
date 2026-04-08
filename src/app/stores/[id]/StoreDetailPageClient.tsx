@@ -174,7 +174,7 @@ export default function StoreDetailPageClient() {
         <p className="text-center text-gray-500">{error ?? '알 수 없는 오류'}</p>
         <button
           type="button"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/search')}
           className="mx-auto mt-4 block text-sm text-blue-500 hover:underline"
         >
           홈으로 돌아가기
@@ -236,7 +236,7 @@ export default function StoreDetailPageClient() {
         <span>👥 {selectedHeadcount}명</span>
         <button
           type="button"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/search')}
           className="ml-auto text-xs text-blue-500 hover:underline"
         >
           변경
