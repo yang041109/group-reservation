@@ -45,3 +45,56 @@
 .chubby-stickman {
   animation: chubby-bounce 0.8s ease-in-out infinite;
 }
+
+/* 랜딩 페이지 (/) */
+@keyframes landing-fill-right {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes landing-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+@keyframes landing-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+.animate-landing-float {
+  animation: landing-float 3s ease-in-out infinite;
+}
+.animate-landing-twinkle {
+  animation: landing-twinkle 1.5s ease-in-out infinite;
+}
+.landing-title-gradient {
+  animation: landing-fill-right 2s ease-out forwards;
+}
+.landing-sparkle-wrap {
+  animation: landing-fade-in 0.5s ease-out 2s both;
+}
+.landing-hint {
+  animation: landing-fade-in 1s ease-out 2.5s both;
+}

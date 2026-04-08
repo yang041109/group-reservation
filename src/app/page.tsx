@@ -1,103 +1,116 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import StoreCard from '@/components/StoreCard';
-import DateSelector from '@/components/DateSelector';
-import HeadcountSelector from '@/components/HeadcountSelector';
-import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
-import LoadingStickmen from '@/components/LoadingStickmen';
-import type { StoreCard as StoreCardType } from '@/types';
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSWRConfig } from 'swr';
 
-export default function Home() {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedHeadcount, setSelectedHeadcount] = useState(0);
-  const { stores, reservations, isLoading } = useAllData();
+export default function LandingPage() {
+  const router = useRouter();
+  const { mutate } = useSWRConfig();
+  const navigatedRef = useRef(false);
 
-  // Restore from sessionStorage
   useEffect(() => {
-    const savedDate = sessionStorage.getItem('selectedDate');
-    const savedHeadcount = sessionStorage.getItem('selectedHeadcount');
-    if (savedDate) setSelectedDate(savedDate);
-    if (savedHeadcount) setSelectedHeadcount(parseInt(savedHeadcount, 10));
-  }, []);
+    router.prefetch('/search');
 
-  // Persist to sessionStorage
-  useEffect(() => {
-    if (selectedDate) sessionStorage.setItem('selectedDate', selectedDate);
-  }, [selectedDate]);
-  useEffect(() => {
-    sessionStorage.setItem('selectedHeadcount', String(selectedHeadcount));
-  }, [selectedHeadcount]);
+    const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
 
-  // 캐시된 데이터에서 가게 카드 생성 (즉시)
-  const storeCards: StoreCardType[] = stores.map((s) => {
-    const timeline = selectedDate
-      ? buildSlotsForDate(s.storeId, selectedDate, s.maxCapacity, reservations, s.slotStartHour, s.slotEndHour)
-      : [];
-    return {
-      id: s.storeId,
-      name: s.name,
-      category: s.category,
-      images: s.imageUrl ? [s.imageUrl] : [],
-      maxCapacity: s.maxCapacity,
-      timeline,
-      availableTimes: timeline.filter((t) => t.isAvailable).map((t) => t.timeBlock),
-      reservedTimes: timeline.filter((t) => !t.isAvailable).map((t) => t.timeBlock),
-      minOrderRules: s.minOrderRules,
+    const prefetchAndGo = async () => {
+      if (!SHEETS_URL) return;
+      try {
+        const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json?.success) return;
+
+        // SWR 캐시 채워두기( /search 진입 시 즉시 렌더 목적 )
+        await mutate('allData', json.data, { populateCache: true, revalidate: false });
+
+        if (!navigatedRef.current) {
+          navigatedRef.current = true;
+          router.push('/search');
+        }
+      } catch {
+        // 로컬 env 누락/네트워크 실패 등은 조용히 무시하고 타이머 이동만 유지
+      }
     };
-  });
 
-  // 캐시 데이터를 sessionStorage에 저장 (상세 페이지에서 재사용)
-  useEffect(() => {
-    if (storeCards.length > 0) {
-      try { sessionStorage.setItem('cachedStores', JSON.stringify(storeCards)); } catch {}
-      try { sessionStorage.setItem('cachedStoresRaw', JSON.stringify(stores)); } catch {}
-      try { sessionStorage.setItem('cachedReservations', JSON.stringify(reservations)); } catch {}
-    }
-  }, [storeCards, stores, reservations]);
+    void prefetchAndGo();
 
-  // Filter stores by headcount capacity (0 = show all)
-  const filteredStores = storeCards.filter((store) => {
-    if (selectedHeadcount === 0) return true;
-    return store.maxCapacity >= selectedHeadcount;
-  });
-
-  const showStores = selectedDate !== null;
+    const timer = setTimeout(() => {
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      router.push('/search');
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [router, mutate]);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <p className="text-sm text-gray-500">
-        날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다
-      </p>
-
-      <div className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
-        <HeadcountSelector
-          maxCapacity={100}
-          minCapacity={0}
-          selectedHeadcount={selectedHeadcount}
-          onChange={setSelectedHeadcount}
-        />
+    <div
+      className="relative flex min-h-screen cursor-pointer items-center justify-center overflow-hidden bg-white"
+      onClick={() => {
+        if (navigatedRef.current) return;
+        navigatedRef.current = true;
+        router.push('/search');
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          if (navigatedRef.current) return;
+          navigatedRef.current = true;
+          router.push('/search');
+        }
+      }}
+    >
+      <div className="animate-landing-float absolute top-20 left-10 sm:left-20" style={{ animationDelay: '0s' }}>
+        <div className="h-12 w-12 rounded-full bg-[#0095F6]/10" />
+      </div>
+      <div className="animate-landing-float absolute top-40 right-8 sm:right-32" style={{ animationDelay: '0.5s' }}>
+        <div className="h-8 w-8 rounded-full bg-yellow-300/20" />
+      </div>
+      <div className="animate-landing-float absolute bottom-32 left-8 sm:left-40" style={{ animationDelay: '1s' }}>
+        <div className="h-10 w-10 rounded-full bg-pink-300/20" />
+      </div>
+      <div className="animate-landing-float absolute bottom-20 right-10 sm:right-20" style={{ animationDelay: '1.5s' }}>
+        <div className="h-6 w-6 rounded-full bg-purple-300/20" />
       </div>
 
-      {isLoading ? (
-        <LoadingStickmen message="가게 정보를 불러오는 중..." />
-      ) : !showStores ? (
-        <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
-          <p className="text-base">날짜를 선택해주세요</p>
+      <div className="relative space-y-8 text-center">
+        <div className="relative">
+          <h1
+            className="select-none text-[4.5rem] font-black tracking-wider sm:text-[8rem] md:text-[12rem]"
+            style={{
+              WebkitTextStroke: '3px #e5e7eb',
+              color: 'transparent',
+            }}
+          >
+            URR
+          </h1>
+          <h1
+            className="landing-title-gradient absolute inset-0 select-none overflow-hidden text-[4.5rem] font-black tracking-wider sm:text-[8rem] md:text-[12rem]"
+            style={{
+              background: 'linear-gradient(to right, #0095F6, #00d4ff)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            URR
+          </h1>
+          <div className="landing-sparkle-wrap absolute inset-0 overflow-hidden">
+            <div className="animate-landing-twinkle absolute top-1/4 left-1/4 h-2 w-2 rounded-full bg-yellow-300" />
+            <div
+              className="animate-landing-twinkle absolute top-1/3 right-1/3 h-3 w-3 rounded-full bg-pink-300"
+              style={{ animationDelay: '0.2s' }}
+            />
+            <div
+              className="animate-landing-twinkle absolute bottom-1/3 left-1/3 h-2 w-2 rounded-full bg-purple-300"
+              style={{ animationDelay: '0.4s' }}
+            />
+          </div>
         </div>
-      ) : filteredStores.length === 0 ? (
-        <div className="mt-16 flex flex-col items-center justify-center text-gray-500">
-          <p className="text-lg">조건에 맞는 가게가 없습니다</p>
-          <p className="mt-1 text-sm text-gray-400">인원수를 조정해보세요</p>
-        </div>
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredStores.map((store) => (
-            <StoreCard key={store.id} store={store} />
-          ))}
-        </div>
-      )}
-    </main>
+
+        <p className="landing-hint text-sm text-gray-400">화면을 탭하여 바로 시작하기 ✨</p>
+      </div>
+    </div>
   );
 }

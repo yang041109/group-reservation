@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import ReservationConfirmLoadingOverlay from '@/components/ReservationConfirmLoadingOverlay';
 
 interface PendingMenuItem {
   menuId: string;
@@ -129,6 +130,7 @@ export default function ReservationConfirmPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
+      {submitting && <ReservationConfirmLoadingOverlay />}
       <h1 className="text-2xl font-bold text-gray-900">예약 확인</h1>
 
       {/* 예약 정보 요약 카드 */}
