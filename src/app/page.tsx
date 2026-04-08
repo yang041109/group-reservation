@@ -9,13 +9,13 @@ export default function LandingPage() {
   const { mutate } = useSWRConfig();
   const navigatedRef = useRef(false);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [loadingError, setLoadingError] = useState(false);
 
   useEffect(() => {
     router.prefetch('/search');
 
     const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
     const MIN_LANDING_MS = 1200;
-    const MAX_WAIT_MS = 15000;
     const startedAt = Date.now();
     const timers: ReturnType<typeof setTimeout>[] = [];
     let cancelled = false;
@@ -29,18 +29,21 @@ export default function LandingPage() {
 
     const prefetchAndGo = async () => {
       if (!SHEETS_URL) {
-        timers.push(setTimeout(safeNavigate, 3500));
+        setLoadingError(true);
         return;
       }
 
-      // 최대 대기 시간을 넘기면 안전하게 검색 페이지로 이동
-      timers.push(setTimeout(safeNavigate, MAX_WAIT_MS));
-
       try {
         const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setLoadingError(true);
+          return;
+        }
         const json = await res.json();
-        if (!json?.success) return;
+        if (!json?.success) {
+          setLoadingError(true);
+          return;
+        }
 
         // SWR 캐시 채워두기( /search 진입 시 즉시 렌더 목적 )
         await mutate('allData', json.data, { populateCache: true, revalidate: false });
@@ -51,7 +54,7 @@ export default function LandingPage() {
         const remain = Math.max(0, MIN_LANDING_MS - elapsed);
         timers.push(setTimeout(safeNavigate, remain));
       } catch {
-        // 실패 시에도 최대 대기 타이머가 이동을 보장
+        setLoadingError(true);
       }
     };
 
@@ -133,7 +136,11 @@ export default function LandingPage() {
         </div>
 
         <p className="landing-hint text-sm text-gray-400">
-          {isDataReady ? '화면을 탭하여 바로 시작하기 ✨' : '가게 정보를 불러오는 중...'}
+          {isDataReady
+            ? '화면을 탭하여 바로 시작하기 ✨'
+            : loadingError
+              ? '데이터를 불러오지 못했습니다. 잠시 후 새로고침 해주세요.'
+              : '가게 정보를 불러오는 중...'}
         </p>
       </div>
     </div>
