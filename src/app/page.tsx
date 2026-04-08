@@ -14,7 +14,7 @@ export default function LandingPage() {
 
     const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
     const MIN_LANDING_MS = 1200;
-    const MAX_WAIT_MS = 8000;
+    const MAX_WAIT_MS = 15000;
     const startedAt = Date.now();
     const timers: ReturnType<typeof setTimeout>[] = [];
     let cancelled = false;
@@ -31,16 +31,12 @@ export default function LandingPage() {
         timers.push(setTimeout(safeNavigate, 3500));
         return;
       }
-      try {
-        const res = await Promise.race([
-          fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), MAX_WAIT_MS)),
-        ]);
 
-        if (!res) {
-          safeNavigate();
-          return;
-        }
+      // 최대 대기 시간을 넘기면 안전하게 검색 페이지로 이동
+      timers.push(setTimeout(safeNavigate, MAX_WAIT_MS));
+
+      try {
+        const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
         if (!res.ok) return;
         const json = await res.json();
         if (!json?.success) return;
@@ -53,8 +49,7 @@ export default function LandingPage() {
         const remain = Math.max(0, MIN_LANDING_MS - elapsed);
         timers.push(setTimeout(safeNavigate, remain));
       } catch {
-        // 로컬 env 누락/네트워크 실패 등은 조용히 무시하고 기본 타이머 이동
-        timers.push(setTimeout(safeNavigate, 3500));
+        // 실패 시에도 최대 대기 타이머가 이동을 보장
       }
     };
 
