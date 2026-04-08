@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSWRConfig } from 'swr';
+import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { mutate } = useSWRConfig();
   const navigatedRef = useRef(false);
   const [isDataReady, setIsDataReady] = useState(false);
   const [loadingError, setLoadingError] = useState(false);
@@ -34,19 +33,7 @@ export default function LandingPage() {
       }
 
       try {
-        const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
-        if (!res.ok) {
-          setLoadingError(true);
-          return;
-        }
-        const json = await res.json();
-        if (!json?.success) {
-          setLoadingError(true);
-          return;
-        }
-
-        // SWR 캐시 채워두기( /search 진입 시 즉시 렌더 목적 )
-        await mutate('allData', json.data, { populateCache: true, revalidate: false });
+        await prefetchAllDataIntoCache();
         sessionStorage.setItem('landingPrefetchedAllData', '1');
         setIsDataReady(true);
 
@@ -64,7 +51,7 @@ export default function LandingPage() {
       cancelled = true;
       timers.forEach((t) => clearTimeout(t));
     };
-  }, [router, mutate]);
+  }, [router]);
 
   return (
     <div

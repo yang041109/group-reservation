@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
+import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import TimeSelector from '@/components/TimeSelector';
@@ -35,6 +36,19 @@ export default function StoreDetailPageClient() {
   const [selectedHeadcount, setSelectedHeadcount] = useState(1);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
+  const [navigatingToSearch, setNavigatingToSearch] = useState(false);
+
+  const goToSearchWithPrefetch = async () => {
+    if (navigatingToSearch) return;
+    setNavigatingToSearch(true);
+    try {
+      await prefetchAllDataIntoCache();
+    } catch {
+      // prefetch 실패해도 사용자가 화면을 벗어날 수 있도록 이동은 진행
+    } finally {
+      router.push('/search');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -174,10 +188,10 @@ export default function StoreDetailPageClient() {
         <p className="text-center text-gray-500">{error ?? '알 수 없는 오류'}</p>
         <button
           type="button"
-          onClick={() => router.push('/search')}
+          onClick={goToSearchWithPrefetch}
           className="mx-auto mt-4 block text-sm text-blue-500 hover:underline"
         >
-          홈으로 돌아가기
+          {navigatingToSearch ? '이동 중...' : '홈으로 돌아가기'}
         </button>
       </main>
     );
@@ -236,10 +250,10 @@ export default function StoreDetailPageClient() {
         <span>👥 {selectedHeadcount}명</span>
         <button
           type="button"
-          onClick={() => router.push('/search')}
+          onClick={goToSearchWithPrefetch}
           className="ml-auto text-xs text-blue-500 hover:underline"
         >
-          변경
+          {navigatingToSearch ? '이동 중...' : '변경'}
         </button>
       </div>
 

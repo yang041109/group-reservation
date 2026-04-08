@@ -1,6 +1,6 @@
 'use client';
 
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import type { TimeSlot, MinOrderRule, MenuItemData } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
@@ -35,8 +35,10 @@ interface AllData {
 // ── fetcher ─────────────────────────────────────────────────────
 
 const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
+export const ALL_DATA_KEY = 'allData';
+let allDataPrefetchPromise: Promise<AllData> | null = null;
 
-async function fetchAllData(): Promise<AllData> {
+export async function fetchAllData(): Promise<AllData> {
   if (!SHEETS_URL) throw new Error('SHEETS_URL not set');
   const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch');
@@ -45,11 +47,22 @@ async function fetchAllData(): Promise<AllData> {
   return json.data;
 }
 
+export async function prefetchAllDataIntoCache(): Promise<AllData> {
+  if (!allDataPrefetchPromise) {
+    allDataPrefetchPromise = fetchAllData().finally(() => {
+      allDataPrefetchPromise = null;
+    });
+  }
+  const data = await allDataPrefetchPromise;
+  await globalMutate(ALL_DATA_KEY, data, { populateCache: true, revalidate: false });
+  return data;
+}
+
 // ── SWR 훅 ──────────────────────────────────────────────────────
 
 export function useAllData() {
   const { data, error, isLoading, mutate } = useSWR<AllData>(
-    'allData',
+    ALL_DATA_KEY,
     fetchAllData,
     {
       revalidateOnFocus: true,
