@@ -13,35 +13,57 @@ export default function LandingPage() {
     router.prefetch('/search');
 
     const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
+    const MIN_LANDING_MS = 1200;
+    const MAX_WAIT_MS = 8000;
+    const startedAt = Date.now();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let cancelled = false;
+
+    const safeNavigate = () => {
+      if (cancelled) return;
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      router.push('/search');
+    };
 
     const prefetchAndGo = async () => {
-      if (!SHEETS_URL) return;
+      if (!SHEETS_URL) {
+        timers.push(setTimeout(safeNavigate, 3500));
+        return;
+      }
       try {
-        const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
+        const res = await Promise.race([
+          fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), MAX_WAIT_MS)),
+        ]);
+
+        if (!res) {
+          safeNavigate();
+          return;
+        }
         if (!res.ok) return;
         const json = await res.json();
         if (!json?.success) return;
 
         // SWR 캐시 채워두기( /search 진입 시 즉시 렌더 목적 )
         await mutate('allData', json.data, { populateCache: true, revalidate: false });
+        sessionStorage.setItem('landingPrefetchedAllData', '1');
 
-        if (!navigatedRef.current) {
-          navigatedRef.current = true;
-          router.push('/search');
-        }
+        const elapsed = Date.now() - startedAt;
+        const remain = Math.max(0, MIN_LANDING_MS - elapsed);
+        timers.push(setTimeout(safeNavigate, remain));
       } catch {
-        // 로컬 env 누락/네트워크 실패 등은 조용히 무시하고 타이머 이동만 유지
+        // 로컬 env 누락/네트워크 실패 등은 조용히 무시하고 기본 타이머 이동
+        timers.push(setTimeout(safeNavigate, 3500));
       }
     };
 
     void prefetchAndGo();
 
-    const timer = setTimeout(() => {
-      if (navigatedRef.current) return;
-      navigatedRef.current = true;
-      router.push('/search');
-    }, 3500);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      timers.forEach((t) => clearTimeout(t));
+    };
   }, [router, mutate]);
 
   return (
