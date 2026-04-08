@@ -90,12 +90,12 @@ export default function SearchPage() {
         />
       </div>
 
-      {isLoading ? (
-        <LoadingStickmen message="가게 정보를 불러오는 중..." />
-      ) : !showStores ? (
+      {!showStores ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-400">
           <p className="text-base">날짜를 선택해주세요</p>
         </div>
+      ) : isLoading ? (
+        <LoadingStickmen message="가게 정보를 불러오는 중..." />
       ) : filteredStores.length === 0 ? (
         <div className="mt-16 flex flex-col items-center justify-center text-gray-500">
           <p className="text-lg">조건에 맞는 가게가 없습니다</p>
