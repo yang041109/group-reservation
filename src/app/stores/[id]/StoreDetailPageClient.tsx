@@ -232,7 +232,7 @@ export default function StoreDetailPageClient() {
 
   // 시간대 변경 시 인원수가 최대치를 초과하면 자동 조정
   useEffect(() => {
-    if (selectedTime && selectedHeadcount > selectedTimeMaxCapacity) {
+    if (selectedTime && selectedHeadcount > selectedTimeMaxCapacity && selectedTimeMaxCapacity > 0) {
       setSelectedHeadcount(selectedTimeMaxCapacity);
     }
   }, [selectedTime, selectedTimeMaxCapacity]);
