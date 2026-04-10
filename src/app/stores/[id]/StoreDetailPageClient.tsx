@@ -230,13 +230,6 @@ export default function StoreDetailPageClient() {
     return Math.min(...targetSlots.map((s) => s.maxPeople - s.currentHeadcount));
   })();
 
-  // 시간대 변경 시 인원수가 최대치를 초과하면 자동 조정
-  useEffect(() => {
-    if (selectedTime && selectedHeadcount > selectedTimeMaxCapacity && selectedTimeMaxCapacity > 0) {
-      setSelectedHeadcount(selectedTimeMaxCapacity);
-    }
-  }, [selectedTime, selectedTimeMaxCapacity]);
-
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
     const menu = menus.find((m) => m.id === menuId);
     return sum + (menu ? menu.price * qty : 0);
@@ -289,7 +282,11 @@ export default function StoreDetailPageClient() {
               : 1
           }
           selectedHeadcount={selectedHeadcount}
-          onChange={setSelectedHeadcount}
+          onChange={(newHeadcount) => {
+            // 최대치를 초과하지 않도록 제한
+            const capped = Math.min(newHeadcount, selectedTimeMaxCapacity);
+            setSelectedHeadcount(capped);
+          }}
         />
 
         <TimeSelector
