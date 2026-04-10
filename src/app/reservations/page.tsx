@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import LoadingStickmen from '@/components/LoadingStickmen';
+import UrrLoading from '@/components/UrrLoading';
 
 interface ReservationItem {
   id: string;
@@ -121,7 +121,7 @@ export default function MyReservationsPage() {
 
       {/* 결과 */}
       {loading ? (
-        <LoadingStickmen message="예약 내역을 조회하는 중..." />
+        <UrrLoading message="예약 내역을 조회하는 중..." />
       ) : searched && reservations.length === 0 ? (
         <div className="mt-12 text-center">
           <p className="text-4xl mb-3">🔍</p>

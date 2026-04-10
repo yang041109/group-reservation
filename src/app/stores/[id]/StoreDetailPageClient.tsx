@@ -10,6 +10,7 @@ import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
 import ReserveButton from '@/components/ReserveButton';
+import UrrLoading from '@/components/UrrLoading';
 
 function getMinOrderAmount(headcount: number, rules: MinOrderRule[]): number {
   const rule = rules.find(
@@ -177,7 +178,7 @@ export default function StoreDetailPageClient() {
   if (loading) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-center text-gray-500">불러오는 중...</p>
+        <UrrLoading message="가게 정보를 불러오는 중..." />
       </main>
     );
   }
@@ -213,6 +214,28 @@ export default function StoreDetailPageClient() {
       ],
     });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
+
+  // 선택된 시간대의 최소 잔여 인원 계산 → 인원수 상한 제한
+  const selectedTimeMaxCapacity = (() => {
+    if (!selectedTime || slots.length === 0) return store.maxCapacity;
+    let startT = selectedTime;
+    let endT = selectedTime;
+    if (selectedTime.includes(' - ')) {
+      const [s, e] = selectedTime.split(' - ');
+      startT = s.trim();
+      endT = e.trim();
+    }
+    const targetSlots = slots.filter((s) => s.timeBlock >= startT && s.timeBlock <= endT);
+    if (targetSlots.length === 0) return store.maxCapacity;
+    return Math.min(...targetSlots.map((s) => s.maxPeople - s.currentHeadcount));
+  })();
+
+  // 시간대 변경 시 인원수가 최대치를 초과하면 자동 조정
+  useEffect(() => {
+    if (selectedTime && selectedHeadcount > selectedTimeMaxCapacity) {
+      setSelectedHeadcount(selectedTimeMaxCapacity);
+    }
+  }, [selectedTime, selectedTimeMaxCapacity]);
 
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
     const menu = menus.find((m) => m.id === menuId);
@@ -259,7 +282,7 @@ export default function StoreDetailPageClient() {
 
       <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <HeadcountSelector
-          maxCapacity={store.maxCapacity}
+          maxCapacity={selectedTimeMaxCapacity}
           minCapacity={
             store.minOrderRules.length > 0
               ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
