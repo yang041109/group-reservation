@@ -101,27 +101,32 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
               </div>
             )}
           </div>
-          {store.depositAmount && store.depositAmount > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 bg-red-500 px-3 py-1.5 text-center rounded-b-xl">
-              <p className="text-white text-sm font-bold">
-                최소 {store.depositAmount.toLocaleString()}원 할인
-              </p>
-            </div>
-          )}
         </div>
 
         {/* 오른쪽: 가게 정보 + 타임테이블 */}
         <div className="flex-1 min-w-0">
-          {/* 가게 이름 */}
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            {store.name}
-          </h2>
+          {/* 가게 이름 + 카테고리 아이콘 */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">{getCategoryEmoji(store.category)}</span>
+            <h2 className="text-xl font-bold text-gray-900">
+              {store.name}
+            </h2>
+          </div>
 
-          {/* 인당 최소주문, 예약 가능 인원 */}
-          <p className="text-sm text-gray-600 mb-3">
-            인당 최소주문 {minOrderPerPerson > 0 ? `${minOrderPerPerson.toLocaleString()}원` : '없음'}, 
-            예약 가능인원 {minCapacity}~{store.maxCapacity}명
-          </p>
+          {/* 인당 최소주문, 예약 가능 인원, 예약금 */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
+            <p className="text-sm text-gray-600">
+              인당 최소주문 {minOrderPerPerson > 0 ? `${minOrderPerPerson.toLocaleString()}원` : '없음'}
+            </p>
+            <p className="text-sm text-gray-600">
+              예약 가능인원 {minCapacity}~{store.maxCapacity}명
+            </p>
+            {store.depositAmount && store.depositAmount > 0 && (
+              <p className="text-sm font-semibold text-red-600">
+                💰 예약금 {store.depositAmount.toLocaleString()}원
+              </p>
+            )}
+          </div>
 
           {/* 타임테이블 */}
           <div>

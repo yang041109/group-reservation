@@ -125,11 +125,44 @@ export default function SearchPage() {
           <p className="mt-1 text-sm text-gray-400">인원수를 조정해보세요</p>
         </div>
       ) : (
-        <div className="mt-6 space-y-4">
-          {filteredStores.map((store) => (
-            <StoreCard key={store.id} store={store} />
-          ))}
-        </div>
+        <>
+          {/* 타임라인 색상 범례 */}
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">타임라인 색상 안내</h3>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-emerald-400"></div>
+                <span className="text-xs text-gray-600">여유</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-emerald-300"></div>
+                <span className="text-xs text-gray-600">보통</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-yellow-400"></div>
+                <span className="text-xs text-gray-600">혼잡</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-orange-400"></div>
+                <span className="text-xs text-gray-600">거의 마감</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-red-500"></div>
+                <span className="text-xs text-gray-600">마감</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-gray-400"></div>
+                <span className="text-xs text-gray-600">예약 불가</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {filteredStores.map((store) => (
+              <StoreCard key={store.id} store={store} />
+            ))}
+          </div>
+        </>
       )}
     </main>
   );
