@@ -50,6 +50,7 @@ export default function SearchPage() {
       minOrderRules: s.minOrderRules,
       slotStartHour: s.slotStartHour,
       slotEndHour: s.slotEndHour,
+      depositAmount: s.depositAmount,
     };
   });
 
