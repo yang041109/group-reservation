@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import type { TimeSlot, MinOrderRule, MenuItemData } from '@/types';
 
@@ -36,7 +37,28 @@ interface AllData {
 
 const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
 export const ALL_DATA_KEY = 'allData';
+const ALL_DATA_SNAPSHOT_KEY = 'allDataSnapshot';
+
 let allDataPrefetchPromise: Promise<AllData> | null = null;
+
+export function readAllDataSnapshot(): AllData | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = sessionStorage.getItem(ALL_DATA_SNAPSHOT_KEY);
+    if (!raw) return undefined;
+    return JSON.parse(raw) as AllData;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeAllDataSnapshot(data: AllData) {
+  try {
+    sessionStorage.setItem(ALL_DATA_SNAPSHOT_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 export async function fetchAllData(): Promise<AllData> {
   if (!SHEETS_URL) throw new Error('SHEETS_URL not set');
@@ -55,28 +77,44 @@ export async function prefetchAllDataIntoCache(): Promise<AllData> {
   }
   const data = await allDataPrefetchPromise;
   await globalMutate(ALL_DATA_KEY, data, { populateCache: true, revalidate: false });
+  writeAllDataSnapshot(data);
   return data;
 }
 
 // ── SWR 훅 ──────────────────────────────────────────────────────
 
 export function useAllData() {
-  const { data, error, isLoading, mutate } = useSWR<AllData>(
+  const [fallbackData] = useState(readAllDataSnapshot);
+  const hadBootstrap = fallbackData !== undefined;
+
+  const { data, error, isLoading, mutate, isValidating } = useSWR<AllData>(
     ALL_DATA_KEY,
     fetchAllData,
     {
-      revalidateOnFocus: true,
-      refreshInterval: 30000, // 30초마다 자동 갱신
-      dedupingInterval: 5000, // 5초 내 중복 요청 방지
+      fallbackData,
+      /** 랜딩/프리패치로 받아 둔 스냅샷이 있으면 첫 진입 시 재요청하지 않음 → 날짜 탭 시 로딩 깜빡임 방지 */
+      revalidateOnMount: !hadBootstrap,
+      revalidateIfStale: !hadBootstrap,
+      revalidateOnFocus: false,
+      refreshInterval: 30000,
+      dedupingInterval: 5000,
+      onSuccess: (d) => writeAllDataSnapshot(d),
     },
   );
 
+  const resolved = data ?? fallbackData;
+  const hasPayload = resolved !== undefined;
+
   return {
-    stores: data?.stores ?? [],
-    reservations: data?.reservations ?? [],
-    isLoading,
+    stores: resolved?.stores ?? [],
+    reservations: resolved?.reservations ?? [],
+    /** 스냅샷/캐시가 이미 있으면 목록 로딩 스피너를 띄우지 않음 */
+    isLoading: hasPayload ? false : isLoading,
+    isValidating,
     error,
     refresh: mutate,
+    /** 원본 페이로드 존재 여부 (빈 가게 목록과 구분) */
+    hasPayload,
   };
 }
 

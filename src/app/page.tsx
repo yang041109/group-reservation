@@ -14,17 +14,7 @@ export default function LandingPage() {
     router.prefetch('/search');
 
     const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
-    const MIN_LANDING_MS = 1200;
-    const startedAt = Date.now();
-    const timers: ReturnType<typeof setTimeout>[] = [];
     let cancelled = false;
-
-    const safeNavigate = () => {
-      if (cancelled) return;
-      if (navigatedRef.current) return;
-      navigatedRef.current = true;
-      router.push('/search');
-    };
 
     const prefetchAndGo = async () => {
       if (!SHEETS_URL) {
@@ -35,13 +25,9 @@ export default function LandingPage() {
       try {
         await prefetchAllDataIntoCache();
         sessionStorage.setItem('landingPrefetchedAllData', '1');
-        setIsDataReady(true);
-
-        const elapsed = Date.now() - startedAt;
-        const remain = Math.max(0, MIN_LANDING_MS - elapsed);
-        timers.push(setTimeout(safeNavigate, remain));
+        if (!cancelled) setIsDataReady(true);
       } catch {
-        setLoadingError(true);
+        if (!cancelled) setLoadingError(true);
       }
     };
 
@@ -49,7 +35,6 @@ export default function LandingPage() {
 
     return () => {
       cancelled = true;
-      timers.forEach((t) => clearTimeout(t));
     };
   }, [router]);
 
