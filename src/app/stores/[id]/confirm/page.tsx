@@ -61,7 +61,7 @@ export default function ReservationConfirmPage() {
 
     // Validate required fields
     if (!groupName.trim()) { setError('단체명(행사명)을 입력해주세요.'); return; }
-    if (!representativeName.trim()) { setError('대표자 이름을 입력해주세요.'); return; }
+    if (!representativeName.trim()) { setError('예약자 이름을 입력해주세요.'); return; }
     if (!phone.trim()) { setError('전화번호를 입력해주세요.'); return; }
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length !== 11 || !phoneDigits.startsWith('010')) {
@@ -174,7 +174,7 @@ export default function ReservationConfirmPage() {
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 mb-1">대표자 이름</label>
+          <label className="block text-sm text-gray-600 mb-1">예약자 이름</label>
           <input
             type="text"
             value={representativeName}

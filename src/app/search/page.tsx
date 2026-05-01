@@ -74,11 +74,34 @@ export default function SearchPage() {
 
   const showStores = selectedDate !== null;
 
+  // 업데이트 시간 계산 (0시 또는 12시 기준)
+  const getUpdateTimeMessage = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    let hoursSinceUpdate: number;
+    if (currentHour >= 12) {
+      hoursSinceUpdate = currentHour - 12;
+    } else {
+      hoursSinceUpdate = currentHour;
+    }
+    
+    return `${hoursSinceUpdate}시간 전 업데이트된 예약 현황입니다`;
+  };
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <p className="text-sm text-gray-500">
         날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다
       </p>
+
+      {showStores && !isLoading && (
+        <div className="mt-4 rounded-lg bg-blue-50 px-4 py-2">
+          <p className="text-xs text-blue-600">
+            ⏰ {getUpdateTimeMessage()}
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
@@ -102,7 +125,7 @@ export default function SearchPage() {
           <p className="mt-1 text-sm text-gray-400">인원수를 조정해보세요</p>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 space-y-4">
           {filteredStores.map((store) => (
             <StoreCard key={store.id} store={store} />
           ))}

@@ -53,16 +53,25 @@ export default function MenuSection({
                   return (
                     <li
                       key={menu.id}
-                      className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                      className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
                         qty > 0 ? 'border-green-300 bg-green-50' : 'border-red-200 bg-red-50'
                       }`}
                     >
-                      <div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {menu.name}
-                        </span>
-                        <span className="ml-1 text-xs font-bold text-red-500">필수</span>
-                        <span className="ml-2 text-sm text-gray-500">
+                      {menu.imageUrl && (
+                        <img
+                          src={menu.imageUrl}
+                          alt={menu.name}
+                          className="h-16 w-16 rounded-lg object-cover"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div>
+                          <span className="text-sm font-bold text-gray-900">
+                            {menu.name}
+                          </span>
+                          <span className="ml-1 text-xs font-bold text-red-500">필수</span>
+                        </div>
+                        <span className="text-sm text-gray-500">
                           {menu.price.toLocaleString()}원
                         </span>
                       </div>
@@ -105,13 +114,22 @@ export default function MenuSection({
                 return (
                   <li
                     key={menu.id}
-                    className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3"
+                    className="flex items-center gap-3 rounded-lg border border-gray-100 px-4 py-3"
                   >
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {menu.name}
-                      </span>
-                      <span className="ml-2 text-sm text-gray-500">
+                    {menu.imageUrl && (
+                      <img
+                        src={menu.imageUrl}
+                        alt={menu.name}
+                        className="h-16 w-16 rounded-lg object-cover"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {menu.name}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500">
                         {menu.price.toLocaleString()}원
                       </span>
                     </div>

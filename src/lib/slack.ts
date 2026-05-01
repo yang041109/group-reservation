@@ -34,7 +34,7 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
           text: [
             `*가게:* ${data.storeName}`,
             `*단체명:* ${data.groupName || '-'}`,
-            `*대표자:* ${data.representativeName} (${data.phone})`,
+            `*예약자:* ${data.representativeName} (${data.phone})`,
             `*인원:* ${data.headcount}명`,
             `*날짜:* ${data.date}`,
             `*시간:* ${data.time}`,

@@ -9,11 +9,15 @@ export default function ReservationCompletePage() {
         <div className="text-5xl">🎉</div>
 
         <h1 className="mt-4 text-2xl font-bold text-gray-900">
-          예약이 확정되었습니다!
+          예약 요청이 접수되었습니다!
         </h1>
 
         <p className="mt-2 text-sm text-gray-500">
-          선택하신 시간에 방문해주세요
+          예약은 6시간 이내로 확정됩니다
+        </p>
+        
+        <p className="mt-4 text-xs text-gray-400">
+          '내 예약' 메뉴에서 예약 상태를 확인하실 수 있습니다
         </p>
 
         <Link

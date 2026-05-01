@@ -244,11 +244,11 @@ function handleGetStores(params) {
     var slotEndHour = range.slotEndHour;
     var crossesMidnight = range.crossesMidnight;
 
-    // 해당 날짜의 확정 예약에서 시간대별 예약 인원 합산
+    // 해당 날짜의 확정 예약에서 시간대별 예약 인원 합산 (CONFIRMED 또는 DEPOSIT_CONFIRMED)
     const confirmedRes = reservations.filter(r =>
       String(r.storeId).trim() === sid &&
       String(r.date).trim() === date &&
-      String(r.status).trim() === 'CONFIRMED'
+      (String(r.status).trim() === 'CONFIRMED' || String(r.status).trim() === 'DEPOSIT_CONFIRMED')
     );
 
     const timeline = buildSlots(cap, confirmedRes, slotStartHour, slotEndHour, crossesMidnight);
@@ -262,6 +262,7 @@ function handleGetStores(params) {
       description: store.description || '',
       slotStartHour: slotStartHour,
       slotEndHour: slotEndHour,
+      depositAmount: parseInt(store.depositAmount) || 0,
       timeline: timeline,
       minOrderRules: storeRules.map(r => ({
         minHeadcount: parseInt(r.minHeadcount) || 0,
@@ -288,7 +289,7 @@ function handleGetStoreDetail(params) {
   const reservations = sheetToObjects('reservation').filter(r =>
     String(r.storeId).trim() === storeId &&
     String(r.date).trim() === date &&
-    String(r.status).trim() === 'CONFIRMED'
+    (String(r.status).trim() === 'CONFIRMED' || String(r.status).trim() === 'DEPOSIT_CONFIRMED')
   );
 
   const cap = parseInt(store.maxCapacity) || 0;
@@ -308,6 +309,7 @@ function handleGetStoreDetail(params) {
         maxCapacity: cap,
         slotStartHour: slotStartHour,
         slotEndHour: slotEndHour,
+        depositAmount: parseInt(store.depositAmount) || 0,
         availableTimes: slots.filter(s => s.isAvailable).map(s => s.timeBlock),
         slots: slots,
         minOrderRules: rules.map(r => ({
@@ -322,6 +324,7 @@ function handleGetStoreDetail(params) {
         price: parseInt(m.price) || 0,
         category: m.category || '',
         isRequired: String(m.isRequired).toLowerCase() === 'true',
+        imageUrl: m.imageUrl || '',
       })),
       slots: slots,
       availableTimes: slots.filter(s => s.isAvailable).map(s => s.timeBlock),
@@ -395,7 +398,7 @@ function handleCreateReservation(body) {
   const existing = sheetToObjects('reservation').filter(r =>
     String(r.storeId).trim() === storeId &&
     String(r.date).trim() === date &&
-    String(r.status).trim() === 'CONFIRMED'
+    (String(r.status).trim() === 'CONFIRMED' || String(r.status).trim() === 'DEPOSIT_CONFIRMED')
   );
 
   // 요청 시간대의 최소 잔여 인원 확인
@@ -448,19 +451,21 @@ function handleCreateReservation(body) {
     endTime: endTime,
     menuItems: JSON.stringify(selectedMenus),
     totalAmount: totalAmount,
-    status: 'CONFIRMED',
+    status: 'PENDING',
+    depositAmount: parseInt(store.depositAmount) || 0,
     createdAt: new Date().toISOString(),
   };
 
-  const headers = ['reservationId','storeId','userName','groupName','userPhone','userNote','headcount','date','startTime','endTime','menuItems','totalAmount','status','createdAt'];
+  const headers = ['reservationId','storeId','userName','groupName','userPhone','userNote','headcount','date','startTime','endTime','menuItems','totalAmount','status','depositAmount','createdAt'];
   appendRow('reservation', row, headers);
 
   return {
     success: true,
     data: {
       reservationId: reservationId,
-      status: 'CONFIRMED',
+      status: 'PENDING',
       totalAmount: totalAmount,
+      depositAmount: parseInt(store.depositAmount) || 0,
       createdAt: row.createdAt,
     },
   };
@@ -508,6 +513,7 @@ function handleGetReservations(params) {
       timeBlock: r.startTime + ' ~ ' + r.endTime,
       headcount: parseInt(r.headcount) || 0,
       totalAmount: parseInt(r.totalAmount) || 0,
+      depositAmount: parseInt(r.depositAmount) || 0,
       status: r.status,
       createdAt: r.createdAt,
       menus: menuDetails,
@@ -565,12 +571,14 @@ function handleGetAllData() {
       description: store.description || '',
       slotStartHour: range.slotStartHour,
       slotEndHour: range.slotEndHour,
+      depositAmount: parseInt(store.depositAmount) || 0,
       menus: menus.filter(m => String(m.storeId).trim() === sid).map(m => ({
         id: String(m.menuId).trim(),
         name: m.name,
         price: parseInt(m.price) || 0,
         category: m.category || '',
         isRequired: String(m.isRequired).toLowerCase() === 'true',
+        imageUrl: m.imageUrl || '',
       })),
       minOrderRules: rules.filter(r => String(r.storeId).trim() === sid).map(r => ({
         minHeadcount: parseInt(r.minHeadcount) || 0,
@@ -580,9 +588,9 @@ function handleGetAllData() {
     };
   });
 
-  // 확정된 예약만 (CANCELED 제외)
+  // 확정된 예약만 (CANCELED 제외, CONFIRMED와 DEPOSIT_CONFIRMED 포함)
   const confirmedReservations = reservations
-    .filter(r => String(r.status).trim() === 'CONFIRMED')
+    .filter(r => String(r.status).trim() === 'CONFIRMED' || String(r.status).trim() === 'DEPOSIT_CONFIRMED')
     .map(r => ({
       reservationId: r.reservationId,
       storeId: String(r.storeId).trim(),
@@ -643,6 +651,7 @@ function handleGetReservationsByNamePhone4(params) {
       timeBlock: r.startTime + ' ~ ' + r.endTime,
       headcount: parseInt(r.headcount) || 0,
       totalAmount: parseInt(r.totalAmount) || 0,
+      depositAmount: parseInt(r.depositAmount) || 0,
       status: r.status,
       createdAt: r.createdAt,
       menus: menuDetails,

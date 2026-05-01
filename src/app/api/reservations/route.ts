@@ -97,6 +97,6 @@ export async function POST(request: Request) {
     reservationId,
   }).catch(() => {});
 
-  const response: CreateReservationResponse = { reservationId, status: 'pending' };
+  const response: CreateReservationResponse = { reservationId, status: 'PENDING' };
   return NextResponse.json(response, { status: 201 });
 }

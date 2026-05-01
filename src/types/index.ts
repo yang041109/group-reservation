@@ -41,6 +41,8 @@ export interface StoreCard {
   slotStartHour?: number;
   /** 끝 시(0–23, 해당 시 :30까지). 시작보다 작으면 자정 넘김(예: 17~3=저녁~새벽) */
   slotEndHour?: number;
+  /** 예약금 (원) */
+  depositAmount?: number;
 }
 
 /** GET /api/stores/:id response – store detail */
@@ -57,6 +59,8 @@ export interface StoreDetail {
   /** slots 테이블 기반 슬롯 목록 */
   slots?: TimeSlot[];
   minOrderRules: MinOrderRule[];
+  /** 예약금 (원) */
+  depositAmount?: number;
 }
 
 export interface MenuItemData {
@@ -66,12 +70,14 @@ export interface MenuItemData {
   /** 필수 메뉴 여부 (menus.is_required) */
   isRequired?: boolean;
   category?: string;
+  /** 메뉴 이미지 URL */
+  imageUrl?: string;
 }
 
 // --- 예약 상태 ---
 
-/** DB 상태값: CONFIRMED | CANCELED (백엔드 스키마 기준) */
-export type ReservationStatus = 'pending' | 'accepted' | 'rejected' | 'CONFIRMED' | 'CANCELED';
+/** DB 상태값: PENDING | CONFIRMED | DEPOSIT_PENDING | DEPOSIT_CONFIRMED | CANCELED */
+export type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'DEPOSIT_PENDING' | 'DEPOSIT_CONFIRMED' | 'CANCELED';
 
 export interface StatusTransitionResult {
   valid: boolean;
@@ -88,7 +94,7 @@ export interface CreateReservationRequest {
   date: string;
   time: string;
   groupName: string;           // 단체명(행사명)
-  representativeName: string;  // 대표자 이름
+  representativeName: string;  // 예약자 이름
   phone: string;               // 전화번호
   userNote?: string;           // 요청사항 (선택)
   menuItems: { menuId: string; name?: string; price?: number; quantity: number }[];
@@ -98,7 +104,7 @@ export interface CreateReservationRequest {
 
 export interface CreateReservationResponse {
   reservationId: string;
-  status: 'pending';
+  status: 'PENDING';
 }
 
 /** POST /api/reservations/:id/respond request */

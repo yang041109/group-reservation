@@ -261,6 +261,14 @@ export default function StoreDetailPageClient() {
 
       <h1 className="mt-4 text-2xl font-bold text-gray-900">{store.name}</h1>
 
+      {store.depositAmount && store.depositAmount > 0 && (
+        <div className="mt-3 rounded-lg bg-blue-50 px-4 py-2">
+          <p className="text-sm text-blue-700">
+            💳 예약금: <span className="font-bold">{store.depositAmount.toLocaleString()}원</span>
+          </p>
+        </div>
+      )}
+
       <div className="mt-4 flex items-center gap-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
         {dateDisplay && <span>📅 {dateDisplay}</span>}
         <span>👥 {selectedHeadcount}명</span>

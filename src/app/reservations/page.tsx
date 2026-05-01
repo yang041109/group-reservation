@@ -16,11 +16,15 @@ interface ReservationItem {
   totalAmount: number;
   status: string;
   createdAt: string;
+  depositAmount?: number;
   menus: { menuId: string; name: string; quantity: number; priceAtTime: number }[];
 }
 
 const STATUS_LABEL: Record<string, { text: string; color: string; emoji: string }> = {
+  PENDING: { text: '예약 확인중', color: 'bg-yellow-100 text-yellow-700', emoji: '⏳' },
   CONFIRMED: { text: '예약 확정', color: 'bg-green-100 text-green-700', emoji: '✅' },
+  DEPOSIT_PENDING: { text: '예약금 입금 대기', color: 'bg-blue-100 text-blue-700', emoji: '💳' },
+  DEPOSIT_CONFIRMED: { text: '예약 완료', color: 'bg-green-100 text-green-700', emoji: '✅' },
   CANCELED: { text: '취소됨', color: 'bg-red-100 text-red-700', emoji: '❌' },
 };
 
@@ -189,6 +193,21 @@ export default function MyReservationsPage() {
                           {i < r.menus.length - 1 ? ', ' : ''}
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+                {r.status === 'DEPOSIT_PENDING' && r.depositAmount && r.depositAmount > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="rounded-lg bg-blue-50 p-3">
+                      <p className="text-sm font-semibold text-blue-700 mb-2">
+                        💳 예약금을 입금하시면 바로 예약이 확정됩니다
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        우르르 토스 111-1111-1111
+                      </p>
+                      <p className="text-sm font-bold text-blue-700 mt-1">
+                        예약금: {r.depositAmount.toLocaleString()}원
+                      </p>
                     </div>
                   </div>
                 )}

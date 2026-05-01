@@ -42,6 +42,11 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
   const minCapacity = store.minOrderRules.length > 0
     ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
     : 1;
+  
+  // 인당 최소 주문 금액 계산
+  const minOrderPerPerson = store.minOrderRules.length > 0
+    ? Math.min(...store.minOrderRules.map((r) => r.minOrderAmount / r.minHeadcount))
+    : 0;
 
   const timelineBlocks =
     store.timeline?.map((t) => t.timeBlock) ?? [];
@@ -78,97 +83,96 @@ export default function StoreCard({ store }: { store: StoreCardType }) {
   return (
     <Link
       href={`/stores/${store.id}`}
-      className="block rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md"
+      className="block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-lg"
     >
-      {/* 가게 이미지 */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-xl bg-gray-100">
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={store.name}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-gray-400">
-            이미지 없음
+      <div className="flex gap-4 p-4">
+        {/* 왼쪽: 가게 이미지 + 예약금 배지 */}
+        <div className="relative flex-shrink-0">
+          <div className="relative h-40 w-40 overflow-hidden rounded-xl bg-gray-100">
+            {thumbnailUrl ? (
+              <img
+                src={thumbnailUrl}
+                alt={store.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-gray-400 text-4xl">
+                {getCategoryEmoji(store.category)}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* 가게 정보 */}
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">{store.name}</h2>
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-lg"
-            title={store.category ?? '음식점'}
-          >
-            {getCategoryEmoji(store.category)}
-          </div>
+          {store.depositAmount && store.depositAmount > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 bg-red-500 px-3 py-1.5 text-center rounded-b-xl">
+              <p className="text-white text-sm font-bold">
+                최소 {store.depositAmount.toLocaleString()}원 할인
+              </p>
+            </div>
+          )}
         </div>
 
-        <p className="mt-2 text-sm text-gray-600">
-          <span className="mr-1">👥</span>
-          {minCapacity}명 ~ {store.maxCapacity}명
-        </p>
+        {/* 오른쪽: 가게 정보 + 타임테이블 */}
+        <div className="flex-1 min-w-0">
+          {/* 가게 이름 */}
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            {store.name}
+          </h2>
 
-        {/* 히트맵 타임바 */}
-        <div className="mt-3">
-          <div className="flex">
-            {hours.map((hour) => (
-              <div
-                key={hour}
-                className="text-[10px] font-medium text-gray-400"
-                style={{ width: `${(1 / hours.length) * 100}%` }}
-              >
-                {hour}
-              </div>
-            ))}
-          </div>
-          <div className="flex h-5 overflow-hidden rounded-md">
-            {allSlots.map((time) => {
-              const slot = timelineMap.get(time);
-              let bg: string;
-              let title: string;
+          {/* 인당 최소주문, 예약 가능 인원 */}
+          <p className="text-sm text-gray-600 mb-3">
+            인당 최소주문 {minOrderPerPerson > 0 ? `${minOrderPerPerson.toLocaleString()}원` : '없음'}, 
+            예약 가능인원 {minCapacity}~{store.maxCapacity}명
+          </p>
 
-              if (slot) {
-                const remaining = slot.maxPeople - slot.currentHeadcount;
-                const ratio = slot.currentHeadcount / slot.maxPeople;
-                if (!slot.isAvailable && remaining <= 0) {
-                  bg = 'bg-red-500';
-                  title = `${time} (마감)`;
-                } else if (!slot.isAvailable) {
-                  bg = 'bg-gray-400';
-                  title = `${time} (예약불가)`;
-                } else {
-                  bg = getOccupancyColor(ratio);
-                  title = `${time} — 잔여 ${remaining}명`;
-                }
-              } else {
-                // 폴백: 기존 방식
-                const isReserved = reservedSet.has(time);
-                const isAvailable = availableSet.has(time);
-                if (isReserved) { bg = 'bg-gray-400'; title = `${time} (예약됨)`; }
-                else if (isAvailable) { bg = 'bg-emerald-400'; title = `${time}`; }
-                else { bg = 'bg-gray-200'; title = `${time} (불가)`; }
-              }
-
-              return (
+          {/* 타임테이블 */}
+          <div>
+            <div className="flex mb-1">
+              {hours.map((hour) => (
                 <div
-                  key={time}
-                  title={title}
-                  className={`flex-1 border-r border-white/30 last:border-r-0 ${bg}`}
-                />
-              );
-            })}
-          </div>
-          {/* 범례 */}
-          <div className="mt-1.5 flex items-center gap-3 text-[10px] text-gray-500">
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-400" />여유</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-yellow-400" />보통</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-400" />혼잡</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />마감</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-200" />불가</span>
+                  key={hour}
+                  className="text-xs font-semibold text-gray-700"
+                  style={{ width: `${(1 / hours.length) * 100}%` }}
+                >
+                  {hour}
+                </div>
+              ))}
+            </div>
+            <div className="flex h-8 overflow-hidden rounded-lg">
+              {allSlots.map((time) => {
+                const slot = timelineMap.get(time);
+                let bg: string;
+                let title: string;
+
+                if (slot) {
+                  const remaining = slot.maxPeople - slot.currentHeadcount;
+                  const ratio = slot.currentHeadcount / slot.maxPeople;
+                  if (!slot.isAvailable && remaining <= 0) {
+                    bg = 'bg-gray-400';
+                    title = `${time} (마감)`;
+                  } else if (!slot.isAvailable) {
+                    bg = 'bg-gray-400';
+                    title = `${time} (예약불가)`;
+                  } else {
+                    bg = getOccupancyColor(ratio);
+                    title = `${time} — 잔여 ${remaining}명`;
+                  }
+                } else {
+                  // 폴백: 기존 방식
+                  const isReserved = reservedSet.has(time);
+                  const isAvailable = availableSet.has(time);
+                  if (isReserved) { bg = 'bg-gray-400'; title = `${time} (예약됨)`; }
+                  else if (isAvailable) { bg = 'bg-cyan-400'; title = `${time}`; }
+                  else { bg = 'bg-gray-200'; title = `${time} (불가)`; }
+                }
+
+                return (
+                  <div
+                    key={time}
+                    title={title}
+                    className={`flex-1 border-r border-white last:border-r-0 ${bg}`}
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
