@@ -107,37 +107,6 @@ export interface CreateReservationResponse {
   status: 'PENDING';
 }
 
-/** POST /api/reservations/:id/respond request */
-export interface RespondReservationRequest {
-  action: 'accept' | 'reject';
-  note?: string;
-}
-
-// --- 알림 관련 ---
-
-export interface NotificationData {
-  id: string;
-  reservationId: string;
-  storeName: string;
-  type: 'CONFIRMED' | 'CANCELED';
-  message: string;
-  adminNote?: string;
-  isRead: boolean;
-  createdAt: Date;
-}
-
-/** GET /api/notifications response */
-export interface GetNotificationsResponse {
-  notifications: NotificationData[];
-  unreadCount: number;
-}
-
-/** PATCH /api/notifications/:id/read response */
-export interface MarkNotificationReadResponse {
-  id: string;
-  isRead: true;
-}
-
 // --- 유효성 검증 ---
 
 export interface ValidationResult {

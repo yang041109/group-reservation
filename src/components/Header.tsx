@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import NotificationBadge from './NotificationBadge';
 
 /** 달리는 졸라맨 SVG */
 function RunningStickman({ delay, size = 18 }: { delay: number; size?: number }) {
@@ -71,7 +70,6 @@ export default function Header() {
           >
             내 예약
           </Link>
-          <NotificationBadge />
         </div>
       </div>
     </header>
