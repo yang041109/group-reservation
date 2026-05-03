@@ -75,7 +75,7 @@ export interface MockReservation {
   representativeName: string;
   phone: string;
   totalAmount: number;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELED';
   adminNote: string | null;
   menuItems: { menuId: string; name: string; quantity: number; priceAtTime: number }[];
   createdAt: Date;
@@ -85,7 +85,7 @@ export interface MockNotification {
   id: string;
   reservationId: string;
   storeName: string;
-  type: 'accepted' | 'rejected';
+  type: 'CONFIRMED' | 'CANCELED';
   message: string;
   adminNote: string | null;
   isRead: boolean;
@@ -316,7 +316,7 @@ export function createReservation(data: {
     representativeName: data.representativeName,
     phone: data.phone,
     totalAmount: data.totalAmount,
-    status: 'pending',
+    status: 'PENDING',
     adminNote: null,
     menuItems: data.menuItems.map((item) => {
       const menu = data.menus.find((m) => m.id === item.menuId);
