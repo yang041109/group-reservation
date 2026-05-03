@@ -139,21 +139,26 @@ export function calculateTotalAmount(
 
 /**
  * 허용된 예약 상태 전이 맵.
- * pending → accepted, pending → rejected 만 허용한다.
+ * PENDING → CONFIRMED, PENDING → CANCELED 만 허용한다.
  */
 const VALID_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
-  pending: ['accepted', 'rejected'],
-  accepted: [],
-  rejected: [],
-  CONFIRMED: ['CANCELED'],
+  PENDING: ['CONFIRMED', 'CANCELED'],
+  CONFIRMED: ['DEPOSIT_PENDING', 'CANCELED'],
+  DEPOSIT_PENDING: ['DEPOSIT_CONFIRMED', 'CANCELED'],
+  DEPOSIT_CONFIRMED: ['CANCELED'],
   CANCELED: [],
 };
 
 /**
  * 예약 상태 전이가 유효한지 검증한다.
  *
- * - pending → accepted ✅
- * - pending → rejected ✅
+ * - PENDING → CONFIRMED ✅
+ * - PENDING → CANCELED ✅
+ * - CONFIRMED → DEPOSIT_PENDING ✅
+ * - CONFIRMED → CANCELED ✅
+ * - DEPOSIT_PENDING → DEPOSIT_CONFIRMED ✅
+ * - DEPOSIT_PENDING → CANCELED ✅
+ * - DEPOSIT_CONFIRMED → CANCELED ✅
  * - 그 외 모든 전이 ❌
  *
  * Requirements: 6.4, 6.5, 6.9
