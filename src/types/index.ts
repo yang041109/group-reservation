@@ -119,7 +119,7 @@ export interface NotificationData {
   id: string;
   reservationId: string;
   storeName: string;
-  type: 'accepted' | 'rejected';
+  type: 'CONFIRMED' | 'CANCELED';
   message: string;
   adminNote?: string;
   isRead: boolean;

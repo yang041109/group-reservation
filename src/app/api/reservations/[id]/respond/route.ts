@@ -58,7 +58,7 @@ export async function POST(
       storeName: store?.name ?? '',
       type: newStatus,
       message:
-        newStatus === 'accepted'
+        newStatus === 'CONFIRMED'
           ? '예약이 확정되었습니다'
           : '예약이 거절되었습니다',
       adminNote: body.note ?? null,
