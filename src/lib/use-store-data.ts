@@ -15,6 +15,7 @@ export interface CachedStore {
   description: string;
   slotStartHour?: number;
   slotEndHour?: number;
+  depositAmount?: number;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
 }
