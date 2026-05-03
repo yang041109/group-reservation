@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 export interface Notification {
   id: string;
   reservationId: string;
-  type: 'accepted' | 'rejected';
+  type: 'CONFIRMED' | 'CANCELED';
   message: string;
   adminNote?: string;
   isRead: boolean;
@@ -16,8 +16,8 @@ export interface Notification {
 /**
  * 예약 수락/거절 시 사이트 내 알림을 생성한다.
  *
- * - 수락 시: type='accepted', message='예약이 확정되었습니다'
- * - 거절 시: type='rejected', message='예약이 거절되었습니다'
+ * - 수락 시: type='CONFIRMED', message='예약이 확정되었습니다'
+ * - 거절 시: type='CANCELED', message='예약이 거절되었습니다'
  * - adminNote가 있으면 알림에 포함
  *
  * Requirements: 7.1, 7.2, 7.3
@@ -30,7 +30,7 @@ export function createNotificationForReservation(
   return {
     id: randomUUID(),
     reservationId: reservation.id,
-    type: action === 'accept' ? 'accepted' : 'rejected',
+    type: action === 'accept' ? 'CONFIRMED' : 'CANCELED',
     message: action === 'accept' ? '예약이 확정되었습니다' : '예약이 거절되었습니다',
     adminNote,
     isRead: false,
