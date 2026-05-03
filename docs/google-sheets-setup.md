@@ -106,7 +106,7 @@ rule-3  | store-2 | 1            | 80           | 12000
 
 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| reservationId | storeId | userName | groupName | userPhone | userNote | headcount | date | startTime | endTime | menuItems | totalAmount | status | depositAmount | createdAt |
+| reservationId | storeId | userName | groupName | userPhone | userNote | headcount | date | startTime | endTime | menuItems | status | totalAmount | depositAmount | createdAt |
 
 ### 컬럼 설명
 
@@ -121,8 +121,8 @@ rule-3  | store-2 | 1            | 80           | 12000
 - **startTime**: 시작 시간 (HH:mm, 예: `17:00`)
 - **endTime**: 종료 시간 (HH:mm, 예: `18:30`)
 - **menuItems**: 주문 메뉴 JSON (예: `[{"menuId":"menu-1","quantity":20}]`)
-- **totalAmount**: 총 금액 (원, 예: `510000`)
 - **status**: 예약 상태 (아래 참조)
+- **totalAmount**: 총 금액 (원, 예: `510000`)
 - **depositAmount**: 예약금 (원, 가게의 depositAmount 복사)
 - **createdAt**: 생성 시간 (자동, 예: `2026-04-01 10:30:00`)
 
@@ -137,9 +137,9 @@ rule-3  | store-2 | 1            | 80           | 12000
 ### 예시 데이터
 
 ```
-reservationId    | storeId | userName | groupName | userPhone      | userNote      | headcount | date       | startTime | endTime | menuItems                              | totalAmount | status          | depositAmount | createdAt
-RSV1775794539    | store-1 | 양민주   |           | 010-9999-8888  |               | 70        | 2026-04-13 | 17:00     | 18:30   | [{"menuId":"menu-1","quantity":20}]    | 510000      | PENDING         | 5000          | 2026-04-01 10:30:00
-RSV1776381061    | store-1 | 송유현   | 청춘      | 010-0000-0000  | 맛있게 주세요 | 20        | 2026-04-29 | 21:30     | 22:00   | [{"menuId":"menu-2","quantity":10}]    | 275000      | CONFIRMED       | 0             | 2026-04-02 15:20:00
+reservationId    | storeId | userName | groupName | userPhone      | userNote      | headcount | date       | startTime | endTime | menuItems                              | status          | totalAmount | depositAmount | createdAt
+RSV1775794539    | store-1 | 양민주   |           | 010-9999-8888  |               | 70        | 2026-04-13 | 17:00     | 18:30   | [{"menuId":"menu-1","quantity":20}]    | PENDING         | 510000      | 5000          | 2026-04-01 10:30:00
+RSV1776381061    | store-1 | 송유현   | 청춘      | 010-0000-0000  | 맛있게 주세요 | 20        | 2026-04-29 | 21:30     | 22:00   | [{"menuId":"menu-2","quantity":10}]    | CONFIRMED       | 275000      | 0             | 2026-04-02 15:20:00
 ```
 
 ---

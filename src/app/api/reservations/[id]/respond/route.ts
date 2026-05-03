@@ -32,7 +32,7 @@ export async function POST(
     }
 
     const newStatus: ReservationStatus =
-      body.action === 'accept' ? 'accepted' : 'rejected';
+      body.action === 'accept' ? 'CONFIRMED' : 'CANCELED';
     const transition = validateStatusTransition(
       reservation.status as ReservationStatus,
       newStatus,
