@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* 전역 배경색 - 오프화이트 */
+body {
+  background-color: #F8F9FA;
+}
+
 /* 졸라맨 달리기 애니메이션 */
 @keyframes stickman-run {
   0%, 100% {

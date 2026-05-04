@@ -28,13 +28,13 @@ type SlotStatus = 'available' | 'reserved' | 'unavailable' | 'full';
 
 /** 점유율 → 배경색 (선택 안 된 상태) */
 function getOccupancyBg(ratio: number, status: SlotStatus): string {
-  if (status === 'full') return 'bg-red-400 cursor-not-allowed';
-  if (status === 'reserved') return 'bg-gray-400 cursor-not-allowed';
-  if (status === 'unavailable') return 'bg-gray-200 cursor-not-allowed';
-  if (ratio >= 0.8) return 'bg-orange-300 hover:bg-orange-400 cursor-pointer';
-  if (ratio >= 0.5) return 'bg-yellow-300 hover:bg-yellow-400 cursor-pointer';
-  if (ratio > 0) return 'bg-emerald-300 hover:bg-emerald-400 cursor-pointer';
-  return 'bg-emerald-400 hover:bg-emerald-500 cursor-pointer';
+  if (status === 'full') return 'bg-[#f29da6] cursor-not-allowed';
+  if (status === 'reserved') return 'bg-[#f29da6] cursor-not-allowed';
+  if (status === 'unavailable') return 'bg-[#f29da6] cursor-not-allowed';
+  if (ratio >= 0.8) return 'bg-[#a7a7a8] hover:bg-[#9a9a9b] cursor-pointer';
+  if (ratio >= 0.5) return 'bg-[#23f7ed] hover:bg-[#1de5db] cursor-pointer';
+  if (ratio > 0) return 'bg-[#23cdfc] hover:bg-[#1bb9e8] cursor-pointer';
+  return 'bg-[#2c9af5] hover:bg-[#2488d9] cursor-pointer';
 }
 
 export default function TimeSelector({
@@ -208,8 +208,8 @@ export default function TimeSelector({
 
               let titleText = time;
               if (info.status === 'full') titleText = `${time} (마감)`;
-              else if (info.status === 'reserved') titleText = `${time} (예약불가)`;
-              else if (info.status === 'unavailable') titleText = `${time} (불가)`;
+              else if (info.status === 'reserved') titleText = `${time} (마감)`;
+              else if (info.status === 'unavailable') titleText = `${time} (마감)`;
               else if (showCount) titleText = `${time} — 잔여 ${remaining}명 / 최대 ${info.maxPeople}명`;
 
               return (
@@ -238,11 +238,11 @@ export default function TimeSelector({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-400" />여유</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-yellow-300" />보통</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-300" />혼잡</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-400" />마감</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-200" />불가</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#2c9af5]" />여유</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#23cdfc]" />보통</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#23f7ed]" />혼잡</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#a7a7a8]" />거의마감</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f29da6]" />마감</span>
         <span className="text-gray-400">숫자 = 잔여 인원</span>
       </div>
 

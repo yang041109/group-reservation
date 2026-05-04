@@ -47,7 +47,7 @@ function StoreIcon() {
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-sky-200 bg-gradient-to-r from-sky-500 via-blue-500 to-sky-500">
+    <header className="sticky top-0 z-40 border-b border-blue-400/30 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         {/* 로고 + 졸라맨 애니메이션 */}
         <Link href="/" className="flex items-center gap-1.5 group">
@@ -55,7 +55,7 @@ export default function Header() {
             우르르
           </span>
           {/* 졸라맨들이 가게로 달려가는 애니메이션 */}
-          <div className="flex items-end gap-0 ml-1 text-sky-300 overflow-hidden">
+          <div className="flex items-end gap-0 ml-1 text-blue-200 overflow-hidden">
             <RunningStickman delay={0} size={16} />
             <RunningStickman delay={0.15} size={14} />
             <RunningStickman delay={0.3} size={16} />
@@ -66,7 +66,7 @@ export default function Header() {
         <div className="flex items-center gap-4">
           <Link
             href="/reservations"
-            className="text-sm text-sky-200 hover:text-white transition"
+            className="text-sm text-white/90 hover:text-white transition"
           >
             내 예약
           </Link>

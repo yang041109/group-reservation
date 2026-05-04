@@ -40,3 +40,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# admin pages (local only, not for deployment)
+/src/app/admin/
+/src/app/api/admin/
+/docs/admin-setup.md
+/docs/deployment-guide.md

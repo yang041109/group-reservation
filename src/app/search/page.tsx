@@ -132,28 +132,24 @@ export default function SearchPage() {
             <h3 className="text-sm font-semibold text-gray-700 mb-3">타임라인 색상 안내</h3>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-emerald-400"></div>
+                <div className="w-6 h-6 rounded bg-[#2c9af5]"></div>
                 <span className="text-xs text-gray-600">여유</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-emerald-300"></div>
+                <div className="w-6 h-6 rounded bg-[#23cdfc]"></div>
                 <span className="text-xs text-gray-600">보통</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-yellow-400"></div>
+                <div className="w-6 h-6 rounded bg-[#23f7ed]"></div>
                 <span className="text-xs text-gray-600">혼잡</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-orange-400"></div>
+                <div className="w-6 h-6 rounded bg-[#a7a7a8]"></div>
                 <span className="text-xs text-gray-600">거의 마감</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-red-500"></div>
+                <div className="w-6 h-6 rounded bg-[#f29da6]"></div>
                 <span className="text-xs text-gray-600">마감</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-gray-400"></div>
-                <span className="text-xs text-gray-600">예약 불가</span>
               </div>
             </div>
           </div>

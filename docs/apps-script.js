@@ -23,6 +23,9 @@ function doGet(e) {
       case 'getReservationsByNamePhone4':
         result = handleGetReservationsByNamePhone4(e.parameter);
         break;
+      case 'getReservationsByStore':
+        result = handleGetReservationsByStore(e.parameter);
+        break;
       case 'cancelReservation':
         result = handleCancelReservation(e.parameter);
         break;
@@ -55,6 +58,9 @@ function doPost(e) {
     switch (action) {
       case 'createReservation':
         result = handleCreateReservation(body);
+        break;
+      case 'updateReservationStatus':
+        result = handleUpdateReservationStatus(body);
         break;
       default:
         result = { success: false, message: 'Unknown action: ' + action };
@@ -659,4 +665,122 @@ function handleGetReservationsByNamePhone4(params) {
   });
 
   return { success: true, data: result };
+}
+
+
+// ── 사장님용 관리 API ────────────────────────────────────────
+
+/**
+ * 가게별 예약 목록 조회
+ * ?action=getReservationsByStore&storeId=store-1&status=PENDING&date=2026-05-10
+ */
+function handleGetReservationsByStore(params) {
+  const storeId = (params.storeId || '').trim();
+  const statusFilter = (params.status || '').trim();
+  const dateFilter = (params.date || '').trim();
+
+  if (!storeId) {
+    return { success: false, message: '가게 ID가 필요합니다.' };
+  }
+
+  const reservations = sheetToObjects('reservation');
+  const stores = sheetToObjects('store');
+  const menus = sheetToObjects('menu');
+
+  // 필터링
+  let filtered = reservations.filter(r => String(r.storeId).trim() === storeId);
+  
+  if (statusFilter) {
+    filtered = filtered.filter(r => String(r.status).trim() === statusFilter);
+  }
+  
+  if (dateFilter) {
+    filtered = filtered.filter(r => String(r.date).trim() === dateFilter);
+  }
+
+  // 시간순 정렬 (날짜 + 시작시간)
+  filtered.sort((a, b) => {
+    const dateA = String(a.date).trim() + ' ' + String(a.startTime).trim();
+    const dateB = String(b.date).trim() + ' ' + String(b.startTime).trim();
+    return dateA.localeCompare(dateB);
+  });
+
+  const result = filtered.map(r => {
+    const store = stores.find(s => String(s.storeId).trim() === storeId);
+    let parsedMenus = [];
+    try { parsedMenus = JSON.parse(r.menuItems || '[]'); } catch(e) {}
+
+    const menuDetails = parsedMenus.map(sm => {
+      const menu = menus.find(m => String(m.menuId).trim() === String(sm.menuId).trim());
+      return {
+        menuId: sm.menuId,
+        name: menu ? menu.name : sm.menuId,
+        quantity: parseInt(sm.quantity) || 0,
+        priceAtTime: menu ? parseInt(menu.price) || 0 : 0,
+      };
+    });
+
+    return {
+      reservationId: r.reservationId,
+      storeId: storeId,
+      storeName: store ? store.name : storeId,
+      userName: r.userName || '',
+      groupName: r.groupName || '',
+      userPhone: r.userPhone || '',
+      userNote: r.userNote || '',
+      date: String(r.date || '').trim(),
+      startTime: String(r.startTime || '').trim(),
+      endTime: String(r.endTime || '').trim(),
+      headcount: parseInt(r.headcount) || 0,
+      totalAmount: parseInt(r.totalAmount) || 0,
+      depositAmount: parseInt(r.depositAmount) || 0,
+      status: r.status || 'PENDING',
+      createdAt: r.createdAt || '',
+      menus: menuDetails,
+    };
+  });
+
+  return { success: true, data: result };
+}
+
+/**
+ * 예약 상태 업데이트
+ * POST body: { action: 'updateReservationStatus', reservationId: 'RSV123', status: 'CONFIRMED' }
+ */
+function handleUpdateReservationStatus(body) {
+  const reservationId = (body.reservationId || '').trim();
+  const newStatus = (body.status || '').trim();
+
+  if (!reservationId || !newStatus) {
+    return { success: false, message: '예약 ID와 상태가 필요합니다.' };
+  }
+
+  const sheet = SS.getSheetByName('reservation');
+  if (!sheet) {
+    return { success: false, message: 'reservation 시트를 찾을 수 없습니다.' };
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).trim());
+  const idCol = headers.indexOf('reservationId');
+  const statusCol = headers.indexOf('status');
+
+  if (idCol === -1 || statusCol === -1) {
+    return { success: false, message: '필요한 컬럼을 찾을 수 없습니다.' };
+  }
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]).trim() === reservationId) {
+      sheet.getRange(i + 1, statusCol + 1).setValue(newStatus);
+      return {
+        success: true,
+        data: {
+          reservationId: reservationId,
+          status: newStatus,
+        },
+      };
+    }
+  }
+
+  return { success: false, message: '예약을 찾을 수 없습니다.' };
 }
