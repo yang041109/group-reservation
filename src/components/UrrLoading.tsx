@@ -32,7 +32,7 @@ export default function UrrLoading({ message = '불러오는 중...' }: UrrLoadi
             stroke="#e0f2fe"
             strokeWidth="2"
           >
-            우르르
+            URR
           </text>
         </svg>
       </div>
