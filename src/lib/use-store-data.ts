@@ -36,7 +36,6 @@ interface AllData {
 
 // ── fetcher ─────────────────────────────────────────────────────
 
-const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
 export const ALL_DATA_KEY = 'allData';
 const ALL_DATA_SNAPSHOT_KEY = 'allDataSnapshot';
 
@@ -62,8 +61,7 @@ function writeAllDataSnapshot(data: AllData) {
 }
 
 export async function fetchAllData(): Promise<AllData> {
-  if (!SHEETS_URL) throw new Error('SHEETS_URL not set');
-  const res = await fetch(`${SHEETS_URL}?action=getAllData`, { cache: 'no-store' });
+  const res = await fetch('/api/data/all', { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch');
   const json = await res.json();
   if (!json.success) throw new Error(json.message || 'Failed');

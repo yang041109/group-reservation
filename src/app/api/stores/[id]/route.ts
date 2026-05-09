@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getStoreDetailFromSheets, SheetsApiError } from '@/lib/sheets-api';
+import { getStoreDetailFromMysql, ReservationDbError } from '@/lib/mysql-data';
 
 export async function GET(
   request: Request,
@@ -10,10 +10,10 @@ export async function GET(
   const date = url.searchParams.get('date') ?? '';
 
   try {
-    const data = await getStoreDetailFromSheets(id, date);
+    const data = await getStoreDetailFromMysql(id, date);
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof SheetsApiError) {
+    if (error instanceof ReservationDbError) {
       return NextResponse.json(
         { error: error.responseBody || '가게 정보를 불러올 수 없습니다' },
         { status: error.statusCode },
