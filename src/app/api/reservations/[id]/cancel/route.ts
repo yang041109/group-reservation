@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cancelReservationInSheets, SheetsApiError } from '@/lib/sheets-api';
+import { cancelReservationInMysql, ReservationDbError } from '@/lib/mysql-data';
 
 export async function PATCH(
   _request: Request,
@@ -8,10 +8,10 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    const data = await cancelReservationInSheets(id);
+    const data = await cancelReservationInMysql(id);
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    if (error instanceof SheetsApiError) {
+    if (error instanceof ReservationDbError) {
       return NextResponse.json(
         { error: error.responseBody },
         { status: error.statusCode },

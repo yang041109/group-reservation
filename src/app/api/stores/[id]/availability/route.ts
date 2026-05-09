@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getStoreDetailFromSheets, SheetsApiError } from '@/lib/sheets-api';
+import { getStoreDetailFromMysql, ReservationDbError } from '@/lib/mysql-data';
 import { getStaticStore } from '@/lib/store-data';
 import type { TimeSlot } from '@/types';
 
@@ -18,10 +18,13 @@ export async function GET(
   }
 
   try {
-    const data = await getStoreDetailFromSheets(id, date) as { slots?: TimeSlot[] };
+    const data = (await getStoreDetailFromMysql(id, date)) as { slots?: TimeSlot[] };
     return NextResponse.json({ slots: data.slots ?? [] });
   } catch (error) {
-    // Sheets 실패 시 기본값 (전부 여유) 반환
+    if (error instanceof ReservationDbError && error.statusCode === 404) {
+      return NextResponse.json({ error: '가게를 찾을 수 없습니다.' }, { status: 404 });
+    }
+    // DB 실패 시 기본값 (전부 여유) 반환
     const defaultSlots: TimeSlot[] = [];
     for (let h = 11; h <= 20; h++) {
       for (let m = 0; m < 60; m += 30) {

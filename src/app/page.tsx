@@ -13,15 +13,9 @@ export default function LandingPage() {
   useEffect(() => {
     router.prefetch('/search');
 
-    const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
     let cancelled = false;
 
     const prefetchAndGo = async () => {
-      if (!SHEETS_URL) {
-        setLoadingError(true);
-        return;
-      }
-
       try {
         await prefetchAllDataIntoCache();
         sessionStorage.setItem('landingPrefetchedAllData', '1');

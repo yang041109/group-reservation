@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
+import { insertReservationValidated, ReservationDbError } from '@/lib/mysql-data';
 import { sendSlackNotification } from '@/lib/slack';
 import type { CreateReservationRequest, CreateReservationResponse } from '@/types';
-
-const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
 
 export async function POST(request: Request) {
   let body: CreateReservationRequest;
@@ -27,11 +26,9 @@ export async function POST(request: Request) {
 
   const reservationId = `RSV${Date.now()}`;
 
-  // Apps Script에 예약 저장 시도 (실패해도 성공으로 처리)
-  if (SHEETS_URL) {
-    const payload = {
-      action: 'createReservation',
-      data: {
+  try {
+    await insertReservationValidated(
+      {
         storeId: body.storeId,
         userName: body.representativeName,
         groupName: body.groupName,
@@ -41,41 +38,22 @@ export async function POST(request: Request) {
         date: body.date,
         startTime,
         endTime,
-        selectedMenus: body.menuItems.map(item => ({
+        selectedMenus: body.menuItems.map((item) => ({
           menuId: item.menuId,
           quantity: item.quantity,
         })),
         totalAmount: body.totalAmount,
       },
-    };
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-
-      const sheetsRes = await fetch(SHEETS_URL, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'text/plain' },
-        redirect: 'follow',
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      try {
-        const text = await sheetsRes.text();
-        const json = JSON.parse(text);
-        if (json.success === false && json.message) {
-          // Sheets에서 명시적 거부 (잔여 인원 초과 등)만 에러 처리
-          return NextResponse.json({ error: json.message }, { status: 400 });
-        }
-      } catch {
-        // 응답 파싱 실패 — 시트에 저장됐을 수 있으므로 무시
-      }
-    } catch {
-      // fetch 자체 실패 (타임아웃, 네트워크 등) — 무시하고 성공 처리
-      console.error('Sheets 저장 요청 실패 (무시하고 진행)');
+      reservationId,
+    );
+  } catch (error) {
+    if (error instanceof ReservationDbError) {
+      return NextResponse.json(
+        { error: error.responseBody },
+        { status: error.statusCode >= 500 ? 503 : error.statusCode },
+      );
     }
+    throw error;
   }
 
   // Slack 알림 (백그라운드)

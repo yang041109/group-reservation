@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// --- mock sheets-api ---
-const mockGetStoresFromSheets = vi.fn();
-const mockGetStoreDetailFromSheets = vi.fn();
+// --- mock mysql-data ---
+const mockGetStoresFromMysql = vi.fn();
+const mockGetStoreDetailFromMysql = vi.fn();
 
-vi.mock('@/lib/sheets-api', () => ({
-  getStoresFromSheets: (...args: unknown[]) => mockGetStoresFromSheets(...args),
-  getStoreDetailFromSheets: (...args: unknown[]) => mockGetStoreDetailFromSheets(...args),
-  SheetsApiError: class SheetsApiError extends Error {
+vi.mock('@/lib/mysql-data', () => ({
+  getStoresFromMysql: (...args: unknown[]) => mockGetStoresFromMysql(...args),
+  getStoreDetailFromMysql: (...args: unknown[]) => mockGetStoreDetailFromMysql(...args),
+  ReservationDbError: class ReservationDbError extends Error {
     statusCode: number;
     responseBody: string;
     constructor(statusCode: number, responseBody: string) {
-      super(`Sheets API error: ${statusCode}`);
-      this.name = 'SheetsApiError';
+      super(responseBody);
+      this.name = 'ReservationDbError';
       this.statusCode = statusCode;
       this.responseBody = responseBody;
     }
@@ -20,13 +20,13 @@ vi.mock('@/lib/sheets-api', () => ({
 }));
 
 beforeEach(() => {
-  mockGetStoresFromSheets.mockReset();
-  mockGetStoreDetailFromSheets.mockReset();
+  mockGetStoresFromMysql.mockReset();
+  mockGetStoreDetailFromMysql.mockReset();
 });
 
-describe('GET /api/stores - Sheets 가게 목록', () => {
-  it('Sheets에서 가게 목록을 가져와 stores 배열로 반환', async () => {
-    mockGetStoresFromSheets.mockResolvedValueOnce([
+describe('GET /api/stores - MySQL 가게 목록', () => {
+  it('DB에서 가게 목록을 가져와 stores 배열로 반환', async () => {
+    mockGetStoresFromMysql.mockResolvedValueOnce([
       {
         storeId: 'store-1',
         name: '맛있는 한식당',
@@ -48,8 +48,8 @@ describe('GET /api/stores - Sheets 가게 목록', () => {
     expect(json.stores[0].name).toBe('맛있는 한식당');
   });
 
-  it('Sheets 에러 시 503 반환', async () => {
-    mockGetStoresFromSheets.mockRejectedValueOnce(new Error('network'));
+  it('DB 에러 시 503 반환', async () => {
+    mockGetStoresFromMysql.mockRejectedValueOnce(new Error('network'));
 
     const { GET } = await import('../../stores/route');
     const request = new Request('http://localhost:3000/api/stores?date=2026-04-05&headcount=1');
@@ -59,9 +59,9 @@ describe('GET /api/stores - Sheets 가게 목록', () => {
   });
 });
 
-describe('GET /api/stores/[id] - Sheets 가게 상세', () => {
-  it('Sheets에서 가게 상세를 가져와 반환', async () => {
-    mockGetStoreDetailFromSheets.mockResolvedValueOnce({
+describe('GET /api/stores/[id] - MySQL 가게 상세', () => {
+  it('DB에서 가게 상세를 가져와 반환', async () => {
+    mockGetStoreDetailFromMysql.mockResolvedValueOnce({
       store: {
         id: 'store-1',
         name: '맛있는 한식당',
@@ -86,8 +86,8 @@ describe('GET /api/stores/[id] - Sheets 가게 상세', () => {
     expect(json.menus[0].name).toBe('김치찌개');
   });
 
-  it('Sheets 에러 시 503 반환', async () => {
-    mockGetStoreDetailFromSheets.mockRejectedValueOnce(new Error('network'));
+  it('DB 에러 시 503 반환', async () => {
+    mockGetStoreDetailFromMysql.mockRejectedValueOnce(new Error('network'));
 
     const { GET } = await import('../../stores/[id]/route');
     const request = new Request('http://localhost:3000/api/stores/store-1?date=2026-04-05');
