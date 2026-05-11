@@ -72,9 +72,8 @@ export async function manageListStores(): Promise<
   }
   try {
     const pool = getPool();
-    const [rows] = await pool.query<StoreRow[]>(
-      'SELECT storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour, depositAmount, depositUseTiers, depositTiersJson, description, adminAccessToken, sortOrder FROM store ORDER BY sortOrder ASC, name ASC',
-    );
+    /** SELECT * — 예약금 구간 컬럼이 아직 없는 DB에서도 목록 조회가 되도록 명시 컬럼 나열을 쓰지 않음 */
+    const [rows] = await pool.query<StoreRow[]>('SELECT * FROM store ORDER BY sortOrder ASC, name ASC');
     return { success: true, data: rows.map(mapStoreRow) };
   } catch (e) {
     console.error('[manageListStores]', e);
@@ -148,8 +147,29 @@ export async function manageUpdateStore(
     }
     return { success: true };
   } catch (e) {
+    const err = e as { errno?: number; message?: string };
+    const msg = formatMysqlUserError(e);
+    const tierColsMissing =
+      err.errno === 1054 &&
+      typeof err.message === 'string' &&
+      (err.message.includes('depositUseTiers') || err.message.includes('depositTiersJson'));
+    if (
+      tierColsMissing &&
+      (patch.depositUseTiers !== undefined || patch.depositTiersJson !== undefined)
+    ) {
+      const { depositUseTiers: _u, depositTiersJson: _j, ...rest } = patch;
+      const restKeys = Object.keys(rest).filter((k) => rest[k as keyof typeof rest] !== undefined);
+      if (restKeys.length === 0) {
+        return {
+          success: false,
+          message:
+            'DB에 예약금 구간 컬럼이 없습니다. 저장소의 docs/store-deposit-tiers.sql 을 실행한 뒤 인원 구간 예약금을 저장하세요.',
+        };
+      }
+      return manageUpdateStore(sid, rest);
+    }
     console.error('[manageUpdateStore]', e);
-    return { success: false, message: formatMysqlUserError(e) };
+    return { success: false, message: msg };
   }
 }
 
@@ -181,8 +201,8 @@ export async function manageCreateStore(input: {
     await pool.execute(
       `INSERT INTO store (
         storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour,
-        depositAmount, depositUseTiers, depositTiersJson, description, adminAccessToken, sortOrder
-      ) VALUES (?, ?, ?, ?, NULL, 11, 20, 0, 0, NULL, NULL, NULL, ?)`,
+        depositAmount, description, adminAccessToken, sortOrder
+      ) VALUES (?, ?, ?, ?, NULL, 11, 20, 0, NULL, NULL, ?)`,
       [storeId, name, category || '', maxCap, nextSort],
     );
     return { success: true };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
@@ -223,15 +223,11 @@ export default function StoreDetailPageClient() {
     });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
-  const effectiveDeposit = useMemo(
-    () =>
-      resolveDepositForHeadcount(selectedHeadcount, {
-        depositUseTiers: !!store.depositUseTiers,
-        depositTiers: store.depositTiers ?? [],
-        flatDepositAmount: store.depositAmount ?? 0,
-      }),
-    [selectedHeadcount, store.depositAmount, store.depositTiers, store.depositUseTiers],
-  );
+  const effectiveDeposit = resolveDepositForHeadcount(selectedHeadcount, {
+    depositUseTiers: !!store.depositUseTiers,
+    depositTiers: store.depositTiers ?? [],
+    flatDepositAmount: store.depositAmount ?? 0,
+  });
 
   // 선택된 시간대의 최소 잔여 인원 계산 → 인원수 상한 제한
   const selectedTimeMaxCapacity = (() => {
