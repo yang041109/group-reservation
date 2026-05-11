@@ -10,7 +10,6 @@ import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
 import ReserveButton from '@/components/ReserveButton';
-import UrrLoading from '@/components/UrrLoading';
 
 function getMinOrderAmount(headcount: number, rules: MinOrderRule[]): number {
   const rule = rules.find(
@@ -178,7 +177,12 @@ export default function StoreDetailPageClient() {
   if (loading) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <UrrLoading message="가게 정보를 불러오는 중..." />
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+            <p className="mt-4 text-sm text-gray-500">가게 정보를 불러오는 중...</p>
+          </div>
+        </div>
       </main>
     );
   }
