@@ -74,7 +74,6 @@ export default function ManagePageClient() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [sortOrder, setSortOrder] = useState('0');
   const [menus, setMenus] = useState<ManageMenu[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -179,14 +178,12 @@ export default function ManagePageClient() {
       setName('');
       setDescription('');
       setImageUrl('');
-      setSortOrder('0');
       setMenus([]);
       return;
     }
     setName(selected.name);
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
-    setSortOrder(String(selected.sortOrder ?? 0));
   }, [selected]);
 
   const loadMenus = useCallback(async () => {
@@ -211,7 +208,6 @@ export default function ManagePageClient() {
           name,
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
-          sortOrder: Math.max(0, parseInt(sortOrder, 10) || 0),
         }),
       });
       const data = await res.json();
@@ -223,6 +219,47 @@ export default function ManagePageClient() {
       await loadStores();
     } catch {
       setErr('저장 중 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 왼쪽 목록 순서 = 고객 화면과 동일. 이웃과 바꾼 뒤 sortOrder를 0,10,20… 으로 다시 매깁니다. */
+  const moveStoreInList = async (index: number, delta: -1 | 1) => {
+    const j = index + delta;
+    if (j < 0 || j >= stores.length) return;
+    const reordered = [...stores];
+    const t = reordered[index];
+    reordered[index] = reordered[j];
+    reordered[j] = t;
+    const step = 10;
+    const updates = reordered.map((s, idx) => ({ storeId: s.storeId, sortOrder: idx * step }));
+
+    setLoading(true);
+    setErr(null);
+    try {
+      const results = await Promise.all(
+        updates.map(({ storeId, sortOrder: so }) =>
+          manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(storeId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ sortOrder: so }),
+          }).then(async (res) => {
+            const data = (await res.json()) as { message?: string };
+            return { ok: res.ok, message: data.message };
+          }),
+        ),
+      );
+      const failed = results.find((r) => !r.ok);
+      if (failed) {
+        setErr(failed.message || '목록 순서 저장에 실패했습니다.');
+        await loadStores();
+        return;
+      }
+      setMsg('목록 순서를 저장했습니다.');
+      await loadStores();
+    } catch {
+      setErr('목록 순서 저장 중 오류');
+      await loadStores();
     } finally {
       setLoading(false);
     }
@@ -507,25 +544,58 @@ export default function ManagePageClient() {
       {tab === 'stores' && (
             <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <h2 className="mb-3 font-semibold text-gray-900">가게 목록</h2>
+                <h2 className="mb-1 font-semibold text-gray-900">가게 목록</h2>
+                <p className="mb-3 text-xs text-gray-500">
+                  오른쪽 화살표로 순서를 바꿉니다. 고객 홈·검색 목록과 같은 순서입니다.
+                </p>
                 <ul className="max-h-[480px] space-y-1 overflow-y-auto text-sm">
-                  {stores.map((s) => (
-                    <li key={s.storeId}>
+                  {stores.map((s, index) => (
+                    <li key={s.storeId} className="flex gap-1">
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedId(s.storeId);
                           setErr(null);
                         }}
-                        className={`w-full rounded-lg px-3 py-2 text-left ${
+                        className={`min-w-0 flex-1 rounded-lg px-3 py-2 text-left ${
                           selectedId === s.storeId ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'
                         }`}
                       >
                         <div className="font-medium">{s.name}</div>
                         <div className={`text-xs ${selectedId === s.storeId ? 'text-blue-100' : 'text-gray-500'}`}>
-                          순서 {s.sortOrder} · {s.storeId}
+                          {index + 1}번째 · {s.storeId}
                         </div>
                       </button>
+                      <div className="flex shrink-0 flex-col justify-center gap-0.5 py-0.5">
+                        <button
+                          type="button"
+                          aria-label="한 칸 위로"
+                          disabled={loading || index === 0}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void moveStoreInList(index, -1);
+                          }}
+                          className="flex h-7 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-35"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                            <path d="M18 15l-6-6-6 6" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="한 칸 아래로"
+                          disabled={loading || index >= stores.length - 1}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void moveStoreInList(index, 1);
+                          }}
+                          className="flex h-7 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-35"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -570,17 +640,6 @@ export default function ManagePageClient() {
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
                           />
-                        </label>
-                        <label className="block">
-                          <span className="text-xs text-gray-500">목록 표시 순서 (sortOrder)</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="mt-1 w-full max-w-[12rem] rounded-lg border border-gray-300 px-3 py-2"
-                            value={sortOrder}
-                            onChange={(e) => setSortOrder(e.target.value)}
-                          />
-                          <span className="mt-1 block text-xs text-gray-400">숫자가 작을수록 고객 홈·검색 목록에서 앞에 나옵니다.</span>
                         </label>
                       </div>
                       <button
