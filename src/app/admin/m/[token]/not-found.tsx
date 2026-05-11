@@ -8,8 +8,8 @@ export default function AdminTokenNotFound() {
         <p className="mt-3 text-sm text-gray-600">
           주소가 잘못되었거나 만료·비활성화된 관리 링크일 수 있습니다. 운영자에게 새 링크를 요청해 주세요.
         </p>
-        <Link href="/admin" className="mt-6 inline-block text-sm font-medium text-blue-600 hover:underline">
-          관리 안내로
+        <Link href="/" className="mt-6 inline-block text-sm font-medium text-blue-600 hover:underline">
+          예약 사이트로
         </Link>
       </div>
     </div>

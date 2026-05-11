@@ -54,7 +54,15 @@ async function fetchAllStoresMenusRulesReservations(): Promise<{
 }> {
   assertConfigured();
   const pool = getPool();
-  const [stores] = await pool.query<StoreRow[]>('SELECT * FROM store');
+  const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store');
+  const stores = [...storeRows].sort((a, b) => {
+    const ao = parseInt(String((a as Record<string, unknown>).sortOrder ?? '0'), 10);
+    const bo = parseInt(String((b as Record<string, unknown>).sortOrder ?? '0'), 10);
+    const oa = Number.isFinite(ao) ? ao : 0;
+    const ob = Number.isFinite(bo) ? bo : 0;
+    if (oa !== ob) return oa - ob;
+    return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'ko');
+  });
   const [menus] = await pool.query<MenuRow[]>('SELECT * FROM menu');
   const [rules] = await pool.query<RuleRow[]>('SELECT * FROM rule');
   const [reservations] = await pool.query<ReservationRow[]>('SELECT * FROM reservation');

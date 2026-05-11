@@ -4,7 +4,7 @@ import { manageUpdateStore } from '@/lib/admin-manage-mysql';
 
 export const runtime = 'nodejs';
 
-/** PATCH /api/admin/manage/stores/[storeId] — 이름·설명·이미지 URL */
+/** PATCH /api/admin/manage/stores/[storeId] — 이름·설명·이미지 URL·sortOrder */
 export async function PATCH(request: Request, { params }: { params: Promise<{ storeId: string }> }) {
   const denied = requireAdminManageAuth(request);
   if (denied) return denied;
@@ -17,13 +17,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
     return NextResponse.json({ success: false, message: 'JSON 본문이 필요합니다.' }, { status: 400 });
   }
 
-  const patch: { name?: string; description?: string | null; imageUrl?: string | null } = {};
+  const patch: { name?: string; description?: string | null; imageUrl?: string | null; sortOrder?: number } = {};
   if (body.name !== undefined) patch.name = String(body.name);
   if (body.description !== undefined) {
     patch.description = body.description === null ? null : String(body.description);
   }
   if (body.imageUrl !== undefined) {
     patch.imageUrl = body.imageUrl === null ? null : String(body.imageUrl);
+  }
+  if (body.sortOrder !== undefined) {
+    const n = Number(body.sortOrder);
+    patch.sortOrder = Number.isFinite(n) ? Math.floor(n) : 0;
   }
 
   const result = await manageUpdateStore(storeId, patch);

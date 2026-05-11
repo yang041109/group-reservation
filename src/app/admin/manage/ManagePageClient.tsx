@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { ADMIN_MANAGE_SECRET_HEADER } from '@/lib/admin-manage-constants';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
@@ -15,6 +14,7 @@ type ManageStore = {
   depositAmount: number;
   description: string | null;
   adminAccessToken: string | null;
+  sortOrder: number;
 };
 
 type ManageMenu = {
@@ -66,6 +66,7 @@ export default function ManagePageClient() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [sortOrder, setSortOrder] = useState('0');
   const [menus, setMenus] = useState<ManageMenu[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -154,12 +155,14 @@ export default function ManagePageClient() {
       setName('');
       setDescription('');
       setImageUrl('');
+      setSortOrder('0');
       setMenus([]);
       return;
     }
     setName(selected.name);
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
+    setSortOrder(String(selected.sortOrder ?? 0));
   }, [selected]);
 
   const loadMenus = useCallback(async () => {
@@ -184,6 +187,7 @@ export default function ManagePageClient() {
           name,
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
+          sortOrder: Math.max(0, parseInt(sortOrder, 10) || 0),
         }),
       });
       const data = await res.json();
@@ -366,9 +370,6 @@ export default function ManagePageClient() {
           <h1 className="text-2xl font-bold text-gray-900">전역 관리</h1>
           <p className="text-sm text-gray-500">가게·메뉴·사장님 토큰·예약 조회</p>
         </div>
-        <Link href="/admin" className="text-sm text-blue-600 hover:underline">
-          ← /admin 안내
-        </Link>
       </div>
 
       {showAuthHint && (
@@ -463,7 +464,7 @@ export default function ManagePageClient() {
                       >
                         <div className="font-medium">{s.name}</div>
                         <div className={`text-xs ${selectedId === s.storeId ? 'text-blue-100' : 'text-gray-500'}`}>
-                          {s.storeId}
+                          순서 {s.sortOrder} · {s.storeId}
                         </div>
                       </button>
                     </li>
@@ -510,6 +511,17 @@ export default function ManagePageClient() {
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
                           />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-500">목록 표시 순서 (sortOrder)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="mt-1 w-full max-w-[12rem] rounded-lg border border-gray-300 px-3 py-2"
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value)}
+                          />
+                          <span className="mt-1 block text-xs text-gray-400">숫자가 작을수록 고객 홈·검색 목록에서 앞에 나옵니다.</span>
                         </label>
                       </div>
                       <button

@@ -10,7 +10,7 @@
 2. 사장님에게 아래 형태의 링크를 전달합니다.
    - 대시보드(대기 예약): `https://당신의도메인/admin/m/{adminAccessToken}`
    - 날짜별 캘린더: `https://당신의도메인/admin/m/{adminAccessToken}/calendar`
-3. `/admin` 은 안내 페이지만 제공합니다 (가게 ID·이름 입력 없음).
+3. `/admin` 은 **예약 사이트 루트(`/`)로 리다이렉트**됩니다.
 
 ## 🛠️ 운영자용 전역 관리 (`/admin/manage`)
 
@@ -18,6 +18,7 @@
 
 - **MVP(로컬 등):** 서버에 **`ADMIN_MANAGE_SECRET`을 설정하지 않으면** 별도 비밀키 입력 없이 바로 사용됩니다.
 - **공개 배포:** 서버에 **`ADMIN_MANAGE_SECRET`** 을 **12자 이상**으로 두면, 브라우저에서 같은 값을 한 번 입력해 sessionStorage에 저장하고, API는 헤더 `x-admin-manage-secret` 로 검증합니다. 비밀값은 저장소에 커밋하지 마세요.
+- 가게 **목록 표시 순서**는 DB 컬럼 **`sortOrder`**(작을수록 앞)이며, 이 페이지에서 저장합니다. 기존 DB에는 `docs/store-sort-order.sql` 로 컬럼을 추가하세요.
 
 ## 📱 주요 기능
 
@@ -50,12 +51,12 @@ PENDING → (수락) → CONFIRMED
 ## 🛠️ 기술 구조
 
 ### 프론트엔드
-- `/admin` — 안내(전용 링크 사용 안내)
-- `/admin/manage` — 운영자용 전역 관리(가게·메뉴·토큰·예약 조회, `ADMIN_MANAGE_SECRET` 필요)
+- `/admin` — `/` 로 리다이렉트
+- `/admin/manage` — 운영자용 전역 관리(가게·메뉴·토큰·예약·`sortOrder`, `ADMIN_MANAGE_SECRET` 선택)
 - `/admin/m/[token]` — 대기 중인 예약 목록
 - `/admin/m/[token]/calendar` — 월 캘린더·날짜별 예약
 
-구 URL `/admin/dashboard`, `/admin/calendar` 는 `/admin` 으로 리다이렉트됩니다.
+구 URL `/admin/dashboard`, `/admin/calendar` 는 **`/`** 로 리다이렉트됩니다.
 
 ### API 엔드포인트
 - `GET /api/admin/reservations?storeId=xxx&status=PENDING` — 예약 목록 조회

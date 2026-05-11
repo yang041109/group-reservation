@@ -27,6 +27,8 @@ export interface ManageStoreRow {
   depositAmount: number;
   description: string | null;
   adminAccessToken: string | null;
+  /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
+  sortOrder: number;
 }
 
 function mapStoreRow(r: StoreRow): ManageStoreRow {
@@ -44,6 +46,7 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
         ? String(r.adminAccessToken).trim()
         : null,
+    sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
   };
 }
 
@@ -56,7 +59,7 @@ export async function manageListStores(): Promise<
   try {
     const pool = getPool();
     const [rows] = await pool.query<StoreRow[]>(
-      'SELECT storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour, depositAmount, description, adminAccessToken FROM store ORDER BY storeId',
+      'SELECT storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour, depositAmount, description, adminAccessToken, sortOrder FROM store ORDER BY sortOrder ASC, name ASC',
     );
     return { success: true, data: rows.map(mapStoreRow) };
   } catch (e) {
@@ -67,7 +70,7 @@ export async function manageListStores(): Promise<
 
 export async function manageUpdateStore(
   storeId: string,
-  patch: { name?: string; description?: string | null; imageUrl?: string | null },
+  patch: { name?: string; description?: string | null; imageUrl?: string | null; sortOrder?: number },
 ): Promise<{ success: true } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -88,6 +91,11 @@ export async function manageUpdateStore(
   if (patch.imageUrl !== undefined) {
     sets.push('imageUrl = ?');
     params.push(patch.imageUrl == null || String(patch.imageUrl).trim() === '' ? null : String(patch.imageUrl));
+  }
+  if (patch.sortOrder !== undefined) {
+    sets.push('sortOrder = ?');
+    const n = Math.floor(Number(patch.sortOrder));
+    params.push(Number.isFinite(n) && n >= 0 ? n : 0);
   }
   if (!sets.length) {
     return { success: false, message: '수정할 필드가 없습니다.' };

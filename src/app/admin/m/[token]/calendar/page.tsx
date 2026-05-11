@@ -225,9 +225,6 @@ export default function AdminCalendarByToken() {
               >
                 ← 대기 예약
               </Link>
-              <Link href="/" className="rounded-lg px-4 py-2 text-sm text-gray-600 transition hover:bg-gray-100">
-                홈으로
-              </Link>
             </div>
           </div>
 
