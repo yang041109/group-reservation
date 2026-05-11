@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
       });
 
       const raw = await res.text();
-      let data: { success?: boolean; message?: string; store?: unknown };
+      let data: { success?: boolean; message?: string; store?: unknown; debug?: string };
       try {
         data = JSON.parse(raw) as typeof data;
       } catch {
@@ -44,7 +44,8 @@ export default function AdminLoginPage() {
         sessionStorage.setItem('adminStore', JSON.stringify(data.store));
         router.push('/admin/dashboard');
       } else {
-        setError(data.message || '로그인에 실패했습니다.');
+        const base = data.message || '로그인에 실패했습니다.';
+        setError(data.debug ? `${base}\n(${data.debug})` : base);
       }
     } catch (err) {
       setError('네트워크 오류입니다. 연결을 확인해 주세요.');

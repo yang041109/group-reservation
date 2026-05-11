@@ -70,7 +70,32 @@ PENDING → (수락) → CONFIRMED
 4. ✅ 로컬에서 `npm run dev` 후 `http://localhost:3000/admin` 접속
 5. ✅ 로그인 → 예약 목록 → 수락/거절 테스트
 
+## 🔧 `/api/admin/health` 로 DB만 빠르게 확인
+
+브라우저 또는 터미널에서:
+
+```
+https://당신의도메인/api/admin/health
+```
+
+- `mysqlEnvConfigured: false` → 서버에 **`MYSQL_HOST` / `MYSQL_USER` / `MYSQL_DATABASE`** 가 프로세스에 안 넘어온 것입니다 (`.env`만 있고 systemd/pm2에 안 붙은 경우 등).
+- `ping: "fail"` + `message` → 환경 변수는 있는데 **DB 연결 자체 실패** (방화벽, bind-address, 비밀번호 등).
+
+---
+
 ## ⚠️ 배포 사이트에서 「서버 오류」·DB 연결 실패 시
+
+**도메인이 자기 서버(nginx, 예: 101.79.17.198)를 가리키는 경우**, GitHub에 `git push`만 하면 끝이 아닙니다. **그 서버에서** 저장소를 당겨오고 다시 빌드한 뒤 Node 프로세스를 재시작해야 합니다.
+
+```bash
+cd /path/to/group-reservation
+git pull origin main
+npm ci
+npm run build
+# pm2 사용 시 예:
+# pm2 restart urr
+# systemd 사용 시 해당 서비스 restart
+```
 
 Vercel 등 **서버리스**에서 네이버 클라우드 MySQL로 붙을 때는 아래를 맞춰야 합니다.
 

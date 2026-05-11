@@ -49,11 +49,15 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     console.error('[POST /api/admin/auth] unhandled', e);
+    const errMsg = e instanceof Error ? e.message : String(e);
+    const debug =
+      process.env.ADMIN_AUTH_DEBUG === '1' || process.env.ADMIN_AUTH_DEBUG === 'true';
     return NextResponse.json(
       {
         success: false,
         message:
-          '서버에서 예기치 않은 오류가 났습니다. 배포가 최신인지, Vercel(또는 호스팅) 함수 로그와 MYSQL_* 환경 변수·DB 연결을 확인해 주세요.',
+          '서버에서 예기치 않은 오류가 났습니다. 먼저 GET /api/admin/health 로 DB 연결을 확인하고, 자체 서버면 git pull 후 빌드·프로세스 재시작했는지 확인하세요.',
+        ...(debug ? { debug: errMsg.slice(0, 500) } : {}),
       },
       { status: 500 },
     );
