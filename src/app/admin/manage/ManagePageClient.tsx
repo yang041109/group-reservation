@@ -5,6 +5,14 @@ import { ADMIN_MANAGE_SECRET_HEADER } from '@/lib/admin-manage-constants';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
 
+type DbHealthJson = {
+  ok?: boolean;
+  mysqlEnvConfigured?: boolean;
+  ping?: string;
+  message?: string;
+  hint?: string;
+};
+
 type ManageStore = {
   storeId: string;
   name: string;
@@ -86,8 +94,24 @@ export default function ManagePageClient() {
   const [resOffset, setResOffset] = useState(0);
   const [resFilterStoreId, setResFilterStoreId] = useState('');
   const resLimit = 50;
+  const [dbHealth, setDbHealth] = useState<DbHealthJson | null>(null);
 
   const selected = useMemo(() => stores.find((s) => s.storeId === selectedId) ?? null, [stores, selectedId]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/health');
+        const j = (await res.json()) as DbHealthJson;
+        setDbHealth(j);
+      } catch {
+        setDbHealth({
+          ok: false,
+          hint: '/api/admin/health 요청에 실패했습니다. 네트워크·CORS를 확인하세요.',
+        });
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const s = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEY) : null;
@@ -371,6 +395,41 @@ export default function ManagePageClient() {
           <p className="text-sm text-gray-500">가게·메뉴·사장님 토큰·예약 조회</p>
         </div>
       </div>
+
+      {dbHealth && dbHealth.ok !== true && (
+        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-950">
+          <p className="font-semibold text-orange-900">데이터베이스 연결 점검</p>
+          {dbHealth.mysqlEnvConfigured === false ? (
+            <p className="mt-2 leading-relaxed text-orange-900">
+              {dbHealth.hint ??
+                '서버 프로세스에 MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE 가 없습니다. Vercel이면 Project → Settings → Environment Variables에 추가한 뒤 재배포하세요.'}
+            </p>
+          ) : (
+            <div className="mt-2 space-y-2 leading-relaxed text-orange-900">
+              <p>환경 변수는 인식됐지만 DB에 연결하지 못했습니다.</p>
+              {dbHealth.message ? (
+                <p className="rounded-md bg-white/80 px-2 py-1.5 font-medium text-orange-950">{dbHealth.message}</p>
+              ) : null}
+              <ul className="list-inside list-disc text-xs text-orange-900/95">
+                <li>MySQL 방화벽·ACG에서 호스팅(Vercel 등) 출발 IP 허용(또는 테스트 시 0.0.0.0/0)</li>
+                <li>bind-address, 사용자 호스트(%), 포트(3306), MYSQL_PASSWORD</li>
+                <li>
+                  최신 코드인데 &quot;Unknown column sortOrder&quot; 류면:{' '}
+                  <code className="rounded bg-white px-1">docs/store-sort-order.sql</code> 실행
+                </li>
+              </ul>
+            </div>
+          )}
+          <a
+            href="/api/admin/health"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block text-xs font-semibold text-orange-800 underline"
+          >
+            JSON 진단 열기 (/api/admin/health)
+          </a>
+        </div>
+      )}
 
       {showAuthHint && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">

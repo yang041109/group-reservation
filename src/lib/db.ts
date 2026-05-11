@@ -50,6 +50,13 @@ export function formatMysqlUserError(err: unknown): string {
   if (code === 'ER_BAD_DB_ERROR' || e?.errno === 1049) {
     return '데이터베이스 이름이 없습니다. MYSQL_DATABASE를 확인하세요.';
   }
+  if (code === 'ER_BAD_FIELD_ERROR' || e?.errno === 1054) {
+    const msg = typeof e?.message === 'string' ? e.message : '';
+    if (msg.includes('sortOrder')) {
+      return 'DB에 store.sortOrder 컬럼이 없습니다. 저장소의 docs/store-sort-order.sql 을 실행한 뒤 다시 시도하세요.';
+    }
+    return `DB 스키마와 맞지 않습니다: ${msg || '알 수 없는 컬럼'}`;
+  }
   if (typeof e?.message === 'string' && e.message.includes('MYSQL_HOST')) {
     return e.message;
   }
