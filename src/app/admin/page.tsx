@@ -13,12 +13,20 @@ export default function AdminLandingPage() {
         <p className="mt-3 text-xs text-slate-500">
           예: <code className="rounded bg-slate-100 px-1 py-0.5">/admin/m/발급받은토큰</code>
         </p>
-        <Link
-          href="/"
-          className="mt-8 inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          예약 사이트로
-        </Link>
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link
+            href="/"
+            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            예약 사이트로
+          </Link>
+          <Link
+            href="/admin/manage"
+            className="text-sm font-medium text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+          >
+            운영자 전역 관리
+          </Link>
+        </div>
       </div>
     </div>
   );

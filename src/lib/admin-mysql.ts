@@ -109,6 +109,9 @@ function mapReservationRow(
   };
 }
 
+/** 슬롯·용량에 반영되는 상태(캘린더 ‘확정 일정’과 동일) */
+const CALENDAR_CONFIRMED_STATUSES_SQL = "status IN ('CONFIRMED','DEPOSIT_CONFIRMED')";
+
 /** 가게별 예약 목록 (status·단일 date 또는 from~to 기간) */
 export async function adminListReservationsByStore(
   storeId: string,
@@ -116,6 +119,7 @@ export async function adminListReservationsByStore(
   dateFilter: string | null,
   rangeFrom: string | null = null,
   rangeTo: string | null = null,
+  opts?: { calendarConfirmed?: boolean },
 ): Promise<{ success: true; data: Record<string, unknown>[] } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -144,6 +148,8 @@ export async function adminListReservationsByStore(
     if (statusFilter?.trim()) {
       sql += ' AND status = ?';
       params.push(statusFilter.trim());
+    } else if (opts?.calendarConfirmed) {
+      sql += ` AND ${CALENDAR_CONFIRMED_STATUSES_SQL}`;
     }
     const rf = rangeFrom?.trim().slice(0, 10);
     const rt = rangeTo?.trim().slice(0, 10);
@@ -193,6 +199,39 @@ export async function adminSetReservationStatus(
     return { success: true, data: { reservationId: id, status } };
   } catch (e) {
     console.error('[adminSetReservationStatus]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 예약금 입금 확인 → 캘린더·슬롯에 반영되는 DEPOSIT_CONFIRMED 로만 전환 */
+export async function adminConfirmDeposit(
+  reservationId: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation SET status = 'DEPOSIT_CONFIRMED' WHERE reservationId = ? AND status = 'DEPOSIT_PENDING'`,
+      [id],
+    );
+    if (!header.affectedRows) {
+      return {
+        success: false,
+        message: '입금 대기 상태가 아니거나 이미 처리된 예약입니다.',
+      };
+    }
+    return { success: true, data: { reservationId: id, status: 'DEPOSIT_CONFIRMED' } };
+  } catch (e) {
+    console.error('[adminConfirmDeposit]', e);
     return { success: false, message: formatMysqlUserError(e) };
   }
 }

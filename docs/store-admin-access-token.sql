@@ -1,3 +1,6 @@
+-- 이 프로젝트 MySQL 컬럼명은 camelCase 입니다 (storeId, adminAccessToken).
+-- store_id / admin_access_token 이 아닙니다 — Unknown column 방지용.
+
 -- 기존 DB에 사장님 전용 링크 토큰 컬럼 추가 (이미 있으면 에러 나므로 생략)
 ALTER TABLE store
   ADD COLUMN adminAccessToken VARCHAR(64) NULL UNIQUE COMMENT '사장님 전용 URL';

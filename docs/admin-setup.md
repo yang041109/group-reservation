@@ -12,6 +12,13 @@
    - 날짜별 캘린더: `https://당신의도메인/admin/m/{adminAccessToken}/calendar`
 3. `/admin` 은 안내 페이지만 제공합니다 (가게 ID·이름 입력 없음).
 
+## 🛠️ 운영자용 전역 관리 (`/admin/manage`)
+
+가게·메뉴·사장님 토큰·전체 예약을 브라우저에서 다루는 페이지입니다.
+
+- **MVP(로컬 등):** 서버에 **`ADMIN_MANAGE_SECRET`을 설정하지 않으면** 별도 비밀키 입력 없이 바로 사용됩니다.
+- **공개 배포:** 서버에 **`ADMIN_MANAGE_SECRET`** 을 **12자 이상**으로 두면, 브라우저에서 같은 값을 한 번 입력해 sessionStorage에 저장하고, API는 헤더 `x-admin-manage-secret` 로 검증합니다. 비밀값은 저장소에 커밋하지 마세요.
+
 ## 📱 주요 기능
 
 ### 1. 대기 중인 예약 목록
@@ -44,6 +51,7 @@ PENDING → (수락) → CONFIRMED
 
 ### 프론트엔드
 - `/admin` — 안내(전용 링크 사용 안내)
+- `/admin/manage` — 운영자용 전역 관리(가게·메뉴·토큰·예약 조회, `ADMIN_MANAGE_SECRET` 필요)
 - `/admin/m/[token]` — 대기 중인 예약 목록
 - `/admin/m/[token]/calendar` — 월 캘린더·날짜별 예약
 
@@ -52,6 +60,7 @@ PENDING → (수락) → CONFIRMED
 ### API 엔드포인트
 - `GET /api/admin/reservations?storeId=xxx&status=PENDING` — 예약 목록 조회
 - `PATCH /api/admin/reservations/[id]` — 예약 상태 변경
+- 전역 관리(헤더 `x-admin-manage-secret` + `ADMIN_MANAGE_SECRET`): `GET/PATCH /api/admin/manage/stores…`, `GET/POST …/menus`, `PATCH/DELETE …/menus/[menuId]`, `POST …/token`, `GET /api/admin/manage/reservations`
 
 ### 백엔드 (MySQL)
 - `store` / `reservation` / `menu` 테이블 — `docs/mysql-schema.sql` 참고

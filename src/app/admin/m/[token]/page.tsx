@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAdminStore } from './AdminStoreContext';
 
@@ -26,38 +26,57 @@ interface Reservation {
 export default function AdminDashboardByToken() {
   const store = useAdminStore();
   const [pendingReservations, setPendingReservations] = useState<Reservation[]>([]);
+  const [depositPendingReservations, setDepositPendingReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
 
+  const reloadLists = useCallback(async () => {
+    const [pRes, dRes] = await Promise.all([
+      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
+      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
+    ]);
+    const [pJson, dJson] = await Promise.all([pRes.json(), dRes.json()]);
+    if (pJson.success) setPendingReservations((pJson.data || []) as Reservation[]);
+    if (dJson.success) setDepositPendingReservations((dJson.data || []) as Reservation[]);
+  }, [store.id]);
+
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          setPendingReservations((data.data || []) as Reservation[]);
-        }
+        await reloadLists();
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [store.id]);
+  }, [reloadLists]);
 
-  const fetchPending = async () => {
-    const res = await fetch(
-      `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`,
-    );
-    const data = await res.json();
-    if (data.success) setPendingReservations((data.data || []) as Reservation[]);
+  const handleConfirmDeposit = async (reservationId: string) => {
+    if (!confirm('예약금 입금을 확인했습니까? 확인 후에는 캘린더·잔여 인원에 반영됩니다.')) return;
+    setActionLoading(reservationId);
+    try {
+      const res = await fetch(`/api/admin/reservations/${reservationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirmDeposit' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await reloadLists();
+      } else {
+        alert(data.message || '처리 실패');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleAction = async (reservationId: string, action: 'accept' | 'reject') => {
+  const handleAction = async (reservationId: string, action: 'accept' | 'reject' | 'cancel') => {
     setActionLoading(reservationId);
     try {
       const res = await fetch(`/api/admin/reservations/${reservationId}`, {
@@ -70,7 +89,7 @@ export default function AdminDashboardByToken() {
       });
       const data = await res.json();
       if (data.success) {
-        void fetchPending();
+        await reloadLists();
       } else {
         alert(data.message || '처리 실패');
       }
@@ -116,6 +135,61 @@ export default function AdminDashboardByToken() {
           <h2 className="mb-2 text-2xl font-bold text-gray-900">대기 중인 예약</h2>
           <p className="text-gray-600">총 {pendingReservations.length}건의 예약이 대기 중입니다</p>
         </div>
+
+        {depositPendingReservations.length > 0 && (
+          <div className="mb-10">
+            <h2 className="mb-2 text-xl font-bold text-gray-900">예약금 입금 대기</h2>
+            <p className="mb-4 text-sm text-gray-600">
+              입금 확인 시 예약이 완료되며, 날짜별 캘린더에 표시됩니다.
+            </p>
+            <div className="space-y-4">
+              {depositPendingReservations.map((reservation) => (
+                <div
+                  key={reservation.reservationId}
+                  className="rounded-lg border border-blue-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="mb-4 flex items-start justify-between">
+                    <div>
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
+                          입금 대기
+                        </span>
+                        <span className="text-sm text-gray-500">{reservation.reservationId}</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        {reservation.userName}
+                        {reservation.groupName && (
+                          <span className="ml-2 font-normal text-gray-500">({reservation.groupName})</span>
+                        )}
+                      </h3>
+                    </div>
+                    <div className="text-right text-sm text-gray-600">
+                      {reservation.date} {reservation.startTime} ~ {reservation.endTime}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmDeposit(reservation.reservationId)}
+                      disabled={actionLoading === reservation.reservationId}
+                      className="flex-1 rounded-lg bg-emerald-600 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {actionLoading === reservation.reservationId ? '처리 중...' : '입금 확인 (예약 완료)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleAction(reservation.reservationId, 'cancel')}
+                      disabled={actionLoading === reservation.reservationId}
+                      className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
+                    >
+                      예약 취소
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {pendingReservations.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-12 text-center shadow-sm">

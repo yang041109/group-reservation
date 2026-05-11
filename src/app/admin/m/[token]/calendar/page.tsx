@@ -81,6 +81,14 @@ function getStatusBadgeClass(status: string): string {
   return 'bg-gray-100 text-gray-700';
 }
 
+/** 캘린더는 확정 건만 불러오지만, 모달 표기용 */
+function statusLabelKo(status: string): string {
+  const s = status.trim();
+  if (s === 'CONFIRMED') return '예약 확정';
+  if (s === 'DEPOSIT_CONFIRMED') return '예약 완료';
+  return s;
+}
+
 export default function AdminCalendarByToken() {
   const store = useAdminStore();
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
@@ -108,7 +116,7 @@ export default function AdminCalendarByToken() {
     try {
       const { from, to } = monthRange;
       const res = await fetch(
-        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}`,
+        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}&calendarConfirmed=1`,
       );
       const data = await res.json();
       if (data.success) {
@@ -149,12 +157,9 @@ export default function AdminCalendarByToken() {
     let people = 0;
     let revenue = 0;
     for (const r of reservations) {
-      if (r.status === 'CANCELED' || r.status === 'CANCELLED') continue;
       count += 1;
       people += r.headcount;
-      if (r.status === 'CONFIRMED' || r.status === 'DEPOSIT_PENDING' || r.status === 'DEPOSIT_CONFIRMED') {
-        revenue += r.totalAmount;
-      }
+      revenue += r.totalAmount;
     }
     return { count, people, revenue };
   }, [reservations]);
@@ -261,7 +266,7 @@ export default function AdminCalendarByToken() {
             <div className="text-xl font-bold text-blue-600 sm:text-2xl">{monthStats.people}명</div>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs text-gray-500 sm:text-sm">확정·입금 관련 매출</div>
+            <div className="text-xs text-gray-500 sm:text-sm">확정 예약 매출 합</div>
             <div className="text-lg font-bold text-emerald-600 sm:text-2xl">
               {monthStats.revenue.toLocaleString()}원
             </div>
@@ -322,8 +327,7 @@ export default function AdminCalendarByToken() {
                       <div className="flex flex-col gap-1">
                         {list.map((r, i) => {
                           const style = CHIP_STYLES[i % CHIP_STYLES.length];
-                          const muted =
-                            r.status === 'CANCELED' || r.status === 'CANCELLED' ? 'opacity-60' : '';
+                          const muted = '';
                           return (
                             <button
                               key={r.reservationId}
@@ -377,7 +381,7 @@ export default function AdminCalendarByToken() {
             <span
               className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(detail.status)}`}
             >
-              {detail.status}
+              {statusLabelKo(detail.status)}
             </span>
 
             <dl className="mt-4 space-y-3 text-sm">
@@ -425,7 +429,7 @@ export default function AdminCalendarByToken() {
               </div>
             )}
 
-            {(detail.status === 'CONFIRMED' || detail.status === 'DEPOSIT_PENDING') && (
+            {(detail.status === 'CONFIRMED' || detail.status === 'DEPOSIT_CONFIRMED') && (
               <button
                 type="button"
                 onClick={() => void handleCancelReservation(detail.reservationId)}
