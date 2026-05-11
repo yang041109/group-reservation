@@ -1,64 +1,61 @@
 import { NextResponse } from 'next/server';
+import { adminVerifyStore } from '@/lib/admin-mysql';
 
-const SHEETS_URL = process.env.NEXT_PUBLIC_SHEETS_URL || '';
+export const runtime = 'nodejs';
 
 /**
- * 사장님 인증 (storeId + name 확인)
+ * 사장님 인증 (storeId + 가게 이름, MySQL store 테이블)
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: { storeId?: string; storeName?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: '요청 형식이 올바르지 않습니다.' },
+        { status: 400 },
+      );
+    }
     const { storeId, storeName } = body;
 
     if (!storeId || !storeName) {
       return NextResponse.json(
         { success: false, message: '가게 ID와 이름을 입력해주세요.' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Google Sheets에서 가게 정보 확인
-    const res = await fetch(
-      `${SHEETS_URL}?action=getStoreDetail&storeId=${encodeURIComponent(storeId)}`,
-      { cache: 'no-store' }
-    );
+    const result = await adminVerifyStore(String(storeId), String(storeName));
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { success: false, message: '가게 정보를 확인할 수 없습니다.' },
-        { status: 404 }
-      );
+    if (!result.ok) {
+      const msg = result.message;
+      const status = msg.includes('일치')
+        ? 401
+        : msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스')
+          ? 503
+          : 404;
+      return NextResponse.json({ success: false, message: msg }, { status });
     }
 
-    const data = await res.json();
-    
-    if (!data.success) {
-      return NextResponse.json(
-        { success: false, message: '가게를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
-    }
-
-    // 가게 이름 확인
-    if (data.data.store.name !== storeName) {
-      return NextResponse.json(
-        { success: false, message: '가게 이름이 일치하지 않습니다.' },
-        { status: 401 }
-      );
-    }
-
+    const depositAmount = Number(result.depositAmount);
     return NextResponse.json({
       success: true,
       store: {
-        id: storeId,
-        name: storeName,
-        depositAmount: data.data.store.depositAmount || 0,
+        id: String(storeId).trim(),
+        name: String(storeName).trim(),
+        depositAmount: Number.isFinite(depositAmount) ? depositAmount : 0,
       },
     });
-  } catch (error) {
+  } catch (e) {
+    console.error('[POST /api/admin/auth] unhandled', e);
     return NextResponse.json(
-      { success: false, message: '서버 오류가 발생했습니다.' },
-      { status: 500 }
+      {
+        success: false,
+        message:
+          '서버에서 예기치 않은 오류가 났습니다. 배포가 최신인지, Vercel(또는 호스팅) 함수 로그와 MYSQL_* 환경 변수·DB 연결을 확인해 주세요.',
+      },
+      { status: 500 },
     );
   }
 }

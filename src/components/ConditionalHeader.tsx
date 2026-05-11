@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Header from './Header';
+import Header from '@/components/Header';
 
 /** 랜딩(/)과 admin 페이지에서는 헤더 숨김 */
 export default function ConditionalHeader() {

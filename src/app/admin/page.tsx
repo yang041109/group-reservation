@@ -31,17 +31,23 @@ export default function AdminLoginPage() {
         }),
       });
 
-      const data = await res.json();
+      const raw = await res.text();
+      let data: { success?: boolean; message?: string; store?: unknown };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        setError(`서버 응답을 읽을 수 없습니다 (HTTP ${res.status}).`);
+        return;
+      }
 
       if (data.success) {
-        // 로그인 성공 - sessionStorage에 저장
         sessionStorage.setItem('adminStore', JSON.stringify(data.store));
         router.push('/admin/dashboard');
       } else {
         setError(data.message || '로그인에 실패했습니다.');
       }
     } catch (err) {
-      setError('서버 오류가 발생했습니다.');
+      setError('네트워크 오류입니다. 연결을 확인해 주세요.');
       console.error('Login error:', err);
     } finally {
       setLoading(false);
