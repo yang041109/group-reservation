@@ -82,10 +82,7 @@ export default function AdminDashboardByToken() {
       const res = await fetch(`/api/admin/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          depositAmount: store.depositAmount,
-        }),
+        body: JSON.stringify({ action }),
       });
       const data = await res.json();
       if (data.success) {

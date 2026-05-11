@@ -12,6 +12,8 @@ interface ReserveButtonProps {
   storeName: string;
   menuQuantities: Record<string, number>;
   menus: { id: string; name: string; price: number }[];
+  /** 예약 확정 시 저장되는 예약금(인원 구간 반영) */
+  expectedDeposit: number;
 }
 
 export default function ReserveButton({
@@ -24,6 +26,7 @@ export default function ReserveButton({
   storeName,
   menuQuantities,
   menus,
+  expectedDeposit,
 }: ReserveButtonProps) {
   const router = useRouter();
 
@@ -64,6 +67,7 @@ export default function ReserveButton({
       menuItems,
       totalAmount,
       minOrderAmount,
+      depositAmount: Math.max(0, Math.floor(expectedDeposit) || 0),
     };
 
     sessionStorage.setItem('pendingReservation', JSON.stringify(pendingReservation));

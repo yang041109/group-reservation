@@ -5,6 +5,7 @@ import {
   getSlotHourRangeFromStoreRow,
   slotOverlapsReservation,
 } from '@/lib/booking-slots';
+import { parseDepositTiersJson, resolveDepositForHeadcount, type DepositTier } from '@/lib/deposit-tiers';
 import type { MenuItemData, MinOrderRule } from '@/types';
 
 export class ReservationDbError extends Error {
@@ -46,6 +47,23 @@ type MenuRow = RowDataPacket & Record<string, unknown>;
 type RuleRow = RowDataPacket & Record<string, unknown>;
 type ReservationRow = RowDataPacket & Record<string, unknown>;
 
+function readStoreDepositOpts(store: StoreRow): {
+  depositUseTiers: boolean;
+  depositTiers: DepositTier[];
+  flatDepositAmount: number;
+} {
+  const rec = store as Record<string, unknown>;
+  const raw = rec.depositUseTiers;
+  const useTiers =
+    raw === true ||
+    raw === 1 ||
+    String(raw).toLowerCase() === 'true' ||
+    Number(raw) === 1;
+  const flat = parseInt(String(rec.depositAmount ?? '0'), 10) || 0;
+  const tiers = parseDepositTiersJson(rec.depositTiersJson);
+  return { depositUseTiers: useTiers, depositTiers: tiers, flatDepositAmount: flat };
+}
+
 async function fetchAllStoresMenusRulesReservations(): Promise<{
   stores: StoreRow[];
   menus: MenuRow[];
@@ -70,7 +88,7 @@ async function fetchAllStoresMenusRulesReservations(): Promise<{
 }
 
 /** GET /api/stores 용 — Apps Script `handleGetStores` 와 동일한 페이로드 */
-export async function getStoresFromMysql(date: string, _headcount: number) {
+export async function getStoresFromMysql(date: string, headcount: number) {
   assertConfigured();
   const { stores, menus, rules, reservations } = await fetchAllStoresMenusRulesReservations();
 
@@ -101,6 +119,12 @@ export async function getStoresFromMysql(date: string, _headcount: number) {
       crossesMidnight,
     );
 
+    const depOpts = readStoreDepositOpts(store);
+    const resolvedDeposit = resolveDepositForHeadcount(headcount, {
+      depositUseTiers: depOpts.depositUseTiers,
+      depositTiers: depOpts.depositTiers,
+      flatDepositAmount: depOpts.flatDepositAmount,
+    });
     return {
       storeId: sid,
       name: store.name,
@@ -110,7 +134,10 @@ export async function getStoresFromMysql(date: string, _headcount: number) {
       description: store.description || '',
       slotStartHour,
       slotEndHour,
-      depositAmount: parseInt(String(store.depositAmount ?? '0'), 10) || 0,
+      depositAmount: resolvedDeposit,
+      depositUseTiers: depOpts.depositUseTiers,
+      depositTiers: depOpts.depositTiers,
+      depositFlatAmount: depOpts.flatDepositAmount,
       timeline,
       minOrderRules: storeRules.map((r) => ({
         minHeadcount: parseInt(String(r.minHeadcount ?? '0'), 10) || 0,
@@ -173,6 +200,8 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
     imageUrl: String(m.imageUrl ?? ''),
   }));
 
+  const depOpts = readStoreDepositOpts(store);
+
   return {
     store: {
       id,
@@ -181,7 +210,9 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       maxCapacity: cap,
       slotStartHour,
       slotEndHour,
-      depositAmount: parseInt(String(store.depositAmount ?? '0'), 10) || 0,
+      depositAmount: depOpts.flatDepositAmount,
+      depositUseTiers: depOpts.depositUseTiers,
+      depositTiers: depOpts.depositTiers,
       availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
       slots,
       minOrderRules,
@@ -302,7 +333,12 @@ export async function insertReservationValidated(
       }
     }
 
-    const depositAmount = parseInt(String(store.depositAmount ?? '0'), 10) || 0;
+    const depOpts = readStoreDepositOpts(store);
+    const depositAmount = resolveDepositForHeadcount(headcount, {
+      depositUseTiers: depOpts.depositUseTiers,
+      depositTiers: depOpts.depositTiers,
+      flatDepositAmount: depOpts.flatDepositAmount,
+    });
     const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     await conn.execute(
@@ -469,6 +505,7 @@ export async function getAllDataFromMysql() {
     const sid = String(store.storeId ?? '').trim();
     const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
     const range = getSlotHourRangeFromStoreRow(store);
+    const depOpts = readStoreDepositOpts(store);
     return {
       storeId: sid,
       name: store.name,
@@ -478,7 +515,9 @@ export async function getAllDataFromMysql() {
       description: store.description || '',
       slotStartHour: range.slotStartHour,
       slotEndHour: range.slotEndHour,
-      depositAmount: parseInt(String(store.depositAmount ?? '0'), 10) || 0,
+      depositAmount: depOpts.flatDepositAmount,
+      depositUseTiers: depOpts.depositUseTiers,
+      depositTiers: depOpts.depositTiers,
       menus: menus
         .filter((m) => String(m.storeId ?? '').trim() === sid)
         .map((m) => ({

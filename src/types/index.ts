@@ -10,6 +10,13 @@ export interface MinOrderRule {
   minOrderAmount: number;
 }
 
+/** 인원 구간별 예약금 (관리자 설정 → 고객 화면 표시) */
+export interface DepositTier {
+  minHeadcount: number;
+  maxHeadcount: number;
+  amount: number;
+}
+
 // --- 슬롯 관련 (slots 테이블 대응) ---
 
 export interface TimeSlot {
@@ -41,8 +48,10 @@ export interface StoreCard {
   slotStartHour?: number;
   /** 끝 시(0–23, 해당 시 :30까지). 시작보다 작으면 자정 넘김(예: 17~3=저녁~새벽) */
   slotEndHour?: number;
-  /** 예약금 (원) */
+  /** 예약금 (원) — 검색·카드용: 선택 인원 기준으로 이미 계산된 값이면 그대로, 아니면 단일 금액 */
   depositAmount?: number;
+  depositUseTiers?: boolean;
+  depositTiers?: DepositTier[];
 }
 
 /** GET /api/stores/:id response – store detail */
@@ -59,8 +68,11 @@ export interface StoreDetail {
   /** slots 테이블 기반 슬롯 목록 */
   slots?: TimeSlot[];
   minOrderRules: MinOrderRule[];
-  /** 예약금 (원) */
+  /** 단일 예약금 모드일 때 금액(원). 구간 모드일 때는 0일 수 있음 */
   depositAmount?: number;
+  /** true면 depositTiers로 인원별 예약금 */
+  depositUseTiers?: boolean;
+  depositTiers?: DepositTier[];
 }
 
 export interface MenuItemData {

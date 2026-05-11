@@ -22,6 +22,8 @@ interface PendingReservation {
   menuItems: PendingMenuItem[];
   totalAmount: number;
   minOrderAmount: number;
+  /** 인원 기준 산출 예약금(원) */
+  depositAmount?: number;
 }
 
 export default function ReservationConfirmPage() {
@@ -156,6 +158,13 @@ export default function ReservationConfirmPage() {
           <span className="text-sm text-gray-500">시간</span>
           <span className="font-semibold text-gray-900">{reservation.time}</span>
         </div>
+
+        {reservation.depositAmount != null && reservation.depositAmount > 0 && (
+          <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2">
+            <span className="text-sm text-blue-800">예약금 ({reservation.headcount}명 기준)</span>
+            <span className="font-bold text-blue-900">{reservation.depositAmount.toLocaleString()}원</span>
+          </div>
+        )}
       </div>
 
       {/* 예약자 정보 입력 */}

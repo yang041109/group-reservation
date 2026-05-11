@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
+import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
 import UrrLoading from '@/components/UrrLoading';
 import type { StoreCard as StoreCardType } from '@/types';
@@ -50,7 +51,14 @@ export default function SearchPage() {
       minOrderRules: s.minOrderRules,
       slotStartHour: s.slotStartHour,
       slotEndHour: s.slotEndHour,
-      depositAmount: s.depositAmount,
+      depositAmount:
+        selectedHeadcount >= 1
+          ? resolveDepositForHeadcount(selectedHeadcount, {
+              depositUseTiers: !!s.depositUseTiers,
+              depositTiers: s.depositTiers ?? [],
+              flatDepositAmount: s.depositAmount ?? 0,
+            })
+          : 0,
     };
   });
 

@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS store (
   imageUrl TEXT NULL,
   slotStartHour INT NULL,
   slotEndHour INT NULL,
-  depositAmount INT NOT NULL DEFAULT 0,
+  depositAmount INT NOT NULL DEFAULT 0 COMMENT '단일 예약금(원); 구간 모드일 때는 미매칭 시 0',
+  depositUseTiers TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 depositTiersJson 구간별 예약금',
+  depositTiersJson JSON NULL COMMENT '[{"minHeadcount":1,"maxHeadcount":20,"amount":50000}]',
   description TEXT NULL,
   adminAccessToken VARCHAR(64) NULL UNIQUE COMMENT '사장님 전용 URL 토큰 (/admin/m/{token})',
   sortOrder INT NOT NULL DEFAULT 0 COMMENT '목록 표시 순서(작을수록 앞)'

@@ -154,14 +154,12 @@ export default function AdminCalendarByToken() {
 
   const monthStats = useMemo(() => {
     let count = 0;
-    let people = 0;
-    let revenue = 0;
+    let depositSum = 0;
     for (const r of reservations) {
       count += 1;
-      people += r.headcount;
-      revenue += r.totalAmount;
+      depositSum += r.depositAmount ?? 0;
     }
-    return { count, people, revenue };
+    return { count, depositSum };
   }, [reservations]);
 
   const handleCancelReservation = async (reservationId: string) => {
@@ -253,19 +251,15 @@ export default function AdminCalendarByToken() {
       </header>
 
       <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4">
-        <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4">
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="text-xs text-gray-500 sm:text-sm">이 달 예약 건수</div>
             <div className="text-xl font-bold text-gray-900 sm:text-2xl">{monthStats.count}건</div>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs text-gray-500 sm:text-sm">이 달 인원 합</div>
-            <div className="text-xl font-bold text-blue-600 sm:text-2xl">{monthStats.people}명</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-xs text-gray-500 sm:text-sm">확정 예약 매출 합</div>
-            <div className="text-lg font-bold text-emerald-600 sm:text-2xl">
-              {monthStats.revenue.toLocaleString()}원
+            <div className="text-xs text-gray-500 sm:text-sm">이 달 예약금 합</div>
+            <div className="text-lg font-bold text-amber-700 sm:text-2xl">
+              {monthStats.depositSum.toLocaleString()}원
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
@@ -127,6 +128,9 @@ export default function StoreDetailPageClient() {
                 maxCapacity: found.maxCapacity,
                 slotStartHour: found.slotStartHour,
                 slotEndHour: found.slotEndHour,
+                depositAmount: found.depositAmount ?? 0,
+                depositUseTiers: !!found.depositUseTiers,
+                depositTiers: found.depositTiers ?? [],
                 availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
                 slots,
                 minOrderRules: found.minOrderRules || [],
@@ -219,6 +223,16 @@ export default function StoreDetailPageClient() {
     });
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
+  const effectiveDeposit = useMemo(
+    () =>
+      resolveDepositForHeadcount(selectedHeadcount, {
+        depositUseTiers: !!store.depositUseTiers,
+        depositTiers: store.depositTiers ?? [],
+        flatDepositAmount: store.depositAmount ?? 0,
+      }),
+    [selectedHeadcount, store.depositAmount, store.depositTiers, store.depositUseTiers],
+  );
+
   // 선택된 시간대의 최소 잔여 인원 계산 → 인원수 상한 제한
   const selectedTimeMaxCapacity = (() => {
     if (!selectedTime || slots.length === 0) return store.maxCapacity;
@@ -265,11 +279,42 @@ export default function StoreDetailPageClient() {
 
       <h1 className="mt-4 text-2xl font-bold text-gray-900">{store.name}</h1>
 
-      {store.depositAmount && store.depositAmount > 0 && (
-        <div className="mt-3 rounded-lg bg-blue-50 px-4 py-2">
-          <p className="text-sm text-blue-700">
-            💳 예약금: <span className="font-bold">{store.depositAmount.toLocaleString()}원</span>
-          </p>
+      {(effectiveDeposit > 0 || (store.depositUseTiers && (store.depositTiers?.length ?? 0) > 0)) && (
+        <div className="mt-3 space-y-2 rounded-lg bg-blue-50 px-4 py-3">
+          {store.depositUseTiers && (store.depositTiers?.length ?? 0) > 0 ? (
+            <>
+              <p className="text-sm font-medium text-blue-900">인원별 예약금</p>
+              <ul className="space-y-1 text-sm text-blue-800">
+                {(store.depositTiers ?? []).map((t, idx) => {
+                  const active =
+                    selectedHeadcount >= t.minHeadcount && selectedHeadcount <= t.maxHeadcount;
+                  return (
+                    <li
+                      key={`${t.minHeadcount}-${t.maxHeadcount}-${idx}`}
+                      className={active ? 'font-bold text-blue-950' : ''}
+                    >
+                      {t.minHeadcount}명 ~ {t.maxHeadcount}명: {t.amount.toLocaleString()}원
+                      {active ? ' ← 현재 선택 인원' : ''}
+                    </li>
+                  );
+                })}
+              </ul>
+              {effectiveDeposit > 0 ? (
+                <p className="border-t border-blue-200 pt-2 text-sm text-blue-900">
+                  선택 인원({selectedHeadcount}명) 예약금:{' '}
+                  <span className="font-bold">{effectiveDeposit.toLocaleString()}원</span>
+                </p>
+              ) : (
+                <p className="border-t border-blue-200 pt-2 text-xs text-amber-800">
+                  선택한 인원에 해당하는 예약금 구간이 없습니다. 가게에 문의해 주세요.
+                </p>
+              )}
+            </>
+          ) : effectiveDeposit > 0 ? (
+            <p className="text-sm text-blue-700">
+              💳 예약금: <span className="font-bold">{effectiveDeposit.toLocaleString()}원</span>
+            </p>
+          ) : null}
         </div>
       )}
 
@@ -342,6 +387,7 @@ export default function StoreDetailPageClient() {
         storeName={store.name}
         menuQuantities={menuQuantities}
         menus={menus}
+        expectedDeposit={effectiveDeposit}
       />
     </main>
   );

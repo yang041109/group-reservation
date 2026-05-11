@@ -171,6 +171,43 @@ export async function adminListReservationsByStore(
   }
 }
 
+/** 수락: 예약 행의 depositAmount 기준으로 입금 대기 vs 즉시 확정 (클라이언트 store.depositAmount 불필요) */
+export async function adminAcceptReservation(
+  reservationId: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query<ReservationRow[]>(
+      'SELECT status, depositAmount FROM reservation WHERE reservationId = ? LIMIT 1',
+      [id],
+    );
+    const r = rows[0];
+    if (!r) {
+      return { success: false, message: '예약을 찾을 수 없습니다.' };
+    }
+    const st = String(r.status ?? '').trim();
+    if (st !== 'PENDING') {
+      return { success: false, message: '대기 중인 예약만 수락할 수 있습니다.' };
+    }
+    const dep = parseInt(String(r.depositAmount ?? '0'), 10) || 0;
+    const newStatus = dep > 0 ? 'DEPOSIT_PENDING' : 'CONFIRMED';
+    return adminSetReservationStatus(id, newStatus);
+  } catch (e) {
+    console.error('[adminAcceptReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
 export async function adminSetReservationStatus(
   reservationId: string,
   newStatus: string,

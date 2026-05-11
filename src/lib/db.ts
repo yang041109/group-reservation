@@ -55,6 +55,9 @@ export function formatMysqlUserError(err: unknown): string {
     if (msg.includes('sortOrder')) {
       return 'DB에 store.sortOrder 컬럼이 없습니다. 저장소의 docs/store-sort-order.sql 을 실행한 뒤 다시 시도하세요.';
     }
+    if (msg.includes('depositUseTiers') || msg.includes('depositTiersJson')) {
+      return 'DB에 예약금 구간 컬럼이 없습니다. 저장소의 docs/store-deposit-tiers.sql 을 실행한 뒤 다시 시도하세요.';
+    }
     return `DB 스키마와 맞지 않습니다: ${msg || '알 수 없는 컬럼'}`;
   }
   if (typeof e?.message === 'string' && e.message.includes('MYSQL_HOST')) {

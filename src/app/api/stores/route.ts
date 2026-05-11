@@ -23,6 +23,9 @@ export async function GET(request: Request) {
         ? (s.timeline as Record<string, unknown>[]).filter((t) => !t.isAvailable).map((t) => t.timeBlock)
         : [],
       minOrderRules: s.minOrderRules || [],
+      depositAmount: typeof s.depositAmount === 'number' ? s.depositAmount : Number(s.depositAmount) || 0,
+      depositUseTiers: Boolean(s.depositUseTiers),
+      depositTiers: Array.isArray(s.depositTiers) ? s.depositTiers : [],
     }));
 
     return NextResponse.json({ stores });

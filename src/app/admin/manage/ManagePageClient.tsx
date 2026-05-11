@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ADMIN_MANAGE_SECRET_HEADER } from '@/lib/admin-manage-constants';
+import type { DepositTier } from '@/types';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
 
@@ -20,10 +21,18 @@ type ManageStore = {
   maxCapacity: number;
   imageUrl: string | null;
   depositAmount: number;
+  depositUseTiers: boolean;
+  depositTiers: DepositTier[];
   description: string | null;
   adminAccessToken: string | null;
   sortOrder: number;
 };
+
+type TierRow = { min: string; max: string; amount: string };
+
+function defaultTierRows(): TierRow[] {
+  return [{ min: '1', max: '10', amount: '0' }];
+}
 
 type ManageMenu = {
   storeId: string;
@@ -74,6 +83,12 @@ export default function ManagePageClient() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [depositFlat, setDepositFlat] = useState('0');
+  const [depositUseTiers, setDepositUseTiers] = useState(false);
+  const [tierRows, setTierRows] = useState<TierRow[]>(defaultTierRows);
+  const [newStoreId, setNewStoreId] = useState('');
+  const [newStoreName, setNewStoreName] = useState('');
+  const [newStoreMaxCap, setNewStoreMaxCap] = useState('80');
   const [menus, setMenus] = useState<ManageMenu[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -178,12 +193,26 @@ export default function ManagePageClient() {
       setName('');
       setDescription('');
       setImageUrl('');
+      setDepositFlat('0');
+      setDepositUseTiers(false);
+      setTierRows(defaultTierRows());
       setMenus([]);
       return;
     }
     setName(selected.name);
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
+    setDepositFlat(String(selected.depositAmount ?? 0));
+    setDepositUseTiers(!!selected.depositUseTiers);
+    setTierRows(
+      selected.depositTiers?.length
+        ? selected.depositTiers.map((t) => ({
+            min: String(t.minHeadcount),
+            max: String(t.maxHeadcount),
+            amount: String(t.amount),
+          }))
+        : defaultTierRows(),
+    );
   }, [selected]);
 
   const loadMenus = useCallback(async () => {
@@ -202,12 +231,25 @@ export default function ManagePageClient() {
     setLoading(true);
     setErr(null);
     try {
+      const tiersPayload: DepositTier[] = depositUseTiers
+        ? tierRows
+            .map((row) => ({
+              minHeadcount: Math.max(0, parseInt(row.min, 10) || 0),
+              maxHeadcount: Math.max(0, parseInt(row.max, 10) || 0),
+              amount: Math.max(0, parseInt(row.amount, 10) || 0),
+            }))
+            .filter((t) => t.maxHeadcount >= t.minHeadcount)
+        : [];
+
       const res = await manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(selectedId)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name,
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
+          depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
+          depositUseTiers,
+          depositTiers: depositUseTiers ? tiersPayload : null,
         }),
       });
       const data = await res.json();
@@ -219,6 +261,73 @@ export default function ManagePageClient() {
       await loadStores();
     } catch {
       setErr('저장 중 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addStore = async () => {
+    const id = newStoreId.trim();
+    const nm = newStoreName.trim();
+    const cap = parseInt(newStoreMaxCap, 10);
+    if (!id || !nm) {
+      setErr('새 가게: 가게 ID와 이름을 입력하세요.');
+      return;
+    }
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await manageFetch(storedSecret, '/api/admin/manage/stores', {
+        method: 'POST',
+        body: JSON.stringify({
+          storeId: id,
+          name: nm,
+          maxCapacity: Number.isFinite(cap) && cap >= 0 ? cap : 80,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.message || '가게 추가 실패');
+        return;
+      }
+      setMsg('가게를 추가했습니다.');
+      setNewStoreId('');
+      setNewStoreName('');
+      setNewStoreMaxCap('80');
+      setSelectedId(id);
+      await loadStores();
+    } catch {
+      setErr('가게 추가 중 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteSelectedStore = async () => {
+    if (!selectedId || !selected) return;
+    if (
+      !confirm(
+        `「${selected.name}」(${selectedId}) 가게와 연결된 메뉴·최소주문 규칙·예약까지 모두 삭제됩니다. 계속할까요?`,
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(selectedId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.message || '삭제 실패');
+        return;
+      }
+      setMsg('가게를 삭제했습니다.');
+      setSelectedId(null);
+      await loadStores();
+    } catch {
+      setErr('삭제 중 오류');
     } finally {
       setLoading(false);
     }
@@ -454,6 +563,10 @@ export default function ManagePageClient() {
                   최신 코드인데 &quot;Unknown column sortOrder&quot; 류면:{' '}
                   <code className="rounded bg-white px-1">docs/store-sort-order.sql</code> 실행
                 </li>
+                <li>
+                  &quot;depositUseTiers&quot; / &quot;depositTiersJson&quot; 컬럼 오류면:{' '}
+                  <code className="rounded bg-white px-1">docs/store-deposit-tiers.sql</code> 실행
+                </li>
               </ul>
             </div>
           )}
@@ -606,6 +719,39 @@ export default function ManagePageClient() {
                 >
                   새로고침
                 </button>
+
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-800">가게 추가</h3>
+                  <input
+                    placeholder="가게 ID (예: store-new)"
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                    value={newStoreId}
+                    onChange={(e) => setNewStoreId(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <input
+                    placeholder="이름"
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                    value={newStoreName}
+                    onChange={(e) => setNewStoreName(e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="최대 인원"
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                    value={newStoreMaxCap}
+                    onChange={(e) => setNewStoreMaxCap(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void addStore()}
+                    className="mt-2 w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    가게 추가
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-6">
@@ -641,15 +787,121 @@ export default function ManagePageClient() {
                             onChange={(e) => setImageUrl(e.target.value)}
                           />
                         </label>
+
+                        <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3">
+                          <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={depositUseTiers}
+                              onChange={(e) => {
+                                const on = e.target.checked;
+                                setDepositUseTiers(on);
+                                if (on && tierRows.length === 0) setTierRows(defaultTierRows());
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-800">인원 구간별 예약금 적용</span>
+                          </label>
+                          {!depositUseTiers ? (
+                            <label className="mt-3 block">
+                              <span className="text-xs text-gray-500">예약금 (원) — 모든 인원 동일</span>
+                              <input
+                                type="number"
+                                min={0}
+                                className="mt-1 w-full max-w-[12rem] rounded-lg border border-gray-300 px-3 py-2"
+                                value={depositFlat}
+                                onChange={(e) => setDepositFlat(e.target.value)}
+                              />
+                            </label>
+                          ) : (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs text-gray-600">
+                                각 행: 최소 인원 ~ 최대 인원(명), 해당 구간 예약금(원). 고객 예약 화면에 표시됩니다.
+                              </p>
+                              {tierRows.map((row, i) => (
+                                <div key={i} className="flex flex-wrap items-end gap-2 rounded-md bg-white p-2 shadow-sm">
+                                  <label className="text-xs text-gray-600">
+                                    최소
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      className="ml-1 w-16 rounded border border-gray-200 px-1 py-0.5"
+                                      value={row.min}
+                                      onChange={(e) =>
+                                        setTierRows((rows) =>
+                                          rows.map((r, j) => (j === i ? { ...r, min: e.target.value } : r)),
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-gray-600">
+                                    최대
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      className="ml-1 w-16 rounded border border-gray-200 px-1 py-0.5"
+                                      value={row.max}
+                                      onChange={(e) =>
+                                        setTierRows((rows) =>
+                                          rows.map((r, j) => (j === i ? { ...r, max: e.target.value } : r)),
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-gray-600">
+                                    예약금
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      className="ml-1 w-24 rounded border border-gray-200 px-1 py-0.5"
+                                      value={row.amount}
+                                      onChange={(e) =>
+                                        setTierRows((rows) =>
+                                          rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={tierRows.length <= 1}
+                                    onClick={() => setTierRows((rows) => rows.filter((_, j) => j !== i))}
+                                    className="text-xs text-red-600 hover:underline disabled:opacity-30"
+                                  >
+                                    행 삭제
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTierRows((rows) => [...rows, { min: '1', max: '20', amount: '0' }])
+                                }
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                + 구간 추가
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void saveStore()}
-                        disabled={loading}
-                        className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        가게 정보 저장
-                      </button>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveStore()}
+                          disabled={loading}
+                          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          가게 정보 저장
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteSelectedStore()}
+                          disabled={loading}
+                          className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          가게 삭제
+                        </button>
+                      </div>
                     </section>
 
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

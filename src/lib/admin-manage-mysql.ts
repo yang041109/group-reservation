@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { parseDepositTiersJson } from '@/lib/deposit-tiers';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
+import type { DepositTier } from '@/types';
 
 type StoreRow = RowDataPacket & Record<string, unknown>;
 type MenuRow = RowDataPacket & Record<string, unknown>;
@@ -25,6 +27,9 @@ export interface ManageStoreRow {
   slotStartHour: number | null;
   slotEndHour: number | null;
   depositAmount: number;
+  /** 인원 구간별 예약금 사용 여부 */
+  depositUseTiers: boolean;
+  depositTiers: DepositTier[];
   description: string | null;
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
@@ -32,6 +37,13 @@ export interface ManageStoreRow {
 }
 
 function mapStoreRow(r: StoreRow): ManageStoreRow {
+  const rec = r as Record<string, unknown>;
+  const rawUt = rec.depositUseTiers;
+  const depositUseTiers =
+    rawUt === true ||
+    rawUt === 1 ||
+    String(rawUt).toLowerCase() === 'true' ||
+    Number(rawUt) === 1;
   return {
     storeId: String(r.storeId ?? '').trim(),
     name: String(r.name ?? '').trim(),
@@ -41,6 +53,8 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
     slotStartHour: r.slotStartHour != null ? Number(r.slotStartHour) : null,
     slotEndHour: r.slotEndHour != null ? Number(r.slotEndHour) : null,
     depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
+    depositUseTiers,
+    depositTiers: parseDepositTiersJson(rec.depositTiersJson),
     description: r.description != null && String(r.description).trim() ? String(r.description) : null,
     adminAccessToken:
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
@@ -59,7 +73,7 @@ export async function manageListStores(): Promise<
   try {
     const pool = getPool();
     const [rows] = await pool.query<StoreRow[]>(
-      'SELECT storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour, depositAmount, description, adminAccessToken, sortOrder FROM store ORDER BY sortOrder ASC, name ASC',
+      'SELECT storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour, depositAmount, depositUseTiers, depositTiersJson, description, adminAccessToken, sortOrder FROM store ORDER BY sortOrder ASC, name ASC',
     );
     return { success: true, data: rows.map(mapStoreRow) };
   } catch (e) {
@@ -70,7 +84,15 @@ export async function manageListStores(): Promise<
 
 export async function manageUpdateStore(
   storeId: string,
-  patch: { name?: string; description?: string | null; imageUrl?: string | null; sortOrder?: number },
+  patch: {
+    name?: string;
+    description?: string | null;
+    imageUrl?: string | null;
+    sortOrder?: number;
+    depositAmount?: number;
+    depositUseTiers?: boolean;
+    depositTiersJson?: string | null;
+  },
 ): Promise<{ success: true } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -97,6 +119,19 @@ export async function manageUpdateStore(
     const n = Math.floor(Number(patch.sortOrder));
     params.push(Number.isFinite(n) && n >= 0 ? n : 0);
   }
+  if (patch.depositAmount !== undefined) {
+    sets.push('depositAmount = ?');
+    const n = Math.floor(Number(patch.depositAmount));
+    params.push(Number.isFinite(n) && n >= 0 ? n : 0);
+  }
+  if (patch.depositUseTiers !== undefined) {
+    sets.push('depositUseTiers = ?');
+    params.push(patch.depositUseTiers ? 1 : 0);
+  }
+  if (patch.depositTiersJson !== undefined) {
+    sets.push('depositTiersJson = ?');
+    params.push(patch.depositTiersJson);
+  }
   if (!sets.length) {
     return { success: false, message: '수정할 필드가 없습니다.' };
   }
@@ -114,6 +149,66 @@ export async function manageUpdateStore(
     return { success: true };
   } catch (e) {
     console.error('[manageUpdateStore]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+export async function manageCreateStore(input: {
+  storeId: string;
+  name: string;
+  category?: string;
+  maxCapacity?: number;
+}): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const storeId = String(input.storeId ?? '').trim();
+  const name = String(input.name ?? '').trim();
+  if (!storeId) return { success: false, message: '가게 ID(storeId)를 입력하세요.' };
+  if (!name) return { success: false, message: '가게 이름을 입력하세요.' };
+  const category = String(input.category ?? '').trim();
+  const rawCap = Math.floor(Number(input.maxCapacity));
+  const maxCap = Number.isFinite(rawCap) && rawCap > 0 ? rawCap : 80;
+
+  try {
+    const pool = getPool();
+    const [dup] = await pool.query<RowDataPacket[]>('SELECT 1 FROM store WHERE storeId = ? LIMIT 1', [storeId]);
+    if (dup.length) {
+      return { success: false, message: '이미 사용 중인 가게 ID입니다.' };
+    }
+    const [sr] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sortOrder), 0) AS m FROM store');
+    const nextSort = (parseInt(String(sr[0]?.m ?? '0'), 10) || 0) + 10;
+    await pool.execute(
+      `INSERT INTO store (
+        storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour,
+        depositAmount, depositUseTiers, depositTiersJson, description, adminAccessToken, sortOrder
+      ) VALUES (?, ?, ?, ?, NULL, 11, 20, 0, 0, NULL, NULL, NULL, ?)`,
+      [storeId, name, category || '', maxCap, nextSort],
+    );
+    return { success: true };
+  } catch (e) {
+    console.error('[manageCreateStore]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+export async function manageDeleteStore(
+  storeId: string,
+): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  try {
+    const pool = getPool();
+    const [h] = await pool.execute<ResultSetHeader>('DELETE FROM store WHERE storeId = ?', [sid]);
+    if (!h.affectedRows) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error('[manageDeleteStore]', e);
     return { success: false, message: formatMysqlUserError(e) };
   }
 }

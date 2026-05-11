@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { adminConfirmDeposit, adminSetReservationStatus } from '@/lib/admin-mysql';
+import { adminAcceptReservation, adminConfirmDeposit, adminSetReservationStatus } from '@/lib/admin-mysql';
 
 export const runtime = 'nodejs';
 
 /**
  * 예약 상태 변경 (MySQL)
  * PATCH /api/admin/reservations/[id]
- * body: { action: 'accept' | 'reject' | 'cancel' | 'confirmDeposit', depositAmount?: number }
+ * body: { action: 'accept' | 'reject' | 'cancel' | 'confirmDeposit' }
  */
 export async function PATCH(
   request: Request,
@@ -15,7 +15,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, depositAmount } = body;
+    const { action } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -42,14 +42,18 @@ export async function PATCH(
       return NextResponse.json(result);
     }
 
-    let newStatus: string;
     if (action === 'accept') {
-      newStatus =
-        depositAmount && Number(depositAmount) > 0 ? 'DEPOSIT_PENDING' : 'CONFIRMED';
-    } else {
-      newStatus = 'CANCELED';
+      const result = await adminAcceptReservation(id);
+      if (!result.success) {
+        const msg = result.message;
+        const code =
+          msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : 404;
+        return NextResponse.json(result, { status: code });
+      }
+      return NextResponse.json(result);
     }
 
+    const newStatus = 'CANCELED';
     const result = await adminSetReservationStatus(id, newStatus);
 
     if (!result.success) {

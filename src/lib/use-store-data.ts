@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
-import type { TimeSlot, MinOrderRule, MenuItemData } from '@/types';
+import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
 
@@ -16,6 +16,8 @@ export interface CachedStore {
   slotStartHour?: number;
   slotEndHour?: number;
   depositAmount?: number;
+  depositUseTiers?: boolean;
+  depositTiers?: DepositTier[];
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
 }
