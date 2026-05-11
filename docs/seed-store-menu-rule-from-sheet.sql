@@ -1,5 +1,5 @@
 -- 구글 시트 store / menu / rule 탭 → MySQL INSERT
--- 출처: 레포 내 정적 데이터(src/lib/store-data.ts). 실제 스프레드시트와 숫자·문구가 다르면 이 파일만 수정해 맞추면 됩니다.
+-- 구글 시트 값과 맞추어 수정하면 됩니다. (MySQL `store` / `menu` / `rule` 스키마는 docs/mysql-schema.sql 참고)
 -- 실행 순서: store → menu → rule (FK). 기존 테이블에 행이 있으면 PK 충돌납니다 — 빈 DB이거나 아래 정리 블록을 사용하세요.
 --
 -- [선택] 예약 없이 마스터만 비우고 다시 넣기:

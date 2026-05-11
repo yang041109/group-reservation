@@ -148,7 +148,7 @@ export default function StoreDetailPageClient() {
 
       if (!usedCache) setLoading(true);
 
-      // 2단계: Sheets에서 최신 데이터 가져오기 (백그라운드)
+      // 2단계: API에서 최신 데이터 가져오기 (백그라운드)
       try {
         const qp = dateVal ? `?date=${encodeURIComponent(dateVal)}` : '';
         const res = await fetch(`/api/stores/${storeId}${qp}`, { cache: 'no-store' });
