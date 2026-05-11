@@ -2,19 +2,20 @@
 
 ## 📋 개요
 
-사장님이 자신의 가게에 들어온 예약을 확인하고 수락/거절할 수 있는 관리 페이지입니다.
+사장님이 자신의 가게에 들어온 예약을 확인하고 수락/거절할 수 있는 관리 페이지입니다. **로그인 폼은 없으며**, 가게마다 부여된 **전용 URL(토큰)** 으로만 접속합니다.
 
-## 🔑 로그인 방법
+## 🔑 접속 방법
 
-1. `/admin` 경로로 접속
-2. **가게 ID**와 **가게 이름**을 정확히 입력
-   - 예: `store-1`, `주점A`
-3. 로그인 버튼 클릭
+1. `store.adminAccessToken` 값을 확인합니다 (`docs/store-admin-access-token.sql` 참고).
+2. 사장님에게 아래 형태의 링크를 전달합니다.
+   - 대시보드(대기 예약): `https://당신의도메인/admin/m/{adminAccessToken}`
+   - 날짜별 캘린더: `https://당신의도메인/admin/m/{adminAccessToken}/calendar`
+3. `/admin` 은 안내 페이지만 제공합니다 (가게 ID·이름 입력 없음).
 
 ## 📱 주요 기능
 
 ### 1. 대기 중인 예약 목록
-- 로그인하면 자동으로 `PENDING` 상태의 예약만 표시
+- 전용 링크로 들어오면 해당 가게의 `PENDING` 예약만 표시
 - 예약 정보 확인:
   - 예약자 이름, 단체명
   - 날짜, 시간, 인원
@@ -42,13 +43,15 @@ PENDING → (수락) → CONFIRMED
 ## 🛠️ 기술 구조
 
 ### 프론트엔드
-- `/admin` - 로그인 페이지
-- `/admin/dashboard` - 대기 중인 예약 목록
+- `/admin` — 안내(전용 링크 사용 안내)
+- `/admin/m/[token]` — 대기 중인 예약 목록
+- `/admin/m/[token]/calendar` — 월 캘린더·날짜별 예약
+
+구 URL `/admin/dashboard`, `/admin/calendar` 는 `/admin` 으로 리다이렉트됩니다.
 
 ### API 엔드포인트
-- `POST /api/admin/auth` - 로그인 인증
-- `GET /api/admin/reservations?storeId=xxx&status=PENDING` - 예약 목록 조회
-- `PATCH /api/admin/reservations/[id]` - 예약 상태 변경
+- `GET /api/admin/reservations?storeId=xxx&status=PENDING` — 예약 목록 조회
+- `PATCH /api/admin/reservations/[id]` — 예약 상태 변경
 
 ### 백엔드 (MySQL)
 - `store` / `reservation` / `menu` 테이블 — `docs/mysql-schema.sql` 참고
@@ -57,18 +60,19 @@ PENDING → (수락) → CONFIRMED
 ## 📝 MySQL 필수 데이터
 
 ### `store` 테이블
-- `storeId`, `name` (로그인 시 이름 일치 검사), `depositAmount` (0이면 예약금 없음)
+- `storeId`, `name`, `depositAmount` (0이면 예약금 없음)
+- **`adminAccessToken`** — 가게별 고유 토큰(최대 64자, UNIQUE). 없거나 잘못된 토큰이면 관리 페이지 404
 
 ### `reservation` 테이블
 - `reservationId`, `storeId`, `status`, `userName`, `userPhone`, `date`, `startTime`, `endTime`, `headcount`, `totalAmount`, `menuItems` 등
 
 ## 🚀 배포 체크리스트
 
-1. ✅ MySQL에 스키마 적용 및 시드 데이터
+1. ✅ MySQL에 스키마 적용 및 `adminAccessToken` 컬럼·값 설정 (`docs/store-admin-access-token.sql`)
 2. ✅ `.env.local`에 `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` 설정
 3. ✅ 배포 환경에도 동일한 `MYSQL_*` 변수 설정
-4. ✅ 로컬에서 `npm run dev` 후 `http://localhost:3000/admin` 접속
-5. ✅ 로그인 → 예약 목록 → 수락/거절 테스트
+4. ✅ 로컬에서 `npm run dev` 후 `/admin/m/실제토큰` 으로 접속 테스트
+5. ✅ 대기 목록 → 수락/거절, 캘린더 화면 확인
 
 ## 🔧 `/api/admin/health` 로 DB만 빠르게 확인
 
@@ -104,10 +108,9 @@ Vercel 등 **서버리스**에서 네이버 클라우드 MySQL로 붙을 때는 
    - `bind-address`가 `127.0.0.1`만이면 원격에서 거절됩니다.  
    - `urr_user`에 원격 권한(`'%'` 또는 Vercel egress IP 대역) 부여
 3. **방화벽·ACG에서 3306** (또는 사용 중인 포트) 허용 — 고정 IP egress가 없으면 일단 `0.0.0.0/0`으로 테스트 후 좁히기
-4. 로그인 시 화면에 **구체적인 한글 안내**가 나오면, 그 문구에 맞춰 위 항목을 점검하면 됩니다.
+4. 화면에 **구체적인 한글 안내**가 나오면, 그 문구에 맞춰 위 항목을 점검하면 됩니다.
 
 ## 🔒 보안 참고사항
 
-현재는 간단한 storeId + name 인증 방식입니다.
-- 실제 운영 시에는 더 강력한 인증 방식 고려 필요
-- sessionStorage 사용 (브라우저 탭 닫으면 로그아웃)
+- 관리 페이지는 **URL에 포함된 비밀 토큰**으로 보호됩니다. 링크를 외부에 노출하지 않도록 안내하세요.
+- 운영에서는 `docs/store-admin-access-token.sql` 의 예시처럼 **추측하기 어려운 긴 토큰**(UUID 기반 등)을 권장합니다.

@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS store (
   slotStartHour INT NULL,
   slotEndHour INT NULL,
   depositAmount INT NOT NULL DEFAULT 0,
-  description TEXT NULL
+  description TEXT NULL,
+  adminAccessToken VARCHAR(64) NULL UNIQUE COMMENT '사장님 전용 URL 토큰 (/admin/m/{token})'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS menu (

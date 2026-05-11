@@ -109,11 +109,13 @@ function mapReservationRow(
   };
 }
 
-/** 가게별 예약 목록 (status·date 선택 필터) — Apps Script getReservationsByStore 와 동일 envelope */
+/** 가게별 예약 목록 (status·단일 date 또는 from~to 기간) */
 export async function adminListReservationsByStore(
   storeId: string,
   statusFilter: string | null,
   dateFilter: string | null,
+  rangeFrom: string | null = null,
+  rangeTo: string | null = null,
 ): Promise<{ success: true; data: Record<string, unknown>[] } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -143,7 +145,12 @@ export async function adminListReservationsByStore(
       sql += ' AND status = ?';
       params.push(statusFilter.trim());
     }
-    if (dateFilter?.trim()) {
+    const rf = rangeFrom?.trim().slice(0, 10);
+    const rt = rangeTo?.trim().slice(0, 10);
+    if (rf && rt) {
+      sql += ' AND DATE(`date`) >= ? AND DATE(`date`) <= ?';
+      params.push(rf, rt);
+    } else if (dateFilter?.trim()) {
       sql += ' AND DATE(`date`) = ?';
       params.push(dateFilter.trim().slice(0, 10));
     }

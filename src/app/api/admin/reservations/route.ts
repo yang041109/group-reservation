@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 /**
  * 가게별 예약 목록 조회 (MySQL)
  * GET /api/admin/reservations?storeId=xxx&status=PENDING&date=2026-05-10
+ * GET /api/admin/reservations?storeId=xxx&from=2026-05-01&to=2026-05-31  (기간, status 선택)
  */
 export async function GET(request: Request) {
   try {
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
     const storeId = searchParams.get('storeId');
     const status = searchParams.get('status');
     const date = searchParams.get('date');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
     if (!storeId) {
       return NextResponse.json(
@@ -21,7 +24,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const result = await adminListReservationsByStore(storeId, status, date);
+    if ((from && !to) || (!from && to)) {
+      return NextResponse.json(
+        { success: false, message: '기간 조회 시 from과 to를 함께 보내주세요. (예: from=2026-05-01&to=2026-05-31)' },
+        { status: 400 },
+      );
+    }
+
+    const result = await adminListReservationsByStore(storeId, status, date, from, to);
 
     if (!result.success) {
       const msg = result.message;
