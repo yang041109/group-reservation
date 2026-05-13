@@ -12,6 +12,7 @@ import LandingRestaurants from '@/components/landing/LandingRestaurants';
 import LandingLiveDemo from '@/components/landing/LandingLiveDemo';
 import LandingFAQ from '@/components/landing/LandingFAQ';
 import { LandingCta, LandingFooter } from '@/components/landing/LandingCtaFooter';
+import LandingReveal from '@/components/landing/LandingReveal';
 
 export default function LandingPageClient() {
   const router = useRouter();
@@ -26,12 +27,24 @@ export default function LandingPageClient() {
       <LandingNav />
       <main>
         <LandingHero />
-        <LandingProblem />
-        <LandingHowItWorks />
-        <LandingRestaurants />
-        <LandingLiveDemo />
-        <LandingFAQ />
-        <LandingCta />
+        <LandingReveal>
+          <LandingProblem />
+        </LandingReveal>
+        <LandingReveal variant="tilt">
+          <LandingHowItWorks />
+        </LandingReveal>
+        <LandingReveal variant="scale">
+          <LandingRestaurants />
+        </LandingReveal>
+        <LandingReveal>
+          <LandingLiveDemo />
+        </LandingReveal>
+        <LandingReveal>
+          <LandingFAQ />
+        </LandingReveal>
+        <LandingReveal variant="scale">
+          <LandingCta />
+        </LandingReveal>
       </main>
       <LandingFooter />
     </div>

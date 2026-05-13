@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { URRMark } from '@/components/landing/icons';
+import { scrollToLandingId } from '@/components/landing/landing-scroll';
 
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
@@ -13,10 +14,10 @@ export default function LandingNav() {
   }, []);
 
   const links = [
-    { label: '서비스 소개', href: '/#how' },
-    { label: '제휴 매장', href: '/#restaurants' },
-    { label: '요금 안내', href: '/#pricing' },
-    { label: '고객센터', href: '/#faq' },
+    { label: '서비스 소개', id: 'how' as const },
+    { label: '제휴 매장', id: 'restaurants' as const },
+    { label: '요금 안내', id: 'pricing' as const },
+    { label: '고객센터', id: 'faq' as const },
   ];
 
   return (
@@ -38,13 +39,14 @@ export default function LandingNav() {
         </Link>
         <nav className="landing-nav-links ml-auto hidden flex-wrap items-center justify-end gap-1 min-[881px]:flex">
           {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
+            <button
+              key={l.id}
+              type="button"
               className="rounded-lg px-3.5 py-2 text-[14.5px] font-medium text-[var(--ink-2)] hover:bg-[var(--bg-2)]"
+              onClick={() => scrollToLandingId(l.id)}
             >
               {l.label}
-            </Link>
+            </button>
           ))}
         </nav>
       </div>

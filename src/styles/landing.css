@@ -194,3 +194,54 @@
     padding: 56px 28px !important;
   }
 }
+
+/* 앵커: 고정 네비에 가리지 않도록 */
+.landing-root #hero-booking,
+.landing-root #how,
+.landing-root #restaurants,
+.landing-root #pricing,
+.landing-root #faq {
+  scroll-margin-top: 88px;
+}
+
+/* 스크롤 등장 (IntersectionObserver로 .landing-reveal--visible 부여) */
+.landing-root .landing-reveal {
+  opacity: 0;
+  transform: translate3d(0, 52px, 0);
+  transition:
+    opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.landing-root .landing-reveal--visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.landing-root .landing-reveal--tilt {
+  transform: translate3d(0, 56px, 0) perspective(1200px) rotateX(7deg) scale(0.98);
+  transform-origin: 50% 80%;
+}
+
+.landing-root .landing-reveal--tilt.landing-reveal--visible {
+  transform: translate3d(0, 0, 0) perspective(1200px) rotateX(0deg) scale(1);
+}
+
+.landing-root .landing-reveal--scale {
+  transform: translate3d(0, 40px, 0) scale(0.92);
+}
+
+.landing-root .landing-reveal--scale.landing-reveal--visible {
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-root .landing-reveal,
+  .landing-root .landing-reveal--tilt,
+  .landing-root .landing-reveal--scale {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

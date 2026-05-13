@@ -25,6 +25,22 @@ const stepBtn: CSSProperties = {
   cursor: 'pointer',
 };
 
+const stepBtnSmall: CSSProperties = {
+  minWidth: 36,
+  height: 22,
+  padding: '0 6px',
+  borderRadius: 8,
+  background: 'var(--bg-2)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--ink-3)',
+  border: '1px solid var(--line)',
+  fontSize: 10,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
 export default function LandingHero() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string | null>(() => getTodayYmd());
@@ -122,7 +138,7 @@ export default function LandingHero() {
           매장에 전화 돌릴 필요 없이, 우르르에서 한 번에 자리 잡으세요.
         </p>
 
-        <div className="landing-hero-booking mx-auto max-w-[720px] text-left">
+        <div id="hero-booking" className="landing-hero-booking mx-auto max-w-[720px] text-left">
           <div className="hero-widget !grid !max-w-none !grid-cols-1 gap-4 !p-4 md:!grid-cols-2 md:!gap-5">
             <div className="min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
               <DateSelector selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
@@ -132,14 +148,34 @@ export default function LandingHero() {
                 <Icon name="users" size={13} color="var(--ink-4)" stroke={1.8} />
                 인원
               </div>
-              <div className="flex items-center justify-center gap-3">
-                <button type="button" onClick={() => setPeople(Math.max(2, people - 1))} style={stepBtn} aria-label="인원 줄이기">
-                  <Icon name="minus" size={14} />
-                </button>
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex flex-col items-center gap-1">
+                  <button type="button" onClick={() => setPeople(Math.max(2, people - 1))} style={stepBtn} aria-label="인원 1명 줄이기">
+                    <Icon name="minus" size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeople(Math.max(2, people - 10))}
+                    style={stepBtnSmall}
+                    aria-label="인원 10명 줄이기"
+                  >
+                    −10
+                  </button>
+                </div>
                 <span className="num min-w-[3rem] text-center text-2xl font-extrabold text-[var(--ink)]">{people}명</span>
-                <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 늘리기">
-                  <Icon name="plus" size={14} />
-                </button>
+                <div className="flex flex-col items-center gap-1">
+                  <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 1명 늘리기">
+                    <Icon name="plus" size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeople(Math.min(60, people + 10))}
+                    style={stepBtnSmall}
+                    aria-label="인원 10명 늘리기"
+                  >
+                    +10
+                  </button>
+                </div>
               </div>
               <p className="mt-4 text-center text-[13px] text-[var(--ink-4)]">2~60명 · 자리 찾기 후 가게 목록에서 이어서 시간·메뉴를 고를 수 있어요.</p>
             </div>

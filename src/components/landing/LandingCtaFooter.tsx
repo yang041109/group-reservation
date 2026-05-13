@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { Icon } from '@/components/landing/icons';
+import { scrollToLandingId } from '@/components/landing/landing-scroll';
 
 export function LandingCta() {
   return (
@@ -76,14 +76,15 @@ export function LandingCta() {
             <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.7)', margin: '0 0 40px', lineHeight: 1.6 }}>
               달력에서 날짜를 고르고 인원을 맞춘 뒤, 자리 찾기로 가게 목록을 펼쳐 보세요.
             </p>
-            <Link
-              href="/search"
+            <button
+              type="button"
               className="btn btn-primary"
               style={{ height: 56, padding: '0 30px', fontSize: 16, borderRadius: 999, display: 'inline-flex' }}
+              onClick={() => scrollToLandingId('hero-booking')}
             >
-              가게 보러 가기
+              예약하러 가기
               <Icon name="arrow" size={16} color="white" />
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -92,17 +93,5 @@ export function LandingCta() {
 }
 
 export function LandingFooter() {
-  return (
-    <footer style={{ background: 'var(--bg-3)', borderTop: '1px solid var(--line)', padding: '40px 0 32px' }}>
-      <div className="container">
-        <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.75, margin: 0, maxWidth: 720 }}>
-          본 페이지는 한양대학교 산업공학과 과제·연구 목적으로 제작되었습니다. 팀 구성은 송유현, 양민주, 임하연, 유현아이며, 단체 예약
-          흐름을 웹으로 정리한 데모 서비스입니다.
-        </p>
-        <p style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 16, marginBottom: 0 }}>
-          © {new Date().getFullYear()} 우르르(URR) 데모
-        </p>
-      </div>
-    </footer>
-  );
+  return <footer style={{ background: 'var(--bg-3)', borderTop: '1px solid var(--line)' }} />;
 }
