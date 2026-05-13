@@ -153,7 +153,7 @@ export default function DateSelector({
         {/* Calendar grid */}
         <div className="grid grid-cols-7">
           {calendarDays.map((cell, idx) => {
-            const isPast = cell.date <= today;
+            const isPast = cell.date < today;
             const isUnavailable = unavailableSet.has(cell.date);
             const isDisabled = isPast || isUnavailable || !cell.isCurrentMonth;
             const isSelected = selectedDate === cell.date;

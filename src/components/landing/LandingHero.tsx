@@ -1,58 +1,44 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import DateSelector from '@/components/DateSelector';
 import { Icon, URRMark } from '@/components/landing/icons';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 
-const AREAS = ['홍대·합정', '강남·역삼', '여의도·영등포', '성수·건대', '광화문·종로', '판교·분당'] as const;
-const TIMES = ['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'] as const;
-
-function buildDateOptions(count: number): { ymd: string; label: string }[] {
-  const out: { ymd: string; label: string }[] = [];
-  const d0 = new Date();
-  d0.setHours(12, 0, 0, 0);
-  const dow = ['일', '월', '화', '수', '목', '금', '토'];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(d0);
-    d.setDate(d0.getDate() + i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const ymd = `${y}-${m}-${day}`;
-    const label = `${dow[d.getDay()]} · ${d.getMonth() + 1}/${d.getDate()}`;
-    out.push({ ymd, label });
-  }
-  return out;
+function getTodayYmd(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const DATE_OPTIONS = buildDateOptions(14);
-
-const fieldStyle: CSSProperties = {
-  width: '100%',
-  padding: 0,
+const stepBtn: CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  background: 'var(--bg-2)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--ink-2)',
   border: 'none',
-  background: 'transparent',
-  fontSize: 16,
-  fontWeight: 600,
-  color: 'var(--ink)',
-  outline: 'none',
+  cursor: 'pointer',
 };
 
 export default function LandingHero() {
   const router = useRouter();
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => getTodayYmd());
   const [people, setPeople] = useState(8);
-  const [area, setArea] = useState<string>(AREAS[0]);
-  const [time, setTime] = useState<string>(TIMES[3]);
-  const [dateYmd, setDateYmd] = useState(DATE_OPTIONS[0]?.ymd ?? '');
   const [urrSize, setUrrSize] = useState(72);
   const [going, setGoing] = useState(false);
 
-  const dateLabelByYmd = useMemo(() => {
-    const m = new Map(DATE_OPTIONS.map((o) => [o.ymd, o.label]));
-    return (ymd: string) => m.get(ymd) ?? ymd;
-  }, []);
+  const dateLabel = useMemo(() => {
+    if (!selectedDate) return '날짜를 선택해 주세요';
+    const d = new Date(`${selectedDate}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return selectedDate;
+    const dow = ['일', '월', '화', '수', '목', '금', '토'];
+    return `${dow[d.getDay()]} · ${d.getMonth() + 1}/${d.getDate()}`;
+  }, [selectedDate]);
 
   useEffect(() => {
     const fn = () => setUrrSize(Math.min(160, Math.floor(window.innerWidth * 0.16)));
@@ -62,32 +48,17 @@ export default function LandingHero() {
   }, []);
 
   const goSearch = async () => {
-    if (!dateYmd || going) return;
+    if (!selectedDate || going) return;
     setGoing(true);
     try {
       await prefetchAllDataIntoCache();
       sessionStorage.setItem('landingPrefetchedAllData', '1');
-      sessionStorage.setItem('selectedDate', dateYmd);
+      sessionStorage.setItem('selectedDate', selectedDate);
       sessionStorage.setItem('selectedHeadcount', String(people));
-      sessionStorage.setItem('landingArea', area);
-      sessionStorage.setItem('landingTime', time);
       router.push('/search');
     } catch {
       setGoing(false);
     }
-  };
-
-  const stepBtn: CSSProperties = {
-    width: 28,
-    height: 28,
-    borderRadius: '50%',
-    background: 'var(--bg-2)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--ink-2)',
-    border: 'none',
-    cursor: 'pointer',
   };
 
   return (
@@ -151,81 +122,46 @@ export default function LandingHero() {
           매장에 전화 돌릴 필요 없이, 우르르에서 한 번에 자리 잡으세요.
         </p>
 
-        <div className="hero-widget">
-          <WidgetField icon="pin" label="어디서">
-            <select value={area} onChange={(e) => setArea(e.target.value)} style={fieldStyle}>
-              {AREAS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </WidgetField>
-          <WidgetField icon="calendar" label="언제">
-            <select value={dateYmd} onChange={(e) => setDateYmd(e.target.value)} style={fieldStyle}>
-              {DATE_OPTIONS.map((o) => (
-                <option key={o.ymd} value={o.ymd}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </WidgetField>
-          <WidgetField icon="clock" label="몇 시">
-            <select value={time} onChange={(e) => setTime(e.target.value)} style={fieldStyle}>
-              {TIMES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </WidgetField>
-          <WidgetField icon="users" label="몇 명">
-            <div className="flex h-8 items-center gap-2">
-              <button type="button" onClick={() => setPeople(Math.max(2, people - 1))} style={stepBtn} aria-label="인원 줄이기">
-                <Icon name="minus" size={14} />
-              </button>
-              <span className="num min-w-[38px] text-center text-base font-semibold">{people}명</span>
-              <button type="button" onClick={() => setPeople(Math.min(40, people + 1))} style={stepBtn} aria-label="인원 늘리기">
-                <Icon name="plus" size={14} />
+        <div className="landing-hero-booking mx-auto max-w-[720px] text-left">
+          <div className="hero-widget !grid !max-w-none !grid-cols-1 gap-4 !p-4 md:!grid-cols-2 md:!gap-5">
+            <div className="min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
+              <DateSelector selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
+            </div>
+            <div className="flex min-h-[200px] flex-col justify-center rounded-[18px] bg-[var(--bg-2)] px-5 py-6">
+              <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
+                <Icon name="users" size={13} color="var(--ink-4)" stroke={1.8} />
+                인원
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <button type="button" onClick={() => setPeople(Math.max(2, people - 1))} style={stepBtn} aria-label="인원 줄이기">
+                  <Icon name="minus" size={14} />
+                </button>
+                <span className="num min-w-[3rem] text-center text-2xl font-extrabold text-[var(--ink)]">{people}명</span>
+                <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 늘리기">
+                  <Icon name="plus" size={14} />
+                </button>
+              </div>
+              <p className="mt-4 text-center text-[13px] text-[var(--ink-4)]">2~60명 · 자리 찾기 후 가게 목록에서 이어서 시간·메뉴를 고를 수 있어요.</p>
+            </div>
+            <div className="md:col-span-2">
+              <button
+                type="button"
+                className="btn btn-primary w-full"
+                style={{ minHeight: 56, padding: '0 24px', borderRadius: 18, fontSize: 15 }}
+                onClick={() => void goSearch()}
+                disabled={going || !selectedDate}
+              >
+                <Icon name="search" size={18} color="white" />
+                {going ? '이동 중…' : '자리 찾기'}
               </button>
             </div>
-          </WidgetField>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ height: 'auto', minHeight: 72, padding: '0 24px', borderRadius: 18, fontSize: 15 }}
-            onClick={() => void goSearch()}
-            disabled={going}
-          >
-            <Icon name="search" size={18} color="white" />
-            {going ? '이동 중…' : '자리 찾기'}
-          </button>
+          </div>
         </div>
 
         <div className="mt-[18px] text-[13.5px] text-[var(--ink-4)]">
-          입력만 해두면 가능한 매장만 추려서 보여드려요. ({dateLabelByYmd(dateYmd)} · {people}명)
+          날짜와 인원을 정한 뒤 자리 찾기를 누르면 예약 가능한 가게 목록으로 이동해요. ({dateLabel} · {people}명)
         </div>
       </div>
     </section>
-  );
-}
-
-function WidgetField({
-  icon,
-  label,
-  children,
-}: {
-  icon: 'pin' | 'calendar' | 'clock' | 'users';
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="hero-widget-field cursor-pointer text-left">
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
-        <Icon name={icon} size={13} color="var(--ink-4)" stroke={1.8} />
-        {label}
-      </div>
-      {children}
-    </div>
   );
 }

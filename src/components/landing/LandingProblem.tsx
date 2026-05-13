@@ -158,9 +158,24 @@ export default function LandingProblem() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }} className="after-grid">
-          <AfterCard icon="bolt" tint="blue" title="30초 안에 자리 확정" desc="실시간 좌석 현황 + 룸 단위 예약. 통화 없이 바로 컨펌." />
-          <AfterCard icon="chat" tint="yellow" title="매장과 메모로 소통" desc="알러지·기념일·룸 요청, 채팅으로 미리 전달." />
-          <AfterCard icon="bell" tint="pink" title="참석자에게 자동 안내" desc="일정·위치·입장 시간, 단톡에 다시 올릴 필요 없어요." />
+          <AfterCard
+            icon="bolt"
+            tint="blue"
+            title="실시간 좌석으로 빠르게"
+            desc="남은 인원·시간대를 확인하고, 메뉴·예약금까지 한 흐름에서 정리해요. 통화 없이 바로 컨펌."
+          />
+          <AfterCard
+            icon="card"
+            tint="yellow"
+            title="예약금·최소 주문 미리 확인"
+            desc="인원 조건에 맞는 예약금과 최소 주문 금액을 가게 카드에서 바로 비교할 수 있어요."
+          />
+          <AfterCard
+            icon="search"
+            tint="pink"
+            title="조건에 맞는 가게만 보기"
+            desc="날짜와 인원을 정하면 수용 가능한 매장만 골라 보여 드려요."
+          />
         </div>
       </div>
     </section>

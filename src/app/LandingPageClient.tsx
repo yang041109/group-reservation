@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 import '@/styles/landing.css';
 import LandingNav from '@/components/landing/LandingNav';
 import LandingHero from '@/components/landing/LandingHero';
@@ -17,6 +18,7 @@ export default function LandingPageClient() {
 
   useEffect(() => {
     router.prefetch('/search');
+    void prefetchAllDataIntoCache();
   }, [router]);
 
   return (

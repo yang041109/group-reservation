@@ -29,16 +29,14 @@ export default function LandingNav() {
         borderBottom: scrolled ? '1px solid var(--line)' : '1px solid transparent',
       }}
     >
-      <div className="container flex h-[68px] items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
+      <div className="container flex h-[68px] items-center gap-6">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <URRMark size={26} />
-          <span
-            className="ml-0.5 border-l border-[var(--line)] pl-2.5 text-[13px] font-medium text-[var(--ink-4)]"
-          >
+          <span className="ml-0.5 border-l border-[var(--line)] pl-2.5 text-[13px] font-medium text-[var(--ink-4)]">
             단체예약
           </span>
         </Link>
-        <nav className="landing-nav-links hidden items-center gap-1 min-[881px]:flex">
+        <nav className="landing-nav-links ml-auto hidden flex-wrap items-center justify-end gap-1 min-[881px]:flex">
           {links.map((l) => (
             <Link
               key={l.href}
@@ -49,17 +47,6 @@ export default function LandingNav() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/#faq"
-            className="btn btn-ghost hidden h-10 px-3.5 text-sm sm:inline-flex"
-          >
-            매장 등록
-          </Link>
-          <Link href="/search" className="btn btn-primary h-10 px-[18px] text-sm">
-            로그인
-          </Link>
-        </div>
       </div>
     </header>
   );
