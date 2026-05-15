@@ -86,3 +86,18 @@ body {
 .landing-hint {
   animation: landing-fade-in 1s ease-out 2.5s both;
 }
+
+/* /search — 달력 아래 인원 (가로 2열 금지) */
+.search-booking-filters {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.search-booking-filters > * {
+  width: 100%;
+  max-width: 100%;
+  flex: none;
+}
