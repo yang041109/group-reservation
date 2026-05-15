@@ -66,14 +66,10 @@ export default function StoreCard({
       : 1,
   );
 
-  const minOrderPerPerson =
-    store.minOrderRules.length > 0
-      ? Math.min(...store.minOrderRules.map((r) => r.minOrderAmount / Math.max(1, r.minHeadcount)))
-      : 0;
-
   const bookable = isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);
   const deposit = store.depositAmount ?? 0;
-  const reserveCount = selectedHeadcount > 0 ? selectedHeadcount : minCapacity;
+  const reserveCount = selectedHeadcount > 0 ? selectedHeadcount : 0;
+  const showReserveButton = selectedHeadcount > 0;
 
   const timelineBlocks = store.timeline?.map((t) => t.timeBlock) ?? [];
   const avail = store.availableTimes || [];
@@ -99,7 +95,7 @@ export default function StoreCard({
   const allSlots = generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
 
   const goReserve = () => {
-    if (!selectedDate || !bookable) return;
+    if (!selectedDate || !bookable || reserveCount <= 0) return;
     sessionStorage.setItem('selectedDate', selectedDate);
     sessionStorage.setItem('selectedHeadcount', String(reserveCount));
     router.push(`/stores/${store.id}?date=${encodeURIComponent(selectedDate)}`);
@@ -108,7 +104,6 @@ export default function StoreCard({
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
       <div className="p-4">
-        {/* 상단: 썸네일 + 정보 */}
         <div className="flex gap-3">
           <div className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-2xl bg-[#3d2b1f]">
             {thumbnailUrl ? (
@@ -126,29 +121,27 @@ export default function StoreCard({
             </span>
           </div>
 
-          <div className="relative min-w-0 flex-1 pr-7">
-            <button
-              type="button"
-              className="absolute right-0 top-0 p-0.5 text-gray-300"
-              aria-label="저장"
-              tabIndex={-1}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M7 4h10a2 2 0 0 1 2 2v14l-7-4-7 4V6a2 2 0 0 1 2-2z"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold leading-tight text-gray-900">{store.name}</h2>
-              {store.category ? (
-                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
-                  {store.category}
-                </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="min-w-0 flex-1 truncate text-lg font-bold leading-tight text-gray-900">
+                {store.name}
+              </h2>
+              {showReserveButton ? (
+                <button
+                  type="button"
+                  disabled={!bookable || !selectedDate}
+                  onClick={goReserve}
+                  className={`shrink-0 inline-flex items-center gap-0.5 rounded-xl px-3.5 py-2 text-xs font-bold shadow-md transition sm:px-4 sm:text-sm ${
+                    bookable && selectedDate
+                      ? 'bg-blue-500 text-white shadow-blue-500/30 hover:bg-blue-600'
+                      : 'cursor-not-allowed bg-gray-200 text-gray-500 shadow-none'
+                  }`}
+                >
+                  {reserveCount}명 예약하기
+                  <span aria-hidden className="text-base leading-none">
+                    ›
+                  </span>
+                </button>
               ) : null}
             </div>
 
@@ -160,11 +153,6 @@ export default function StoreCard({
             ) : null}
 
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              <span className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600">
-                {minOrderPerPerson > 0
-                  ? `인당 최소주문 ${Math.round(minOrderPerPerson).toLocaleString()}원`
-                  : '인당 최소주문 없음'}
-              </span>
               <span className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600">
                 예약 가능 {minCapacity}~{store.maxCapacity}명
               </span>
@@ -181,7 +169,6 @@ export default function StoreCard({
           </div>
         </div>
 
-        {/* 타임슬롯 */}
         <div className="mt-4">
           <div className="mb-1 flex">
             {hours.map((hour) => (
@@ -243,25 +230,6 @@ export default function StoreCard({
             ))}
           </div>
         </div>
-      </div>
-
-      {/* 예약 버튼 — 오른쪽 하단 */}
-      <div className="flex justify-end px-4 pb-4 pt-1">
-        <button
-          type="button"
-          disabled={!bookable || !selectedDate}
-          onClick={goReserve}
-          className={`inline-flex items-center gap-1 rounded-xl px-5 py-2.5 text-sm font-bold shadow-md transition ${
-            bookable && selectedDate
-              ? 'bg-blue-500 text-white shadow-blue-500/30 hover:bg-blue-600'
-              : 'cursor-not-allowed bg-gray-200 text-gray-500 shadow-none'
-          }`}
-        >
-          {reserveCount}명 예약하기
-          <span aria-hidden className="text-base leading-none">
-            ›
-          </span>
-        </button>
       </div>
     </article>
   );

@@ -1,9 +1,9 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateSelector from '@/components/DateSelector';
+import HeadcountSelector from '@/components/HeadcountSelector';
 import { Icon, URRMark } from '@/components/landing/icons';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 
@@ -11,35 +11,6 @@ function getTodayYmd(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-const stepBtn: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: '50%',
-  background: 'var(--bg-2)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: 'var(--ink-2)',
-  border: 'none',
-  cursor: 'pointer',
-};
-
-const stepBtnSmall: CSSProperties = {
-  minWidth: 36,
-  height: 22,
-  padding: '0 6px',
-  borderRadius: 8,
-  background: 'var(--bg-2)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: 'var(--ink-3)',
-  border: '1px solid var(--line)',
-  fontSize: 10,
-  fontWeight: 700,
-  cursor: 'pointer',
-};
 
 export default function LandingHero() {
   const router = useRouter();
@@ -138,54 +109,33 @@ export default function LandingHero() {
           매장에 전화 돌릴 필요 없이, 우르르에서 한 번에 자리 잡으세요.
         </p>
 
-        <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto max-w-[720px] text-left">
-          <div className="hero-widget !flex !max-w-none !flex-col !gap-4 !p-4">
-            <div className="w-full min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
-              <DateSelector
-                selectedDate={selectedDate}
-                onChange={(d) => setSelectedDate(d)}
-                variant="embedded"
-              />
-            </div>
-            <div className="landing-headcount w-full rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
-                <Icon name="users" size={13} color="var(--ink-4)" stroke={1.8} />
-                인원
-              </div>
-              <div className="landing-headcount__row flex items-center justify-center gap-1.5 sm:gap-2">
-                <button type="button" onClick={() => setPeople(Math.max(0, people - 10))} style={stepBtnSmall} aria-label="인원 10명 줄이기">
-                  −10
-                </button>
-                <button type="button" onClick={() => setPeople(Math.max(0, people - 1))} style={stepBtn} aria-label="인원 1명 줄이기">
-                  <Icon name="minus" size={14} />
-                </button>
-                <span className="num min-w-[4.5rem] px-1 text-center text-[clamp(1.5rem,5vw,1.75rem)] font-extrabold leading-none text-[var(--ink)]">
-                  {people}
-                  <span className="ml-0.5 text-base font-bold text-[var(--ink-3)]">명</span>
-                </span>
-                <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 1명 늘리기">
-                  <Icon name="plus" size={14} />
-                </button>
-                <button type="button" onClick={() => setPeople(Math.min(60, people + 10))} style={stepBtnSmall} aria-label="인원 10명 늘리기">
-                  +10
-                </button>
-              </div>
-              <p className="mt-2.5 text-center text-[12px] leading-snug text-[var(--ink-4)]">
-                가게마다 최소·최대 인원이 달라요. 인원을 정하면 맞는 가게만 보여 드려요.
-              </p>
-            </div>
-            <div className="w-full">
-              <button
-                type="button"
-                className="btn btn-primary w-full"
-                style={{ minHeight: 56, padding: '0 24px', borderRadius: 18, fontSize: 15 }}
-                onClick={() => void goSearch()}
-                disabled={going || !selectedDate}
-              >
-                <Icon name="search" size={18} color="white" />
-                {going ? '이동 중…' : '자리 찾기'}
-              </button>
-            </div>
+        <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto w-full max-w-[720px] text-left">
+          <div className="hero-widget !flex !w-full !max-w-none !flex-col !gap-4 !p-0 !shadow-none !bg-transparent">
+            <DateSelector
+              selectedDate={selectedDate}
+              onChange={(d) => setSelectedDate(d)}
+              variant="panel"
+              fullWidth
+              className="w-full"
+            />
+            <HeadcountSelector
+              maxCapacity={60}
+              minCapacity={0}
+              selectedHeadcount={people}
+              onChange={setPeople}
+              variant="panel"
+              className="w-full"
+            />
+            <button
+              type="button"
+              className="btn btn-primary w-full"
+              style={{ minHeight: 56, padding: '0 24px', borderRadius: 18, fontSize: 15 }}
+              onClick={() => void goSearch()}
+              disabled={going || !selectedDate}
+            >
+              <Icon name="search" size={18} color="white" />
+              {going ? '이동 중…' : '자리 찾기'}
+            </button>
           </div>
         </div>
 

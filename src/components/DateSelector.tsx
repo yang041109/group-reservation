@@ -9,6 +9,9 @@ interface DateSelectorProps {
   unavailableDates?: string[];
   /** panel: 흰 카드+그림자(검색), embedded: 랜딩 위젯 안 */
   variant?: 'panel' | 'embedded';
+  /** true면 날짜 칸이 가로로 꽉 참 (메인 히어로) */
+  fullWidth?: boolean;
+  className?: string;
 }
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -31,6 +34,8 @@ export default function DateSelector({
   onChange,
   unavailableDates = [],
   variant = 'panel',
+  fullWidth = false,
+  className = '',
 }: DateSelectorProps) {
   const today = useMemo(() => getTodayStr(), []);
   const now = useMemo(() => new Date(), []);
@@ -164,7 +169,7 @@ export default function DateSelector({
               type="button"
               disabled={isDisabled}
               onClick={() => onChange(cell.date)}
-              className={`relative mx-auto flex h-10 w-10 items-center justify-center text-sm font-medium transition
+              className={`relative flex h-10 ${fullWidth ? 'w-full' : 'mx-auto w-10'} items-center justify-center text-sm font-medium transition
                 ${isSelected ? 'rounded-xl bg-blue-500 text-white shadow-md shadow-blue-500/35' : 'rounded-xl'}
                 ${!isSelected && !isDisabled ? 'hover:bg-gray-100' : ''}
                 ${isDisabled && !isSelected ? 'cursor-not-allowed' : ''}
@@ -186,7 +191,9 @@ export default function DateSelector({
   }
 
   return (
-    <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+    <div
+      className={`w-full rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)] ${className}`}
+    >
       {inner}
     </div>
   );

@@ -8,6 +8,7 @@ interface HeadcountSelectorProps {
   selectedHeadcount: number;
   onChange: (headcount: number) => void;
   variant?: 'panel' | 'compact';
+  className?: string;
 }
 
 export default function HeadcountSelector({
@@ -16,6 +17,7 @@ export default function HeadcountSelector({
   selectedHeadcount,
   onChange,
   variant = 'panel',
+  className = '',
 }: HeadcountSelectorProps) {
   const effectiveMin = Math.max(0, minCapacity);
 
@@ -80,7 +82,9 @@ export default function HeadcountSelector({
   }
 
   return (
-    <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+    <div
+      className={`w-full rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)] ${className}`}
+    >
       <FieldSectionHeader icon={<PeopleFieldIcon />} title="인원수" />
       {controls}
       <p className="mt-3 text-center text-xs text-gray-500">

@@ -6,7 +6,6 @@ import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
-import HeadcountSelector from '@/components/HeadcountSelector';
 import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
@@ -338,24 +337,9 @@ export default function StoreDetailPageClient() {
       <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         {selectedHeadcount < minGroup && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            이 가게는 단체예약 최소 {minGroup}명부터 가능합니다.
+            이 가게는 단체예약 최소 {minGroup}명부터 가능합니다. 검색 화면에서 인원을 변경해 주세요.
           </p>
         )}
-        <HeadcountSelector
-          maxCapacity={selectedTimeMaxCapacity}
-          minCapacity={Math.max(
-            minGroup,
-            store.minOrderRules.length > 0
-              ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
-              : 1,
-          )}
-          selectedHeadcount={selectedHeadcount}
-          onChange={(newHeadcount) => {
-            // 최대치를 초과하지 않도록 제한
-            const capped = Math.min(newHeadcount, selectedTimeMaxCapacity);
-            setSelectedHeadcount(capped);
-          }}
-        />
 
         <TimeSelector
           availableTimes={availableTimes}
