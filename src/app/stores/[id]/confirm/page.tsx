@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import BackLink from '@/components/BackLink';
 
 interface PendingMenuItem {
   menuId: string;
@@ -24,6 +25,8 @@ interface PendingReservation {
   minOrderAmount: number;
   /** 인원 기준 산출 예약금(원) */
   depositAmount?: number;
+  ownerName?: string | null;
+  ownerBankAccount?: string | null;
 }
 
 export default function ReservationConfirmPage() {
@@ -131,6 +134,7 @@ export default function ReservationConfirmPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
+      <BackLink fallbackHref={`/stores/${storeId}`} />
       <h1 className="text-2xl font-bold text-gray-900">예약 확인</h1>
 
       {/* 예약 정보 요약 카드 */}
@@ -160,9 +164,18 @@ export default function ReservationConfirmPage() {
         </div>
 
         {reservation.depositAmount != null && reservation.depositAmount > 0 && (
-          <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2">
-            <span className="text-sm text-blue-800">예약금 ({reservation.headcount}명 기준)</span>
-            <span className="font-bold text-blue-900">{reservation.depositAmount.toLocaleString()}원</span>
+          <div className="space-y-2 rounded-lg bg-blue-50 px-3 py-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-blue-800">예약금 ({reservation.headcount}명 기준)</span>
+              <span className="font-bold text-blue-900">{reservation.depositAmount.toLocaleString()}원</span>
+            </div>
+            {(reservation.ownerName || reservation.ownerBankAccount) && (
+              <div className="border-t border-blue-200 pt-2 text-sm text-blue-900">
+                <p className="font-semibold">예약금 입금 안내</p>
+                {reservation.ownerName ? <p>예금주: {reservation.ownerName}</p> : null}
+                {reservation.ownerBankAccount ? <p>계좌: {reservation.ownerBankAccount}</p> : null}
+              </div>
+            )}
           </div>
         )}
       </div>

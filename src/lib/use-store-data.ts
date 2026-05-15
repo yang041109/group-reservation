@@ -11,10 +11,13 @@ export interface CachedStore {
   name: string;
   category: string;
   maxCapacity: number;
+  minGroupHeadcount?: number;
   imageUrl: string;
   description: string;
   slotStartHour?: number;
   slotEndHour?: number;
+  weeklyHoursJson?: string | null;
+  closedDatesJson?: string | null;
   depositAmount?: number;
   depositUseTiers?: boolean;
   depositTiers?: DepositTier[];
@@ -128,7 +131,9 @@ export function buildSlotsForDate(
   reservations: CachedReservation[],
   slotStartHour?: number,
   slotEndHour?: number,
+  closed?: boolean,
 ): TimeSlot[] {
+  if (closed) return [];
   const startH = slotStartHour ?? 11;
   const endH = slotEndHour ?? 20;
   const crossesMidnight = endH < startH;

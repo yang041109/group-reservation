@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import MyReservationsModal from '@/components/MyReservationsModal';
 
 /** 달리는 졸라맨 SVG */
 function RunningStickman({ delay, size = 18 }: { delay: number; size?: number }) {
@@ -35,6 +37,8 @@ function StoreIcon() {
 }
 
 export default function Header() {
+  const [reservationsOpen, setReservationsOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-40 border-b border-blue-400/30 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -51,11 +55,16 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-4">
-          <Link href="/reservations" className="text-sm text-white/90 transition hover:text-white">
+          <button
+            type="button"
+            onClick={() => setReservationsOpen(true)}
+            className="text-sm text-white/90 transition hover:text-white"
+          >
             내 예약
-          </Link>
+          </button>
         </div>
       </div>
+      <MyReservationsModal open={reservationsOpen} onClose={() => setReservationsOpen(false)} />
     </header>
   );
 }

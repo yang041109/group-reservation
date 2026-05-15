@@ -5,6 +5,11 @@ import {
   getSlotHourRangeFromStoreRow,
   slotOverlapsReservation,
 } from '@/lib/booking-slots';
+import {
+  getSlotHourRangeForStoreOnDate,
+  isStoreClosedOnDate,
+  readMinGroupHeadcount,
+} from '@/lib/store-weekly-hours';
 import { parseDepositTiersJson, resolveDepositForHeadcount, type DepositTier } from '@/lib/deposit-tiers';
 import type { MenuItemData, MinOrderRule } from '@/types';
 
@@ -96,8 +101,9 @@ export async function getStoresFromMysql(date: string, headcount: number) {
     const sid = String(store.storeId ?? '').trim();
     const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
     const storeRules = rules.filter((r) => String(r.storeId ?? '').trim() === sid);
-    const range = getSlotHourRangeFromStoreRow(store);
-    const { slotStartHour, slotEndHour, crossesMidnight } = range;
+    const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
+    const { slotStartHour, slotEndHour, crossesMidnight, closed } = range;
+    const minGroupHeadcount = readMinGroupHeadcount(store as Record<string, unknown>);
 
     const confirmedRes = reservations.filter(
       (r) =>
@@ -107,17 +113,19 @@ export async function getStoresFromMysql(date: string, headcount: number) {
           String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED'),
     );
 
-    const timeline = buildSlots(
-      cap,
-      confirmedRes.map((r) => ({
-        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-        startTime: String(r.startTime ?? '').trim(),
-        endTime: String(r.endTime ?? '').trim(),
-      })),
-      slotStartHour,
-      slotEndHour,
-      crossesMidnight,
-    );
+    const timeline = closed
+      ? []
+      : buildSlots(
+          cap,
+          confirmedRes.map((r) => ({
+            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+            startTime: String(r.startTime ?? '').trim(),
+            endTime: String(r.endTime ?? '').trim(),
+          })),
+          slotStartHour,
+          slotEndHour,
+          crossesMidnight,
+        );
 
     const depOpts = readStoreDepositOpts(store);
     const resolvedDeposit = resolveDepositForHeadcount(headcount, {
@@ -144,6 +152,8 @@ export async function getStoresFromMysql(date: string, headcount: number) {
         maxHeadcount: parseInt(String(r.maxHeadcount ?? '0'), 10) || 0,
         minOrderAmount: parseInt(String(r.minOrderAmount ?? '0'), 10) || 0,
       })),
+      minGroupHeadcount,
+      closedOnDate: closed,
     };
   });
 }
@@ -170,10 +180,19 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
   );
 
   const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-  const range = getSlotHourRangeFromStoreRow(store);
-  const { slotStartHour, slotEndHour, crossesMidnight } = range;
+  const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
+  const { slotStartHour, slotEndHour, crossesMidnight, closed } = range;
+  const minGroupHeadcount = readMinGroupHeadcount(store as Record<string, unknown>);
+  const rec = store as Record<string, unknown>;
+  const ownerName = rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null;
+  const ownerBankAccount =
+    rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
+      ? String(rec.ownerBankAccount).trim()
+      : null;
 
-  const slots = buildSlots(
+  const slots = closed
+    ? []
+    : buildSlots(
     cap,
     confirmed.map((r) => ({
       headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
@@ -213,6 +232,10 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       depositAmount: depOpts.flatDepositAmount,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
+      minGroupHeadcount,
+      ownerName,
+      ownerBankAccount,
+      closedOnDate: closed,
       availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
       slots,
       minOrderRules,
@@ -265,7 +288,24 @@ export async function insertReservationValidated(
     }
 
     const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-    const range = getSlotHourRangeFromStoreRow(store);
+    const minGroup = readMinGroupHeadcount(store as Record<string, unknown>);
+    if (headcount < minGroup) {
+      await conn.rollback();
+      throw new ReservationDbError(
+        400,
+        `단체예약은 최소 ${minGroup}명 이상부터 가능합니다.`,
+      );
+    }
+    if (isStoreClosedOnDate(store as Record<string, unknown>, date)) {
+      await conn.rollback();
+      throw new ReservationDbError(400, '선택한 날짜는 휴무일입니다.');
+    }
+
+    const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
+    if (range.closed) {
+      await conn.rollback();
+      throw new ReservationDbError(400, '선택한 날짜는 영업하지 않습니다.');
+    }
     const slotStartHour = range.slotStartHour;
     const slotEndHour = range.slotEndHour;
     const crossesMidnight = range.crossesMidnight;
@@ -504,17 +544,27 @@ export async function getAllDataFromMysql() {
   const storeList = stores.map((store) => {
     const sid = String(store.storeId ?? '').trim();
     const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-    const range = getSlotHourRangeFromStoreRow(store);
+    const range = getSlotHourRangeFromStoreRow(store as Record<string, unknown>);
     const depOpts = readStoreDepositOpts(store);
+    const rec = store as Record<string, unknown>;
     return {
       storeId: sid,
       name: store.name,
       category: store.category || '',
       maxCapacity: cap,
+      minGroupHeadcount: readMinGroupHeadcount(rec),
       imageUrl: store.imageUrl || '',
       description: store.description || '',
       slotStartHour: range.slotStartHour,
       slotEndHour: range.slotEndHour,
+      weeklyHoursJson:
+        rec.weeklyHoursJson != null && String(rec.weeklyHoursJson).trim()
+          ? String(rec.weeklyHoursJson)
+          : null,
+      closedDatesJson:
+        rec.closedDatesJson != null && String(rec.closedDatesJson).trim()
+          ? String(rec.closedDatesJson)
+          : null,
       depositAmount: depOpts.flatDepositAmount,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,

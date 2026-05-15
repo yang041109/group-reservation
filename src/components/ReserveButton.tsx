@@ -14,6 +14,9 @@ interface ReserveButtonProps {
   menus: { id: string; name: string; price: number }[];
   /** 예약 확정 시 저장되는 예약금(인원 구간 반영) */
   expectedDeposit: number;
+  ownerName?: string | null;
+  ownerBankAccount?: string | null;
+  minGroupHeadcount?: number;
 }
 
 export default function ReserveButton({
@@ -27,20 +30,26 @@ export default function ReserveButton({
   menuQuantities,
   menus,
   expectedDeposit,
+  ownerName,
+  ownerBankAccount,
+  minGroupHeadcount = 2,
 }: ReserveButtonProps) {
   const router = useRouter();
 
   const dateNotSelected = selectedDate === null;
   const timeNotSelected = selectedTime === null;
   const minOrderNotMet = minOrderAmount > 0 && totalAmount < minOrderAmount;
+  const belowGroupMin = selectedHeadcount < minGroupHeadcount;
   const deficit = minOrderAmount - totalAmount;
-  const isDisabled = dateNotSelected || timeNotSelected || minOrderNotMet;
+  const isDisabled = dateNotSelected || timeNotSelected || minOrderNotMet || belowGroupMin;
 
   let validationMessage: string | null = null;
   if (dateNotSelected) {
     validationMessage = '날짜를 선택해주세요';
   } else if (timeNotSelected) {
     validationMessage = '시간을 선택해주세요';
+  } else if (belowGroupMin) {
+    validationMessage = `단체예약은 ${minGroupHeadcount}명 이상부터 가능합니다`;
   } else if (minOrderNotMet) {
     validationMessage = `최소 주문 금액까지 ${deficit.toLocaleString()}원 부족합니다`;
   }
@@ -68,6 +77,8 @@ export default function ReserveButton({
       totalAmount,
       minOrderAmount,
       depositAmount: Math.max(0, Math.floor(expectedDeposit) || 0),
+      ownerName: ownerName ?? null,
+      ownerBankAccount: ownerBankAccount ?? null,
     };
 
     sessionStorage.setItem('pendingReservation', JSON.stringify(pendingReservation));

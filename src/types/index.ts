@@ -52,6 +52,8 @@ export interface StoreCard {
   depositAmount?: number;
   depositUseTiers?: boolean;
   depositTiers?: DepositTier[];
+  minGroupHeadcount?: number;
+  closedOnDate?: boolean;
 }
 
 /** GET /api/stores/:id response – store detail */
@@ -73,6 +75,10 @@ export interface StoreDetail {
   /** true면 depositTiers로 인원별 예약금 */
   depositUseTiers?: boolean;
   depositTiers?: DepositTier[];
+  minGroupHeadcount?: number;
+  ownerName?: string | null;
+  ownerBankAccount?: string | null;
+  closedOnDate?: boolean;
 }
 
 export interface MenuItemData {

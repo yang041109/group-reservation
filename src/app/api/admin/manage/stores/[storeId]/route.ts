@@ -45,6 +45,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
       patch.depositTiersJson = serializeDepositTiersForDb(body.depositTiers as DepositTier[]);
     }
   }
+  if (body.minGroupHeadcount !== undefined) {
+    const n = Number(body.minGroupHeadcount);
+    patch.minGroupHeadcount = Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 2;
+  }
+  if (body.ownerName !== undefined) {
+    patch.ownerName = body.ownerName === null ? null : String(body.ownerName);
+  }
+  if (body.ownerBankAccount !== undefined) {
+    patch.ownerBankAccount = body.ownerBankAccount === null ? null : String(body.ownerBankAccount);
+  }
+  if (body.weeklyHoursJson !== undefined) {
+    patch.weeklyHoursJson =
+      body.weeklyHoursJson === null ? null : String(body.weeklyHoursJson);
+  }
+  if (body.closedDatesJson !== undefined) {
+    patch.closedDatesJson =
+      body.closedDatesJson === null ? null : String(body.closedDatesJson);
+  }
+  if (body.slotStartHour !== undefined) {
+    const n = body.slotStartHour === null ? null : Number(body.slotStartHour);
+    patch.slotStartHour = n === null || Number.isNaN(n) ? null : Math.min(23, Math.max(0, Math.floor(n)));
+  }
+  if (body.slotEndHour !== undefined) {
+    const n = body.slotEndHour === null ? null : Number(body.slotEndHour);
+    patch.slotEndHour = n === null || Number.isNaN(n) ? null : Math.min(23, Math.max(0, Math.floor(n)));
+  }
 
   const result = await manageUpdateStore(storeId, patch);
   if (!result.success) {

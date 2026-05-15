@@ -4,7 +4,7 @@ import { manageIssueAdminToken } from '@/lib/admin-manage-mysql';
 
 export const runtime = 'nodejs';
 
-/** POST /api/admin/manage/stores/[storeId]/token — adminAccessToken 재발급 */
+/** POST /api/admin/manage/stores/[storeId]/token — 최초 1회만 발급(이미 있으면 기존 토큰 반환) */
 export async function POST(request: Request, { params }: { params: Promise<{ storeId: string }> }) {
   const denied = requireAdminManageAuth(request);
   if (denied) return denied;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { parseDepositTiersJson } from '@/lib/deposit-tiers';
+import { readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import type { DepositTier } from '@/types';
 
@@ -23,6 +24,7 @@ export interface ManageStoreRow {
   name: string;
   category: string;
   maxCapacity: number;
+  minGroupHeadcount: number;
   imageUrl: string | null;
   slotStartHour: number | null;
   slotEndHour: number | null;
@@ -30,6 +32,10 @@ export interface ManageStoreRow {
   /** 인원 구간별 예약금 사용 여부 */
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
+  ownerName: string | null;
+  ownerBankAccount: string | null;
+  weeklyHoursJson: string | null;
+  closedDatesJson: string | null;
   description: string | null;
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
@@ -49,12 +55,27 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
     name: String(r.name ?? '').trim(),
     category: String(r.category ?? '').trim(),
     maxCapacity: parseInt(String(r.maxCapacity ?? '0'), 10) || 0,
+    minGroupHeadcount: readMinGroupHeadcount(rec),
     imageUrl: r.imageUrl != null && String(r.imageUrl).trim() ? String(r.imageUrl) : null,
     slotStartHour: r.slotStartHour != null ? Number(r.slotStartHour) : null,
     slotEndHour: r.slotEndHour != null ? Number(r.slotEndHour) : null,
     depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
     depositUseTiers,
     depositTiers: parseDepositTiersJson(rec.depositTiersJson),
+    ownerName:
+      rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null,
+    ownerBankAccount:
+      rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
+        ? String(rec.ownerBankAccount).trim()
+        : null,
+    weeklyHoursJson:
+      rec.weeklyHoursJson != null && String(rec.weeklyHoursJson).trim()
+        ? String(rec.weeklyHoursJson)
+        : null,
+    closedDatesJson:
+      rec.closedDatesJson != null && String(rec.closedDatesJson).trim()
+        ? String(rec.closedDatesJson)
+        : null,
     description: r.description != null && String(r.description).trim() ? String(r.description) : null,
     adminAccessToken:
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
@@ -91,6 +112,13 @@ export async function manageUpdateStore(
     depositAmount?: number;
     depositUseTiers?: boolean;
     depositTiersJson?: string | null;
+    minGroupHeadcount?: number;
+    ownerName?: string | null;
+    ownerBankAccount?: string | null;
+    weeklyHoursJson?: string | null;
+    closedDatesJson?: string | null;
+    slotStartHour?: number | null;
+    slotEndHour?: number | null;
   },
 ): Promise<{ success: true } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
@@ -130,6 +158,43 @@ export async function manageUpdateStore(
   if (patch.depositTiersJson !== undefined) {
     sets.push('depositTiersJson = ?');
     params.push(patch.depositTiersJson);
+  }
+  if (patch.minGroupHeadcount !== undefined) {
+    sets.push('minGroupHeadcount = ?');
+    const n = Math.floor(Number(patch.minGroupHeadcount));
+    params.push(Number.isFinite(n) && n >= 1 ? n : 2);
+  }
+  if (patch.ownerName !== undefined) {
+    sets.push('ownerName = ?');
+    params.push(patch.ownerName == null || patch.ownerName === '' ? null : String(patch.ownerName).trim());
+  }
+  if (patch.ownerBankAccount !== undefined) {
+    sets.push('ownerBankAccount = ?');
+    params.push(
+      patch.ownerBankAccount == null || patch.ownerBankAccount === ''
+        ? null
+        : String(patch.ownerBankAccount).trim(),
+    );
+  }
+  if (patch.weeklyHoursJson !== undefined) {
+    sets.push('weeklyHoursJson = ?');
+    params.push(patch.weeklyHoursJson);
+  }
+  if (patch.closedDatesJson !== undefined) {
+    sets.push('closedDatesJson = ?');
+    params.push(patch.closedDatesJson);
+  }
+  if (patch.slotStartHour !== undefined) {
+    sets.push('slotStartHour = ?');
+    params.push(
+      patch.slotStartHour == null ? null : Math.min(23, Math.max(0, Math.floor(patch.slotStartHour))),
+    );
+  }
+  if (patch.slotEndHour !== undefined) {
+    sets.push('slotEndHour = ?');
+    params.push(
+      patch.slotEndHour == null ? null : Math.min(23, Math.max(0, Math.floor(patch.slotEndHour))),
+    );
   }
   if (!sets.length) {
     return { success: false, message: '수정할 필드가 없습니다.' };
@@ -427,6 +492,15 @@ export async function manageIssueAdminToken(
 
   try {
     const pool = getPool();
+    const [existingRows] = await pool.query<RowDataPacket[]>(
+      'SELECT adminAccessToken FROM store WHERE storeId = ? LIMIT 1',
+      [sid],
+    );
+    const existing = existingRows[0]?.adminAccessToken;
+    if (existing != null && String(existing).trim()) {
+      return { success: true, data: { adminAccessToken: String(existing).trim() } };
+    }
+
     for (let i = 0; i < 12; i++) {
       const token = newAdminToken();
       if (token.length > 64) continue;
@@ -472,10 +546,17 @@ export interface ManageReservationListRow {
 
 export async function manageListReservations(options: {
   storeId?: string | null;
+  status?: string | null;
   limit: number;
   offset: number;
 }): Promise<
-  { success: true; data: ManageReservationListRow[]; total: number } | { success: false; message: string }
+  | {
+      success: true;
+      data: ManageReservationListRow[];
+      total: number;
+      depositSum: number;
+    }
+  | { success: false; message: string }
 > {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -483,18 +564,29 @@ export async function manageListReservations(options: {
   const limit = Math.min(500, Math.max(1, options.limit));
   const offset = Math.max(0, options.offset);
   const filterStore = options.storeId?.trim();
+  const filterStatus = options.status?.trim().toUpperCase();
 
   try {
     const pool = getPool();
-    const where = filterStore ? 'WHERE r.storeId = ?' : '';
-    const params: (string | number)[] = filterStore ? [filterStore] : [];
+    const clauses: string[] = [];
+    const params: (string | number)[] = [];
+    if (filterStore) {
+      clauses.push('r.storeId = ?');
+      params.push(filterStore);
+    }
+    if (filterStatus) {
+      clauses.push('r.status = ?');
+      params.push(filterStatus);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const countParams = [...params];
 
     const [countRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM reservation r ${where}`,
+      `SELECT COUNT(*) AS c, COALESCE(SUM(r.depositAmount), 0) AS depositSum FROM reservation r ${where}`,
       countParams,
     );
     const total = parseInt(String(countRows[0]?.c ?? '0'), 10) || 0;
+    const depositSum = parseInt(String(countRows[0]?.depositSum ?? '0'), 10) || 0;
 
     const listParams: (string | number)[] = [...params, limit, offset];
     const [rows] = await pool.query<ReservationRow[]>(
@@ -527,7 +619,7 @@ export async function manageListReservations(options: {
           : String(r.createdAt ?? '').trim(),
     }));
 
-    return { success: true, data, total };
+    return { success: true, data, total, depositSum };
   } catch (e) {
     console.error('[manageListReservations]', e);
     return { success: false, message: formatMysqlUserError(e) };

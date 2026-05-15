@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import BackLink from '@/components/BackLink';
 
 export default function ReservationCompletePage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-16">
+      <BackLink fallbackHref="/search" label="이전으로" className="mb-6" />
       <div className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
         <div className="text-5xl">🎉</div>
 

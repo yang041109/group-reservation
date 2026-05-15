@@ -2,6 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ADMIN_MANAGE_SECRET_HEADER } from '@/lib/admin-manage-constants';
+import {
+  formatReservationStatus,
+  RESERVATION_STATUS_FILTER_OPTIONS,
+} from '@/lib/reservation-status-labels';
+import {
+  DAY_KEYS,
+  DAY_LABELS,
+  type DayKey,
+  parseClosedDatesJson,
+  parseWeeklyHoursJson,
+  serializeClosedDatesForDb,
+  serializeWeeklyHoursForDb,
+} from '@/lib/store-weekly-hours';
 import type { DepositTier } from '@/types';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
@@ -19,14 +32,35 @@ type ManageStore = {
   name: string;
   category: string;
   maxCapacity: number;
+  minGroupHeadcount: number;
   imageUrl: string | null;
+  slotStartHour: number | null;
+  slotEndHour: number | null;
   depositAmount: number;
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
+  ownerName: string | null;
+  ownerBankAccount: string | null;
+  weeklyHoursJson: string | null;
+  closedDatesJson: string | null;
   description: string | null;
   adminAccessToken: string | null;
   sortOrder: number;
 };
+
+type DayFormRow = { closed: boolean; start: string; end: string };
+
+function defaultWeeklyForm(): Record<DayKey, DayFormRow> {
+  return {
+    sun: { closed: false, start: '11', end: '20' },
+    mon: { closed: false, start: '11', end: '20' },
+    tue: { closed: false, start: '11', end: '20' },
+    wed: { closed: false, start: '11', end: '20' },
+    thu: { closed: false, start: '11', end: '20' },
+    fri: { closed: false, start: '11', end: '20' },
+    sat: { closed: false, start: '11', end: '20' },
+  };
+}
 
 type TierRow = { min: string; max: string; amount: string };
 
@@ -107,10 +141,23 @@ export default function ManagePageClient() {
   const [resTotal, setResTotal] = useState(0);
   const [resOffset, setResOffset] = useState(0);
   const [resFilterStoreId, setResFilterStoreId] = useState('');
+  const [resFilterStatus, setResFilterStatus] = useState('');
+  const [resDepositSum, setResDepositSum] = useState(0);
+  const [minGroupHeadcount, setMinGroupHeadcount] = useState('2');
+  const [slotStartHour, setSlotStartHour] = useState('11');
+  const [slotEndHour, setSlotEndHour] = useState('20');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerBankAccount, setOwnerBankAccount] = useState('');
+  const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(defaultWeeklyForm);
+  const [closedDatesText, setClosedDatesText] = useState('');
   const resLimit = 50;
   const [dbHealth, setDbHealth] = useState<DbHealthJson | null>(null);
 
   const selected = useMemo(() => stores.find((s) => s.storeId === selectedId) ?? null, [stores, selectedId]);
+
+  const depositRequiresBankInfo = depositUseTiers
+    ? tierRows.some((r) => (parseInt(r.amount, 10) || 0) >= 1)
+    : (parseInt(depositFlat, 10) || 0) >= 1;
 
   useEffect(() => {
     void (async () => {
@@ -196,12 +243,40 @@ export default function ManagePageClient() {
       setDepositFlat('0');
       setDepositUseTiers(false);
       setTierRows(defaultTierRows());
+      setMinGroupHeadcount('2');
+      setSlotStartHour('11');
+      setSlotEndHour('20');
+      setOwnerName('');
+      setOwnerBankAccount('');
+      setWeeklyForm(defaultWeeklyForm());
+      setClosedDatesText('');
       setMenus([]);
       return;
     }
     setName(selected.name);
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
+    setMinGroupHeadcount(String(selected.minGroupHeadcount ?? 2));
+    setSlotStartHour(String(selected.slotStartHour ?? 11));
+    setSlotEndHour(String(selected.slotEndHour ?? 20));
+    setOwnerName(selected.ownerName ?? '');
+    setOwnerBankAccount(selected.ownerBankAccount ?? '');
+    const parsedWeekly = parseWeeklyHoursJson(selected.weeklyHoursJson);
+    const wf = defaultWeeklyForm();
+    if (parsedWeekly) {
+      for (const key of DAY_KEYS) {
+        const d = parsedWeekly[key];
+        if (d) {
+          wf[key] = {
+            closed: !!d.closed,
+            start: d.start != null ? String(d.start) : wf[key].start,
+            end: d.end != null ? String(d.end) : wf[key].end,
+          };
+        }
+      }
+    }
+    setWeeklyForm(wf);
+    setClosedDatesText(parseClosedDatesJson(selected.closedDatesJson).join('\n'));
     setDepositFlat(String(selected.depositAmount ?? 0));
     setDepositUseTiers(!!selected.depositUseTiers);
     setTierRows(
@@ -241,15 +316,39 @@ export default function ManagePageClient() {
             .filter((t) => t.maxHeadcount >= t.minHeadcount)
         : [];
 
+      const weeklyPayload: Record<DayKey, DayFormRow> = { ...weeklyForm };
+      const closedList = closedDatesText
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+
       const res = await manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(selectedId)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name,
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
+          minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
+          slotStartHour: parseInt(slotStartHour, 10),
+          slotEndHour: parseInt(slotEndHour, 10),
           depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
           depositUseTiers,
           depositTiers: depositUseTiers ? tiersPayload : null,
+          ownerName: depositRequiresBankInfo ? ownerName.trim() || null : null,
+          ownerBankAccount: depositRequiresBankInfo ? ownerBankAccount.trim() || null : null,
+          weeklyHoursJson: serializeWeeklyHoursForDb(
+            Object.fromEntries(
+              DAY_KEYS.map((k) => [
+                k,
+                {
+                  closed: weeklyPayload[k].closed,
+                  start: parseInt(weeklyPayload[k].start, 10),
+                  end: parseInt(weeklyPayload[k].end, 10),
+                },
+              ]),
+            ),
+          ),
+          closedDatesJson: serializeClosedDatesForDb(closedList),
         }),
       });
       const data = await res.json();
@@ -376,7 +475,7 @@ export default function ManagePageClient() {
 
   const issueToken = async () => {
     if (!selectedId) return;
-    if (!confirm('기존 사장님 링크 토큰이 있으면 무효화됩니다. 새 토큰을 발급할까요?')) return;
+    const hadToken = !!selected?.adminAccessToken;
     setLoading(true);
     setErr(null);
     try {
@@ -390,7 +489,7 @@ export default function ManagePageClient() {
         setErr(data.message || '발급 실패');
         return;
       }
-      setMsg(`새 토큰: ${data.data?.adminAccessToken}`);
+      setMsg(hadToken ? '기존 사장님 링크입니다.' : '토큰을 발급했습니다.');
       await loadStores();
     } catch {
       setErr('발급 중 오류');
@@ -501,6 +600,7 @@ export default function ManagePageClient() {
     try {
       const q = new URLSearchParams({ limit: String(resLimit), offset: String(resOffset) });
       if (resFilterStoreId.trim()) q.set('storeId', resFilterStoreId.trim());
+      if (resFilterStatus.trim()) q.set('status', resFilterStatus.trim());
       const res = await manageFetch(storedSecret, `/api/admin/manage/reservations?${q}`);
       const data = await res.json();
       if (!res.ok) {
@@ -516,13 +616,14 @@ export default function ManagePageClient() {
       }
       setReservations(data.data || []);
       setResTotal(typeof data.total === 'number' ? data.total : 0);
+      setResDepositSum(typeof data.depositSum === 'number' ? data.depositSum : 0);
       setShowAuthHint(false);
     } catch {
       setErr('예약 목록 오류');
     } finally {
       setLoading(false);
     }
-  }, [storedSecret, resOffset, resFilterStoreId]);
+  }, [storedSecret, resOffset, resFilterStoreId, resFilterStatus]);
 
   useEffect(() => {
     if (tab === 'reservations') void loadReservations();
@@ -883,6 +984,126 @@ export default function ManagePageClient() {
                             </div>
                           )}
                         </div>
+
+                        {depositRequiresBankInfo ? (
+                          <div className="sm:col-span-2 space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                            <p className="text-sm font-medium text-blue-900">예약금 입금 안내 (고객 확정 화면에 표시)</p>
+                            <label className="block">
+                              <span className="text-xs text-gray-600">사장님 성함 (예금주)</span>
+                              <input
+                                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                                value={ownerName}
+                                onChange={(e) => setOwnerName(e.target.value)}
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-xs text-gray-600">계좌번호</span>
+                              <input
+                                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                                value={ownerBankAccount}
+                                onChange={(e) => setOwnerBankAccount(e.target.value)}
+                                placeholder="은행명 포함 입력"
+                              />
+                            </label>
+                          </div>
+                        ) : null}
+
+                        <label className="block">
+                          <span className="text-xs text-gray-500">단체예약 최소 인원</span>
+                          <input
+                            type="number"
+                            min={1}
+                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
+                            value={minGroupHeadcount}
+                            onChange={(e) => setMinGroupHeadcount(e.target.value)}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-500">기본 영업 시작 시 (0–23)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
+                            value={slotStartHour}
+                            onChange={(e) => setSlotStartHour(e.target.value)}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-500">기본 영업 종료 시 (0–23)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
+                            value={slotEndHour}
+                            onChange={(e) => setSlotEndHour(e.target.value)}
+                          />
+                        </label>
+
+                        <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3">
+                          <p className="text-sm font-medium text-gray-800">요일별 영업시간</p>
+                          <div className="mt-3 space-y-2">
+                            {DAY_KEYS.map((key) => (
+                              <div key={key} className="flex flex-wrap items-center gap-2 text-sm">
+                                <span className="w-6 font-medium">{DAY_LABELS[key]}</span>
+                                <label className="flex items-center gap-1 text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={weeklyForm[key].closed}
+                                    onChange={(e) =>
+                                      setWeeklyForm((w) => ({
+                                        ...w,
+                                        [key]: { ...w[key], closed: e.target.checked },
+                                      }))
+                                    }
+                                  />
+                                  휴무
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={23}
+                                  disabled={weeklyForm[key].closed}
+                                  className="w-14 rounded border px-1 py-0.5 disabled:opacity-40"
+                                  value={weeklyForm[key].start}
+                                  onChange={(e) =>
+                                    setWeeklyForm((w) => ({
+                                      ...w,
+                                      [key]: { ...w[key], start: e.target.value },
+                                    }))
+                                  }
+                                />
+                                <span>~</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={23}
+                                  disabled={weeklyForm[key].closed}
+                                  className="w-14 rounded border px-1 py-0.5 disabled:opacity-40"
+                                  value={weeklyForm[key].end}
+                                  onChange={(e) =>
+                                    setWeeklyForm((w) => ({
+                                      ...w,
+                                      [key]: { ...w[key], end: e.target.value },
+                                    }))
+                                  }
+                                />
+                                <span className="text-xs text-gray-400">시</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <label className="block sm:col-span-2">
+                          <span className="text-xs text-gray-500">지정 휴무일 (YYYY-MM-DD, 줄바꿈)</span>
+                          <textarea
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
+                            rows={3}
+                            value={closedDatesText}
+                            onChange={(e) => setClosedDatesText(e.target.value)}
+                          />
+                        </label>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
@@ -907,7 +1128,7 @@ export default function ManagePageClient() {
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                       <h3 className="font-semibold text-gray-900">사장님 전용 링크</h3>
                       <p className="mt-1 text-xs text-gray-500">
-                        토큰 재발급 시 이전 링크는 즉시 사용할 수 없습니다.
+                        토큰은 최초 1회만 발급되며, 발급 후에는 변경되지 않습니다.
                       </p>
                       {selected?.adminAccessToken ? (
                         <div className="mt-3 break-all rounded-lg bg-gray-50 p-3 text-sm">
@@ -915,16 +1136,33 @@ export default function ManagePageClient() {
                           <div className="font-mono text-gray-900">{ownerLink(selected.adminAccessToken)}</div>
                         </div>
                       ) : (
-                        <p className="mt-3 text-sm text-amber-700">아직 토큰이 없습니다. 발급하세요.</p>
+                        <p className="mt-3 text-sm text-amber-700">아직 토큰이 없습니다. 아래에서 발급하세요.</p>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => void issueToken()}
-                        disabled={loading}
-                        className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        토큰 새로 발급
-                      </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {!selected?.adminAccessToken ? (
+                          <button
+                            type="button"
+                            onClick={() => void issueToken()}
+                            disabled={loading}
+                            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            토큰 발급
+                          </button>
+                        ) : null}
+                        {selected?.adminAccessToken ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = ownerLink(selected.adminAccessToken);
+                              if (url) void navigator.clipboard.writeText(url);
+                              setMsg('링크를 복사했습니다.');
+                            }}
+                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+                          >
+                            링크 복사
+                          </button>
+                        ) : null}
+                      </div>
                     </section>
 
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -1029,6 +1267,23 @@ export default function ManagePageClient() {
                     ))}
                   </select>
                 </label>
+                <label className="text-sm">
+                  <span className="text-gray-500">상태</span>
+                  <select
+                    className="ml-2 rounded-lg border border-gray-300 px-2 py-1.5"
+                    value={resFilterStatus}
+                    onChange={(e) => {
+                      setResFilterStatus(e.target.value);
+                      setResOffset(0);
+                    }}
+                  >
+                    {RESERVATION_STATUS_FILTER_OPTIONS.map((o) => (
+                      <option key={o.value || 'all'} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => void loadReservations()}
@@ -1040,6 +1295,11 @@ export default function ManagePageClient() {
                   총 {resTotal}건 · {resOffset + 1}–{Math.min(resOffset + resLimit, resTotal)}
                 </span>
               </div>
+              {(resFilterStoreId || resFilterStatus) && (
+                <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+                  필터 적용 예약금 합계: {resDepositSum.toLocaleString()}원
+                </p>
+              )}
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-xs sm:text-sm">
                   <thead>
@@ -1049,7 +1309,8 @@ export default function ManagePageClient() {
                       <th className="py-2 pr-2">단체/이름</th>
                       <th className="py-2 pr-2">일시</th>
                       <th className="py-2 pr-2">상태</th>
-                      <th className="py-2 pr-2 text-right">금액</th>
+                      <th className="py-2 pr-2 text-right">주문금액</th>
+                      <th className="py-2 pr-2 text-right">예약금</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1064,8 +1325,9 @@ export default function ManagePageClient() {
                         <td className="py-2 pr-2 whitespace-nowrap">
                           {r.date} {r.startTime}
                         </td>
-                        <td className="py-2 pr-2">{r.status}</td>
+                        <td className="py-2 pr-2">{formatReservationStatus(r.status)}</td>
                         <td className="py-2 pr-2 text-right">{r.totalAmount.toLocaleString()}원</td>
+                        <td className="py-2 pr-2 text-right">{r.depositAmount.toLocaleString()}원</td>
                       </tr>
                     ))}
                   </tbody>

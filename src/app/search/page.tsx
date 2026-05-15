@@ -5,6 +5,7 @@ import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
+import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
 import UrrLoading from '@/components/UrrLoading';
 import type { StoreCard as StoreCardType } from '@/types';
@@ -29,16 +30,26 @@ export default function SearchPage() {
   }, [selectedHeadcount]);
 
   const storeCards: StoreCardType[] = stores.map((s) => {
-    const timeline = selectedDate
-      ? buildSlotsForDate(
-          s.storeId,
-          selectedDate,
-          s.maxCapacity,
-          reservations,
-          s.slotStartHour,
-          s.slotEndHour,
-        )
-      : [];
+    const storeMeta = {
+      slotStartHour: s.slotStartHour,
+      slotEndHour: s.slotEndHour,
+      weeklyHoursJson: s.weeklyHoursJson,
+      closedDatesJson: s.closedDatesJson,
+    };
+    const dayRange =
+      selectedDate != null ? getSlotHourRangeForStoreOnDate(storeMeta, selectedDate) : null;
+    const timeline =
+      selectedDate != null
+        ? buildSlotsForDate(
+            s.storeId,
+            selectedDate,
+            s.maxCapacity,
+            reservations,
+            dayRange?.slotStartHour ?? s.slotStartHour,
+            dayRange?.slotEndHour ?? s.slotEndHour,
+            dayRange?.closed,
+          )
+        : [];
     return {
       id: s.storeId,
       name: s.name,
@@ -49,8 +60,10 @@ export default function SearchPage() {
       availableTimes: timeline.filter((t) => t.isAvailable).map((t) => t.timeBlock),
       reservedTimes: timeline.filter((t) => !t.isAvailable).map((t) => t.timeBlock),
       minOrderRules: s.minOrderRules,
-      slotStartHour: s.slotStartHour,
-      slotEndHour: s.slotEndHour,
+      slotStartHour: dayRange?.slotStartHour ?? s.slotStartHour,
+      slotEndHour: dayRange?.slotEndHour ?? s.slotEndHour,
+      minGroupHeadcount: s.minGroupHeadcount ?? readMinGroupHeadcount(storeMeta),
+      closedOnDate: dayRange?.closed,
       depositAmount:
         selectedHeadcount >= 1
           ? resolveDepositForHeadcount(selectedHeadcount, {
@@ -77,7 +90,10 @@ export default function SearchPage() {
   }, [storeCards, stores, reservations]);
 
   const filteredStores = storeCards.filter((store) => {
+    if (selectedDate && store.closedOnDate) return false;
     if (selectedHeadcount === 0) return true;
+    const minGroup = store.minGroupHeadcount ?? 2;
+    if (selectedHeadcount < minGroup) return false;
     return store.maxCapacity >= selectedHeadcount;
   });
 
