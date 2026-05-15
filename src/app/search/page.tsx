@@ -164,7 +164,10 @@ export default function SearchPage() {
         </div>
       )}
 
-      <div className="search-booking-filters mt-6">
+      <div
+        className="search-booking-filters mt-6"
+        style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%' }}
+      >
         <DateSelector
           selectedDate={selectedDate}
           onChange={setSelectedDate}

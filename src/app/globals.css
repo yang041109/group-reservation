@@ -89,15 +89,16 @@ body {
 
 /* /search — 달력 아래 인원 (가로 2열 금지) */
 .search-booking-filters {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 1.25rem;
-  width: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
 }
 
 .search-booking-filters > * {
-  width: 100%;
-  max-width: 100%;
-  flex: none;
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: none !important;
 }
