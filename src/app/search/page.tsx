@@ -188,51 +188,27 @@ export default function SearchPage() {
         </div>
       ) : (
         <>
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">타임라인 색상 안내</h3>
-            <div className="flex flex-wrap gap-4">
-              <span className="flex items-center gap-2 text-xs text-gray-600">
-                <span className="inline-block h-3 w-3 rounded bg-[#2c9af5]" />
-                여유
-              </span>
-              <span className="flex items-center gap-2 text-xs text-gray-600">
-                <span className="inline-block h-3 w-3 rounded bg-[#23cdfc]" />
-                보통
-              </span>
-              <span className="flex items-center gap-2 text-xs text-gray-600">
-                <span className="inline-block h-3 w-3 rounded bg-[#23f7ed]" />
-                혼잡
-              </span>
-              <span className="flex items-center gap-2 text-xs text-gray-600">
-                <span className="inline-block h-3 w-3 rounded bg-[#a7a7a8]" />
-                거의 마감
-              </span>
-              <span className="flex items-center gap-2 text-xs text-gray-600">
-                <span className="inline-block h-3 w-3 rounded bg-[#f29da6]" />
-                마감
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
               <span className="font-bold text-blue-600">{bookableCount}곳</span>
               <span className="font-medium text-gray-900"> 예약가능</span>
             </p>
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              정렬
-              <select
-                value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-800"
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap gap-2">
+              {SORT_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setSortMode(o.value)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    sortMode === o.value
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 space-y-4">

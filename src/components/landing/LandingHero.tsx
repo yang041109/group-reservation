@@ -139,15 +139,15 @@ export default function LandingHero() {
         </p>
 
         <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto max-w-[720px] text-left">
-          <div className="hero-widget !grid !max-w-none !grid-cols-1 gap-4 !p-4 md:!grid-cols-2 md:!gap-5">
-            <div className="min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
+          <div className="hero-widget !flex !max-w-none !flex-col !gap-4 !p-4">
+            <div className="w-full min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
               <DateSelector
                 selectedDate={selectedDate}
                 onChange={(d) => setSelectedDate(d)}
                 variant="embedded"
               />
             </div>
-            <div className="landing-headcount rounded-[18px] bg-[var(--bg-2)] p-3 md:flex md:flex-col md:justify-center md:p-4">
+            <div className="landing-headcount w-full rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
                 <Icon name="users" size={13} color="var(--ink-4)" stroke={1.8} />
                 인원
@@ -174,7 +174,7 @@ export default function LandingHero() {
                 가게마다 최소·최대 인원이 달라요. 인원을 정하면 맞는 가게만 보여 드려요.
               </p>
             </div>
-            <div className="md:col-span-2">
+            <div className="w-full">
               <button
                 type="button"
                 className="btn btn-primary w-full"

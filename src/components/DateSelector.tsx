@@ -182,7 +182,7 @@ export default function DateSelector({
   );
 
   if (variant === 'embedded') {
-    return <div>{inner}</div>;
+    return <div className="w-full">{inner}</div>;
   }
 
   return (
