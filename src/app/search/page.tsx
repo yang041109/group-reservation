@@ -164,14 +164,21 @@ export default function SearchPage() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} variant="panel" />
+      <div className="mt-6 flex w-full flex-col gap-5">
+        <DateSelector
+          selectedDate={selectedDate}
+          onChange={setSelectedDate}
+          variant="panel"
+          fullWidth
+          className="w-full"
+        />
         <HeadcountSelector
           maxCapacity={100}
           minCapacity={0}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
           variant="panel"
+          className="w-full"
         />
       </div>
 
