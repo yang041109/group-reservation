@@ -28,6 +28,7 @@ export async function GET() {
       ok: true,
       mysqlEnvConfigured: true,
       ping: 'ok',
+      buildId: process.env.NEXT_PUBLIC_BUILD_ID ?? 'unknown',
     });
   } catch (e) {
     return NextResponse.json(
