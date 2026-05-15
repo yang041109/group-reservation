@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { StoreCard as StoreCardType, TimeSlot } from '@/types';
 import { PinIcon } from '@/components/icons/BookingFieldIcons';
 import {
@@ -9,7 +9,6 @@ import {
   resolveSlotHourRange,
   slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
-import { isStoreBookable } from '@/lib/store-timeline-score';
 
 const CATEGORY_EMOJI: Record<string, string> = {
   한식: '🍚',
@@ -56,7 +55,6 @@ export default function StoreCard({
   selectedHeadcount,
   selectedDate,
 }: StoreCardDisplayProps) {
-  const router = useRouter();
   const thumbnailUrl = store.images[0];
   const minGroup = store.minGroupHeadcount ?? 2;
   const minCapacity = Math.max(
@@ -66,10 +64,18 @@ export default function StoreCard({
       : 1,
   );
 
-  const bookable = isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);
   const deposit = store.depositAmount ?? 0;
-  const reserveCount = selectedHeadcount > 0 ? selectedHeadcount : 0;
-  const showReserveButton = selectedHeadcount > 0;
+
+  const storeHref = selectedDate
+    ? `/stores/${store.id}?date=${encodeURIComponent(selectedDate)}`
+    : `/stores/${store.id}`;
+
+  const persistSelection = () => {
+    if (selectedDate) sessionStorage.setItem('selectedDate', selectedDate);
+    if (selectedHeadcount > 0) {
+      sessionStorage.setItem('selectedHeadcount', String(selectedHeadcount));
+    }
+  };
 
   const timelineBlocks = store.timeline?.map((t) => t.timeBlock) ?? [];
   const avail = store.availableTimes || [];
@@ -94,15 +100,12 @@ export default function StoreCard({
   const reservedSet = new Set(store.reservedTimes || []);
   const allSlots = generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
 
-  const goReserve = () => {
-    if (!selectedDate || !bookable || reserveCount <= 0) return;
-    sessionStorage.setItem('selectedDate', selectedDate);
-    sessionStorage.setItem('selectedHeadcount', String(reserveCount));
-    router.push(`/stores/${store.id}?date=${encodeURIComponent(selectedDate)}`);
-  };
-
   return (
-    <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+    <Link
+      href={storeHref}
+      onClick={persistSelection}
+      className="block overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:border-blue-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+    >
       <div className="p-4">
         <div className="flex gap-3">
           <div className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-2xl bg-[#3d2b1f]">
@@ -122,28 +125,9 @@ export default function StoreCard({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="min-w-0 flex-1 truncate text-lg font-bold leading-tight text-gray-900">
-                {store.name}
-              </h2>
-              {showReserveButton ? (
-                <button
-                  type="button"
-                  disabled={!bookable || !selectedDate}
-                  onClick={goReserve}
-                  className={`shrink-0 inline-flex items-center gap-0.5 rounded-xl px-3.5 py-2 text-xs font-bold shadow-md transition sm:px-4 sm:text-sm ${
-                    bookable && selectedDate
-                      ? 'bg-blue-500 text-white shadow-blue-500/30 hover:bg-blue-600'
-                      : 'cursor-not-allowed bg-gray-200 text-gray-500 shadow-none'
-                  }`}
-                >
-                  {reserveCount}명 예약하기
-                  <span aria-hidden className="text-base leading-none">
-                    ›
-                  </span>
-                </button>
-              ) : null}
-            </div>
+            <h2 className="truncate text-lg font-bold leading-tight text-gray-900">
+              {store.name}
+            </h2>
 
             {store.locationLabel ? (
               <p className="mt-1.5 flex items-center gap-1 text-sm text-gray-500">
@@ -231,6 +215,6 @@ export default function StoreCard({
           </div>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }

@@ -88,67 +88,8 @@
   color: transparent;
 }
 
-.landing-root .num {
-  font-variant-numeric: tabular-nums;
-}
-
-.landing-root .hero-widget {
-  max-width: 920px;
-  margin: 0 auto;
-  background: white;
-  border-radius: 24px;
-  padding: 10px;
-  box-shadow:
-    0 20px 60px -20px rgba(15, 22, 35, 0.18),
-    0 4px 12px -4px rgba(15, 22, 35, 0.06);
-  border: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 0.9fr 0.9fr auto;
-  gap: 4px;
-  align-items: stretch;
-  text-align: left;
-}
-
 .landing-root .features-grid {
   grid-template-columns: repeat(4, 1fr);
-}
-
-.landing-root .hero-widget-field {
-  padding: 14px 18px;
-  border-radius: 18px;
-  transition: background 0.15s;
-}
-
-.landing-root .hero-widget-field:hover {
-  background: var(--bg-2);
-}
-
-.landing-root .hero-widget select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ink);
-  width: 100%;
-  cursor: pointer;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6477' stroke-width='2.5' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 4px center;
-  padding-right: 18px;
-}
-
-@media (max-width: 820px) {
-  .landing-root .hero-widget:not(.landing-hero-booking .hero-widget) {
-    grid-template-columns: 1fr 1fr !important;
-    padding: 14px !important;
-  }
-  .landing-root .hero-widget:not(.landing-hero-booking .hero-widget) > button:last-child {
-    grid-column: 1 / -1;
-    min-height: 56px !important;
-  }
 }
 
 @media (max-width: 880px) {
@@ -341,17 +282,12 @@
   }
 }
 
-/* 인원 선택 — 달력과 높이·밀도 맞춤 */
-.landing-root .landing-headcount {
-  min-height: 0;
-}
-
 .landing-root .landing-hero-booking .hero-widget {
-  display: flex !important;
-  flex-direction: column !important;
-  grid-template-columns: unset !important;
+  display: flex;
+  flex-direction: column;
   align-items: stretch;
   gap: 16px;
+  width: 100%;
 }
 
 .landing-root .landing-hero-booking .hero-widget > * {

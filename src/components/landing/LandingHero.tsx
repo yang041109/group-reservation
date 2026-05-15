@@ -114,7 +114,6 @@ export default function LandingHero() {
             <DateSelector
               selectedDate={selectedDate}
               onChange={(d) => setSelectedDate(d)}
-              variant="panel"
               fullWidth
               className="w-full"
             />
@@ -123,7 +122,6 @@ export default function LandingHero() {
               minCapacity={0}
               selectedHeadcount={people}
               onChange={setPeople}
-              variant="panel"
               className="w-full"
             />
             <button

@@ -229,21 +229,6 @@ export default function StoreDetailPageClient() {
     flatDepositAmount: store.depositAmount ?? 0,
   });
 
-  // 선택된 시간대의 최소 잔여 인원 계산 → 인원수 상한 제한
-  const selectedTimeMaxCapacity = (() => {
-    if (!selectedTime || slots.length === 0) return store.maxCapacity;
-    let startT = selectedTime;
-    let endT = selectedTime;
-    if (selectedTime.includes(' - ')) {
-      const [s, e] = selectedTime.split(' - ');
-      startT = s.trim();
-      endT = e.trim();
-    }
-    const targetSlots = slots.filter((s) => s.timeBlock >= startT && s.timeBlock <= endT);
-    if (targetSlots.length === 0) return store.maxCapacity;
-    return Math.min(...targetSlots.map((s) => s.maxPeople - s.currentHeadcount));
-  })();
-
   const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
     const menu = menus.find((m) => m.id === menuId);
     return sum + (menu ? menu.price * qty : 0);

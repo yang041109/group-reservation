@@ -164,14 +164,10 @@ export default function SearchPage() {
         </div>
       )}
 
-      <div
-        className="search-booking-filters mt-6"
-        style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%' }}
-      >
+      <div className="search-booking-filters mt-6">
         <DateSelector
           selectedDate={selectedDate}
           onChange={setSelectedDate}
-          variant="panel"
           fullWidth
           className="w-full"
         />
@@ -180,7 +176,6 @@ export default function SearchPage() {
           minCapacity={0}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
-          variant="panel"
           className="w-full"
         />
       </div>

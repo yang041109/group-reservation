@@ -7,9 +7,7 @@ interface DateSelectorProps {
   selectedDate: string | null;
   onChange: (date: string) => void;
   unavailableDates?: string[];
-  /** panel: 흰 카드+그림자(검색), embedded: 랜딩 위젯 안 */
-  variant?: 'panel' | 'embedded';
-  /** true면 날짜 칸이 가로로 꽉 참 (메인 히어로) */
+  /** true면 날짜 칸이 가로로 꽉 참 */
   fullWidth?: boolean;
   className?: string;
 }
@@ -33,7 +31,6 @@ export default function DateSelector({
   selectedDate,
   onChange,
   unavailableDates = [],
-  variant = 'panel',
   fullWidth = false,
   className = '',
 }: DateSelectorProps) {
@@ -185,10 +182,6 @@ export default function DateSelector({
       </div>
     </>
   );
-
-  if (variant === 'embedded') {
-    return <div className="w-full">{inner}</div>;
-  }
 
   return (
     <div
