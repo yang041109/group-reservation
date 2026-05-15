@@ -4,9 +4,10 @@ import Link from 'next/link';
 import type { StoreCard as StoreCardType, TimeSlot } from '@/types';
 import { PinIcon } from '@/components/icons/BookingFieldIcons';
 import {
+  DEFAULT_SLOT_END_HOUR,
+  DEFAULT_SLOT_START_HOUR,
   generateSlotTimeBlocks,
   getHourLabels,
-  resolveSlotHourRange,
   slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
 
@@ -77,16 +78,12 @@ export default function StoreCard({
     }
   };
 
-  const timelineBlocks = store.timeline?.map((t) => t.timeBlock) ?? [];
-  const avail = store.availableTimes || [];
   const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
-  const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } =
-    fromSheet ??
-    resolveSlotHourRange({
-      availableOnlyBlocks: avail.length > 0 ? avail : undefined,
-      orderedSlotTimeBlocks: timelineBlocks.length >= 2 ? timelineBlocks : undefined,
-      timeBlocks: [...timelineBlocks, ...avail, ...(store.reservedTimes || [])],
-    });
+  const { startHour: START_HOUR, endHour: END_HOUR, crossesMidnight } = fromSheet ?? {
+    startHour: DEFAULT_SLOT_START_HOUR,
+    endHour: DEFAULT_SLOT_END_HOUR,
+    crossesMidnight: false,
+  };
 
   const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
   const timelineMap = new Map<string, TimeSlot>();

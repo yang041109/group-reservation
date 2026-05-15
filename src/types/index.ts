@@ -46,7 +46,7 @@ export interface StoreCard {
   minOrderRules: MinOrderRule[];
   /** 예약 타임슬롯 축 시작 시(0–23). 없으면 timeline/slots 등에서 추론 */
   slotStartHour?: number;
-  /** 끝 시(0–23, 해당 시 :30까지). 시작보다 작으면 자정 넘김(예: 17~3=저녁~새벽) */
+  /** 마감 시(0–23, 해당 시 :00 종료·마지막 슬롯은 (끝-1):30). 시작보다 작으면 자정 넘김 */
   slotEndHour?: number;
   /** 예약금 (원) — 검색·카드용: 선택 인원 기준으로 이미 계산된 값이면 그대로, 아니면 단일 금액 */
   depositAmount?: number;
@@ -66,7 +66,7 @@ export interface StoreDetail {
   name: string;
   images: string[];
   maxCapacity: number;
-  /** 시작·끝 시(0–23). 끝 시가 시작보다 작으면 자정 넘김 영업. 없으면 slots에서 추론 */
+  /** 시작·마감 시(0–23). 마감 시 :00 종료, 마지막 슬롯 (마감-1):30. 끝<시작이면 자정 넘김 */
   slotStartHour?: number;
   slotEndHour?: number;
   /** @deprecated 하위 호환용 – slots 사용 권장 */

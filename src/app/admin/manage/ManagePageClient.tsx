@@ -321,6 +321,16 @@ export default function ManagePageClient() {
         : [];
 
       const weeklyPayload: Record<DayKey, DayFormRow> = { ...weeklyForm };
+      const firstOpenDay = DAY_KEYS.find((k) => !weeklyPayload[k].closed);
+      const openDay = firstOpenDay ? weeklyPayload[firstOpenDay] : null;
+      const slotStartForDb =
+        openDay && !openDay.closed
+          ? Math.min(23, Math.max(0, parseInt(openDay.start, 10) || 11))
+          : parseInt(slotStartHour, 10);
+      const slotEndForDb =
+        openDay && !openDay.closed
+          ? Math.min(23, Math.max(0, parseInt(openDay.end, 10) || 20))
+          : parseInt(slotEndHour, 10);
       const closedList = closedDatesText
         .split(/[\n,]+/)
         .map((s) => s.trim())
@@ -334,8 +344,8 @@ export default function ManagePageClient() {
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
           minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
-          slotStartHour: parseInt(slotStartHour, 10),
-          slotEndHour: parseInt(slotEndHour, 10),
+          slotStartHour: slotStartForDb,
+          slotEndHour: slotEndForDb,
           depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
           depositUseTiers,
           depositTiers: depositUseTiers ? tiersPayload : null,
@@ -1032,6 +1042,9 @@ export default function ManagePageClient() {
                             onChange={(e) => setMinGroupHeadcount(e.target.value)}
                           />
                         </label>
+                        <p className="sm:col-span-2 text-xs text-gray-500">
+                          요일별 영업시간이 우선 적용됩니다. 아래 「기본」 값은 요일별이 비어 있거나 캐시용일 때 쓰입니다. 저장 시 첫 번째 영업 요일 기준으로 기본값도 맞춰 둡니다.
+                        </p>
                         <label className="block">
                           <span className="text-xs text-gray-500">기본 영업 시작 시 (0–23)</span>
                           <input
@@ -1044,7 +1057,7 @@ export default function ManagePageClient() {
                           />
                         </label>
                         <label className="block">
-                          <span className="text-xs text-gray-500">기본 영업 종료 시 (0–23)</span>
+                          <span className="text-xs text-gray-500">기본 영업 종료(마감) 시 (0–23, 예: 2 → 01:30~02:00까지)</span>
                           <input
                             type="number"
                             min={0}
@@ -1103,7 +1116,7 @@ export default function ManagePageClient() {
                                     }))
                                   }
                                 />
-                                <span className="text-xs text-gray-400">시</span>
+                                <span className="text-xs text-gray-400">시 (종료=마감)</span>
                               </div>
                             ))}
                           </div>

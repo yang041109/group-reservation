@@ -7,6 +7,9 @@
  * (추론 폴백으로 11~20에 붙는 오류를 막기 위함.)
  *
  * 파싱은 숫자·문자열 모두 `Number()` 포함해 단단히 처리한다.
+ *
+ * 【종료 시 의미】`slotEndHour` = **마감 시각**(해당 시 :00에 영업 종료).
+ * 예: 17~2 → 마지막 예약 슬롯 `01:30` (01:30~02:00). `02:00`·`02:30` 슬롯은 만들지 않음.
  */
 
 export const DEFAULT_SLOT_START_HOUR = 11;
@@ -89,22 +92,35 @@ export function slotOverlapsReservation(
   return slotM >= lo && slotM <= hi;
 }
 
+/** 마감 시각(endHour) 전까지, 시 단위로 :00·:30 슬롯을 붙임 */
+function appendHourSlotBlocks(out: string[], hour: number): void {
+  out.push(`${String(hour).padStart(2, '0')}:00`);
+  out.push(`${String(hour).padStart(2, '0')}:30`);
+}
+
+/** 영업 중인 시(0–23). 종료 시는 exclusive — `endHour` 시각에 마감 */
+export function forEachBusinessHour(
+  startHour: number,
+  endHour: number,
+  crossesMidnight: boolean,
+  visit: (hour: number) => void,
+): void {
+  if (!crossesMidnight) {
+    if (startHour >= endHour) return;
+    for (let h = startHour; h < endHour; h++) visit(h);
+    return;
+  }
+  for (let h = startHour; h <= 23; h++) visit(h);
+  for (let h = 0; h < endHour; h++) visit(h);
+}
+
 export function generateSlotTimeBlocks(
   startHour: number,
   endHour: number,
   crossesMidnight: boolean,
 ): string[] {
   const out: string[] = [];
-  const pushHour = (h: number) => {
-    out.push(`${String(h).padStart(2, '0')}:00`);
-    out.push(`${String(h).padStart(2, '0')}:30`);
-  };
-  if (!crossesMidnight) {
-    for (let h = startHour; h <= endHour; h++) pushHour(h);
-  } else {
-    for (let h = startHour; h <= 23; h++) pushHour(h);
-    for (let h = 0; h <= endHour; h++) pushHour(h);
-  }
+  forEachBusinessHour(startHour, endHour, crossesMidnight, (h) => appendHourSlotBlocks(out, h));
   return out;
 }
 

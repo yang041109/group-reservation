@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
+import { generateSlotTimeBlocks, slotOverlapsReservation } from '@/lib/slot-hour-range';
 import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
@@ -145,32 +146,25 @@ export function buildSlotsForDate(
     (r) => r.storeId === storeId && r.date === date,
   );
 
+  const slotTimes = generateSlotTimeBlocks(startH, endH, crossesMidnight);
   const slots: TimeSlot[] = [];
-  const pushSlots = (h: number) => {
-    for (let m = 0; m < 60; m += 30) {
-      const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      let booked = 0;
-      matching.forEach((r) => {
-        if (time >= r.startTime && time <= r.endTime) {
-          booked += r.headcount;
-        }
-      });
-      const remaining = Math.max(0, maxPeople - booked);
-      slots.push({
-        slotId: `slot-${time.replace(':', '')}`,
-        timeBlock: time,
-        isAvailable: remaining > 0,
-        maxPeople,
-        currentHeadcount: booked,
-      });
-    }
-  };
 
-  if (!crossesMidnight) {
-    for (let h = startH; h <= endH; h++) pushSlots(h);
-  } else {
-    for (let h = startH; h <= 23; h++) pushSlots(h);
-    for (let h = 0; h <= endH; h++) pushSlots(h);
+  for (const time of slotTimes) {
+    let booked = 0;
+    matching.forEach((r) => {
+      const overlaps = crossesMidnight
+        ? slotOverlapsReservation(time, r.startTime, r.endTime, true, startH, endH)
+        : time >= r.startTime && time <= r.endTime;
+      if (overlaps) booked += r.headcount;
+    });
+    const remaining = Math.max(0, maxPeople - booked);
+    slots.push({
+      slotId: `slot-${time.replace(':', '')}`,
+      timeBlock: time,
+      isAvailable: remaining > 0,
+      maxPeople,
+      currentHeadcount: booked,
+    });
   }
 
   return slots;

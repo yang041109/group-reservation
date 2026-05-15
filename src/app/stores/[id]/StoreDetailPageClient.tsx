@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
-import { resolveSlotHourRange, slotHourRangeFromSheet } from '@/lib/slot-hour-range';
+import { DEFAULT_SLOT_END_HOUR, DEFAULT_SLOT_START_HOUR } from '@/lib/slot-hour-range';
+import { getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
 import TimeSelector from '@/components/TimeSelector';
@@ -117,17 +118,30 @@ export default function StoreDetailPageClient() {
           if (found) {
             const resData = cachedRes ? JSON.parse(cachedRes) : [];
             const { buildSlotsForDate } = await import('@/lib/use-store-data');
-            const slots = dateVal
-              ? buildSlotsForDate(storeId, dateVal, found.maxCapacity, resData, found.slotStartHour, found.slotEndHour)
-              : [];
+            const dayRange = dateVal
+              ? getSlotHourRangeForStoreOnDate(found, dateVal)
+              : null;
+            const slots =
+              dateVal && dayRange && !dayRange.closed
+                ? buildSlotsForDate(
+                    storeId,
+                    dateVal,
+                    found.maxCapacity,
+                    resData,
+                    dayRange.slotStartHour,
+                    dayRange.slotEndHour,
+                    dayRange.closed,
+                  )
+                : [];
             const cacheData: GetStoreDetailResponse = {
               store: {
                 id: found.storeId,
                 name: found.name,
                 images: found.imageUrl ? [found.imageUrl] : [],
                 maxCapacity: found.maxCapacity,
-                slotStartHour: found.slotStartHour,
-                slotEndHour: found.slotEndHour,
+                slotStartHour: dayRange?.slotStartHour ?? found.slotStartHour,
+                slotEndHour: dayRange?.slotEndHour ?? found.slotEndHour,
+                closedOnDate: dayRange?.closed,
                 depositAmount: found.depositAmount ?? 0,
                 depositUseTiers: !!found.depositUseTiers,
                 depositTiers: found.depositTiers ?? [],
@@ -208,19 +222,9 @@ export default function StoreDetailPageClient() {
 
   const { store, menus, availableTimes, reservedTimes } = data;
   const slots = data.slots ?? store.slots ?? [];
-  const orderedBlocks = slots.map((s) => s.timeBlock);
-  const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
-  const { startHour, endHour, crossesMidnight } =
-    fromSheet ??
-    resolveSlotHourRange({
-      availableOnlyBlocks: availableTimes.length > 0 ? availableTimes : undefined,
-      orderedSlotTimeBlocks: orderedBlocks.length >= 2 ? orderedBlocks : undefined,
-      timeBlocks: [
-        ...availableTimes,
-        ...reservedTimes,
-        ...orderedBlocks,
-      ],
-    });
+  const startHour = store.slotStartHour ?? DEFAULT_SLOT_START_HOUR;
+  const endHour = store.slotEndHour ?? DEFAULT_SLOT_END_HOUR;
+  const crossesMidnight = endHour < startHour;
   const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const effectiveDeposit = resolveDepositForHeadcount(selectedHeadcount, {

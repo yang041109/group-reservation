@@ -136,12 +136,26 @@ describe('resolveSlotHourRange', () => {
 });
 
 describe('generateSlotTimeBlocks', () => {
-  it('overnight includes evening then early hours', () => {
+  it('overnight: end hour is closing time (exclusive)', () => {
     const blocks = generateSlotTimeBlocks(17, 3, true);
     expect(blocks[0]).toBe('17:00');
     expect(blocks).toContain('23:30');
     expect(blocks).toContain('00:00');
-    expect(blocks[blocks.length - 1]).toBe('03:30');
+    expect(blocks[blocks.length - 1]).toBe('02:30');
+    expect(blocks).not.toContain('03:00');
+  });
+
+  it('close at 02:00 → last slot 01:30', () => {
+    const blocks = generateSlotTimeBlocks(17, 2, true);
+    expect(blocks[blocks.length - 1]).toBe('01:30');
+    expect(blocks).not.toContain('02:00');
+    expect(blocks).not.toContain('02:30');
+  });
+
+  it('same-day close at 20:00 → last slot 19:30', () => {
+    const blocks = generateSlotTimeBlocks(11, 20, false);
+    expect(blocks[blocks.length - 1]).toBe('19:30');
+    expect(blocks).not.toContain('20:00');
   });
 });
 

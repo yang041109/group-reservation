@@ -1,3 +1,4 @@
+import { generateSlotTimeBlocks } from '@/lib/slot-hour-range';
 import type { TimeSlot } from '@/types';
 
 /** 시트/DB 값 → 0~23 시 (실패 시 NaN) */
@@ -118,17 +119,7 @@ export function buildSlots(
   const h0 = typeof startHour === 'number' ? startHour : 11;
   const h1 = typeof endHour === 'number' ? endHour : 20;
   const cross = !!crossesMidnight;
-  const slotTimes: string[] = [];
-  const pushHour = (h: number) => {
-    slotTimes.push(`${String(h).padStart(2, '0')}:00`);
-    slotTimes.push(`${String(h).padStart(2, '0')}:30`);
-  };
-  if (!cross) {
-    for (let h = h0; h <= h1; h++) pushHour(h);
-  } else {
-    for (let h = h0; h <= 23; h++) pushHour(h);
-    for (let h = 0; h <= h1; h++) pushHour(h);
-  }
+  const slotTimes = generateSlotTimeBlocks(h0, h1, cross);
 
   const slots: TimeSlot[] = [];
   for (let i = 0; i < slotTimes.length; i++) {
