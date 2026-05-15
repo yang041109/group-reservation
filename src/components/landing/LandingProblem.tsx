@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { IconName } from '@/components/landing/icons';
 import { Icon } from '@/components/landing/icons';
+import { LandingStagger } from '@/components/landing/LandingReveal';
 
 export default function LandingProblem() {
   return (
@@ -157,7 +158,7 @@ export default function LandingProblem() {
           <div style={{ flex: 1, height: 1, background: 'var(--line)', maxWidth: 200 }} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }} className="after-grid">
+        <LandingStagger className="after-grid" stepMs={100}>
           <AfterCard
             icon="bolt"
             tint="blue"
@@ -176,7 +177,7 @@ export default function LandingProblem() {
             title="조건에 맞는 가게만 보기"
             desc="날짜와 인원을 정하면 수용 가능한 매장만 골라 보여 드려요."
           />
-        </div>
+        </LandingStagger>
       </div>
     </section>
   );

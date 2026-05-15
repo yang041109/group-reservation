@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import LandingTimeSlotBar from '@/components/landing/LandingTimeSlotBar';
 
 export default function LandingHowItWorks() {
   const [active, setActive] = useState(0);
@@ -128,7 +129,9 @@ export default function LandingHowItWorks() {
             <div className="deco-dot" style={{ width: 24, height: 24, background: 'var(--urr-yellow)', bottom: 40, left: 40, opacity: 0.8 }} />
             <div className="deco-dot" style={{ width: 14, height: 14, background: 'var(--pastel-pink)', top: 60, left: 60 }} />
 
-            <div style={{ position: 'relative', zIndex: 2, width: '100%' }}>{steps[active].visual}</div>
+            <div key={active} className="landing-how-visual" style={{ position: 'relative', zIndex: 2, width: '100%' }}>
+              {steps[active].visual}
+            </div>
           </div>
         </div>
       </div>
@@ -185,22 +188,15 @@ function Step1Visual() {
 }
 
 function Step2Visual() {
-  const slots = [
-    { t: '18:00', ok: false },
-    { t: '18:30', ok: true },
-    { t: '19:00', ok: true },
-    { t: '19:30', ok: false },
-    { t: '20:00', ok: true },
-  ];
   return (
-    <div style={{ maxWidth: 420, margin: '0 auto' }}>
+        <div style={{ maxWidth: 460, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div>
+                <div>
           <div style={{ fontSize: 13, color: 'var(--ink-4)', fontWeight: 600 }}>고기굽는 마을 · 홍대점</div>
           <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>금 · 5/15 · 12명 기준</div>
         </div>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: 999 }}>
-          타임라인
+          타임슬롯
         </span>
       </div>
       <div
@@ -212,36 +208,9 @@ function Step2Visual() {
           border: '1px solid var(--line)',
         }}
       >
-        {slots.map((s) => (
-          <div
-            key={s.t}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 4px',
-              borderBottom: '1px solid var(--line-2)',
-            }}
-          >
-            <span className="num" style={{ fontSize: 15, fontWeight: 700 }}>
-              {s.t}
-            </span>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: '4px 10px',
-                borderRadius: 999,
-                background: s.ok ? '#dcfce7' : 'var(--bg-2)',
-                color: s.ok ? '#15803d' : 'var(--ink-4)',
-              }}
-            >
-              {s.ok ? '예약 가능' : '마감'}
-            </span>
-          </div>
-        ))}
+        <LandingTimeSlotBar startHour={17} endHour={20} />
       </div>
-      <div
+            <div
         style={{
           marginTop: 14,
           padding: '14px 18px',

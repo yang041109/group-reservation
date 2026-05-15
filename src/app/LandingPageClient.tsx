@@ -27,22 +27,22 @@ export default function LandingPageClient() {
       <LandingNav />
       <main>
         <LandingHero />
-        <LandingReveal>
+        <LandingReveal variant="slide-right" delay={0}>
           <LandingProblem />
         </LandingReveal>
-        <LandingReveal variant="tilt">
+        <LandingReveal variant="tilt" delay={60}>
           <LandingHowItWorks />
         </LandingReveal>
-        <LandingReveal variant="scale">
+        <LandingReveal variant="blur" delay={40}>
           <LandingRestaurants />
         </LandingReveal>
-        <LandingReveal>
+        <LandingReveal variant="slide-left" delay={80}>
           <LandingLiveDemo />
         </LandingReveal>
-        <LandingReveal>
+        <LandingReveal variant="scale" delay={50}>
           <LandingFAQ />
         </LandingReveal>
-        <LandingReveal variant="scale">
+        <LandingReveal variant="blur" delay={100}>
           <LandingCta />
         </LandingReveal>
       </main>

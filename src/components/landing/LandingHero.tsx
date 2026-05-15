@@ -44,7 +44,7 @@ const stepBtnSmall: CSSProperties = {
 export default function LandingHero() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string | null>(() => getTodayYmd());
-  const [people, setPeople] = useState(8);
+  const [people, setPeople] = useState(0);
   const [urrSize, setUrrSize] = useState(72);
   const [going, setGoing] = useState(false);
 
@@ -87,13 +87,13 @@ export default function LandingHero() {
       <div className="deco-dot" style={{ width: 10, height: 10, background: '#43a0ff', top: 320, left: '46%', opacity: 0.5 }} />
 
       <div className="container relative z-[1] text-center">
-        <div className="pill mb-6">
+        <div className="landing-hero-enter landing-hero-enter--1 pill mb-6">
           <span className="dot" />
           전화 통화 없이, 단체예약 한 번에
         </div>
 
         <h1
-          className="mx-auto mb-[18px] font-extrabold tracking-tight text-[var(--ink)]"
+          className="landing-hero-enter landing-hero-enter--2 mx-auto mb-[18px] font-extrabold tracking-tight text-[var(--ink)]"
           style={{ fontSize: 'clamp(48px, 8vw, 96px)', lineHeight: 1.02, letterSpacing: '-0.045em' }}
         >
           <span className="flex flex-wrap items-baseline justify-center gap-2">
@@ -130,7 +130,7 @@ export default function LandingHero() {
         </h1>
 
         <p
-          className="mx-auto mb-10 max-w-[580px] font-normal leading-relaxed text-[var(--ink-3)]"
+          className="landing-hero-enter landing-hero-enter--3 mx-auto mb-10 max-w-[580px] font-normal leading-relaxed text-[var(--ink-3)]"
           style={{ fontSize: 'clamp(16px, 1.6vw, 19px)' }}
         >
           10명 이상 단체 회식, 동아리 모임까지.
@@ -138,46 +138,37 @@ export default function LandingHero() {
           매장에 전화 돌릴 필요 없이, 우르르에서 한 번에 자리 잡으세요.
         </p>
 
-        <div id="hero-booking" className="landing-hero-booking mx-auto max-w-[720px] text-left">
+        <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto max-w-[720px] text-left">
           <div className="hero-widget !grid !max-w-none !grid-cols-1 gap-4 !p-4 md:!grid-cols-2 md:!gap-5">
             <div className="min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
               <DateSelector selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
             </div>
-            <div className="flex min-h-[200px] flex-col justify-center rounded-[18px] bg-[var(--bg-2)] px-5 py-6">
-              <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
+            <div className="landing-headcount rounded-[18px] bg-[var(--bg-2)] p-3 md:flex md:flex-col md:justify-center md:p-4">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">
                 <Icon name="users" size={13} color="var(--ink-4)" stroke={1.8} />
                 인원
               </div>
-              <div className="flex items-center justify-center gap-4">
-                <div className="flex flex-col items-center gap-1">
-                  <button type="button" onClick={() => setPeople(Math.max(2, people - 1))} style={stepBtn} aria-label="인원 1명 줄이기">
-                    <Icon name="minus" size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPeople(Math.max(2, people - 10))}
-                    style={stepBtnSmall}
-                    aria-label="인원 10명 줄이기"
-                  >
-                    −10
-                  </button>
-                </div>
-                <span className="num min-w-[3rem] text-center text-2xl font-extrabold text-[var(--ink)]">{people}명</span>
-                <div className="flex flex-col items-center gap-1">
-                  <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 1명 늘리기">
-                    <Icon name="plus" size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPeople(Math.min(60, people + 10))}
-                    style={stepBtnSmall}
-                    aria-label="인원 10명 늘리기"
-                  >
-                    +10
-                  </button>
-                </div>
+              <div className="landing-headcount__row flex items-center justify-center gap-1.5 sm:gap-2">
+                <button type="button" onClick={() => setPeople(Math.max(0, people - 10))} style={stepBtnSmall} aria-label="인원 10명 줄이기">
+                  −10
+                </button>
+                <button type="button" onClick={() => setPeople(Math.max(0, people - 1))} style={stepBtn} aria-label="인원 1명 줄이기">
+                  <Icon name="minus" size={14} />
+                </button>
+                <span className="num min-w-[4.5rem] px-1 text-center text-[clamp(1.5rem,5vw,1.75rem)] font-extrabold leading-none text-[var(--ink)]">
+                  {people}
+                  <span className="ml-0.5 text-base font-bold text-[var(--ink-3)]">명</span>
+                </span>
+                <button type="button" onClick={() => setPeople(Math.min(60, people + 1))} style={stepBtn} aria-label="인원 1명 늘리기">
+                  <Icon name="plus" size={14} />
+                </button>
+                <button type="button" onClick={() => setPeople(Math.min(60, people + 10))} style={stepBtnSmall} aria-label="인원 10명 늘리기">
+                  +10
+                </button>
               </div>
-              <p className="mt-4 text-center text-[13px] text-[var(--ink-4)]">2~60명 · 자리 찾기 후 가게 목록에서 이어서 시간·메뉴를 고를 수 있어요.</p>
+              <p className="mt-2.5 text-center text-[12px] leading-snug text-[var(--ink-4)]">
+                가게마다 최소·최대 인원이 달라요. 인원을 정하면 맞는 가게만 보여 드려요.
+              </p>
             </div>
             <div className="md:col-span-2">
               <button
@@ -195,7 +186,7 @@ export default function LandingHero() {
         </div>
 
         <div className="mt-[18px] text-[13.5px] text-[var(--ink-4)]">
-          날짜와 인원을 정한 뒤 자리 찾기를 누르면 예약 가능한 가게 목록으로 이동해요. ({dateLabel} · {people}명)
+          날짜와 인원을 정한 뒤 자리 찾기를 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel}{people > 0 ? ` · ${people}명` : ' · 인원 미선택'}
         </div>
       </div>
     </section>

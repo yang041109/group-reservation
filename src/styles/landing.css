@@ -236,12 +236,155 @@
   transform: translate3d(0, 0, 0) scale(1);
 }
 
+.landing-root .landing-reveal--slide-left {
+  transform: translate3d(-48px, 28px, 0);
+}
+
+.landing-root .landing-reveal--slide-left.landing-reveal--visible {
+  transform: translate3d(0, 0, 0);
+}
+
+.landing-root .landing-reveal--slide-right {
+  transform: translate3d(48px, 28px, 0);
+}
+
+.landing-root .landing-reveal--slide-right.landing-reveal--visible {
+  transform: translate3d(0, 0, 0);
+}
+
+.landing-root .landing-reveal--blur {
+  transform: translate3d(0, 32px, 0);
+  filter: blur(10px);
+}
+
+.landing-root .landing-reveal--blur.landing-reveal--visible {
+  filter: blur(0);
+}
+
+.landing-root .landing-reveal {
+  --reveal-delay: 0ms;
+}
+
+.landing-root .landing-reveal--visible {
+  transition-delay: var(--reveal-delay);
+}
+
+.landing-root .landing-stagger > * {
+  opacity: 0;
+  transform: translate3d(0, 36px, 0) scale(0.97);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--stagger-step, 90ms) * var(--stagger-i, 0));
+}
+
+.landing-root .landing-stagger--visible > * {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.landing-root .landing-stagger > *:nth-child(1) {
+  --stagger-i: 0;
+}
+.landing-root .landing-stagger > *:nth-child(2) {
+  --stagger-i: 1;
+}
+.landing-root .landing-stagger > *:nth-child(3) {
+  --stagger-i: 2;
+}
+.landing-root .landing-stagger > *:nth-child(4) {
+  --stagger-i: 3;
+}
+.landing-root .landing-stagger > *:nth-child(5) {
+  --stagger-i: 4;
+}
+.landing-root .landing-stagger > *:nth-child(6) {
+  --stagger-i: 5;
+}
+
+.landing-root .landing-stagger.after-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 880px) {
+  .landing-root .landing-stagger.after-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 히어로 첫 진입 */
+.landing-root .landing-hero-enter {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0);
+  animation: landingHeroIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.landing-root .landing-hero-enter--1 {
+  animation-delay: 0.05s;
+}
+.landing-root .landing-hero-enter--2 {
+  animation-delay: 0.15s;
+}
+.landing-root .landing-hero-enter--3 {
+  animation-delay: 0.25s;
+}
+.landing-root .landing-hero-enter--4 {
+  animation-delay: 0.38s;
+}
+
+@keyframes landingHeroIn {
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 인원 선택 — 달력과 높이·밀도 맞춤 */
+.landing-root .landing-headcount {
+  min-height: 0;
+}
+
+.landing-root .landing-hero-booking .hero-widget {
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .landing-root .landing-hero-booking .hero-widget > div {
+    min-height: 0;
+  }
+}
+
+.landing-root .landing-how-visual {
+  animation: landingHowVisualIn 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes landingHowVisualIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-root .landing-reveal,
   .landing-root .landing-reveal--tilt,
-  .landing-root .landing-reveal--scale {
+  .landing-root .landing-reveal--scale,
+  .landing-root .landing-reveal--slide-left,
+  .landing-root .landing-reveal--slide-right,
+  .landing-root .landing-reveal--blur,
+  .landing-root .landing-stagger > *,
+  .landing-root .landing-hero-enter,
+  .landing-root .landing-how-visual {
     opacity: 1 !important;
     transform: none !important;
+    filter: none !important;
     transition: none !important;
+    animation: none !important;
   }
 }
