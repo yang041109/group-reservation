@@ -10,6 +10,8 @@ export interface CachedStore {
   storeId: string;
   name: string;
   category: string;
+  locationLabel?: string | null;
+  sortOrder?: number;
   maxCapacity: number;
   minGroupHeadcount?: number;
   imageUrl: string;

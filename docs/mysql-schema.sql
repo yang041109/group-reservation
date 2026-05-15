@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS store (
   storeId VARCHAR(64) NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   category VARCHAR(128) NOT NULL DEFAULT '',
+  locationLabel VARCHAR(255) NULL COMMENT '간략 위치 (검색 카드)',
   maxCapacity INT NOT NULL DEFAULT 0,
   minGroupHeadcount INT NOT NULL DEFAULT 2 COMMENT '단체예약 최소 인원',
   imageUrl TEXT NULL,

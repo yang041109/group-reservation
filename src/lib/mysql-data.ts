@@ -551,6 +551,11 @@ export async function getAllDataFromMysql() {
       storeId: sid,
       name: store.name,
       category: store.category || '',
+      locationLabel:
+        rec.locationLabel != null && String(rec.locationLabel).trim()
+          ? String(rec.locationLabel).trim()
+          : null,
+      sortOrder: parseInt(String(rec.sortOrder ?? '0'), 10) || 0,
       maxCapacity: cap,
       minGroupHeadcount: readMinGroupHeadcount(rec),
       imageUrl: store.imageUrl || '',

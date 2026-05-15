@@ -31,6 +31,7 @@ type ManageStore = {
   storeId: string;
   name: string;
   category: string;
+  locationLabel: string | null;
   maxCapacity: number;
   minGroupHeadcount: number;
   imageUrl: string | null;
@@ -115,6 +116,7 @@ export default function ManagePageClient() {
   const [stores, setStores] = useState<ManageStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [locationLabel, setLocationLabel] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [depositFlat, setDepositFlat] = useState('0');
@@ -238,6 +240,7 @@ export default function ManagePageClient() {
   useEffect(() => {
     if (!selected) {
       setName('');
+      setLocationLabel('');
       setDescription('');
       setImageUrl('');
       setDepositFlat('0');
@@ -254,6 +257,7 @@ export default function ManagePageClient() {
       return;
     }
     setName(selected.name);
+    setLocationLabel(selected.locationLabel ?? '');
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
     setMinGroupHeadcount(String(selected.minGroupHeadcount ?? 2));
@@ -326,6 +330,7 @@ export default function ManagePageClient() {
         method: 'PATCH',
         body: JSON.stringify({
           name,
+          locationLabel: locationLabel.trim() === '' ? null : locationLabel.trim(),
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
           minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
@@ -869,6 +874,15 @@ export default function ManagePageClient() {
                             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
+                          />
+                        </label>
+                        <label className="block sm:col-span-2">
+                          <span className="text-xs text-gray-500">위치 (간략, 검색 카드에 표시)</span>
+                          <input
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                            value={locationLabel}
+                            onChange={(e) => setLocationLabel(e.target.value)}
+                            placeholder="예: 강남역 도보 5분"
                           />
                         </label>
                         <label className="block sm:col-span-2">

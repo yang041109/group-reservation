@@ -141,7 +141,11 @@ export default function LandingHero() {
         <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto max-w-[720px] text-left">
           <div className="hero-widget !grid !max-w-none !grid-cols-1 gap-4 !p-4 md:!grid-cols-2 md:!gap-5">
             <div className="min-w-0 rounded-[18px] bg-[var(--bg-2)] p-3 md:p-4">
-              <DateSelector selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
+              <DateSelector
+                selectedDate={selectedDate}
+                onChange={(d) => setSelectedDate(d)}
+                variant="embedded"
+              />
             </div>
             <div className="landing-headcount rounded-[18px] bg-[var(--bg-2)] p-3 md:flex md:flex-col md:justify-center md:p-4">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-4)]">

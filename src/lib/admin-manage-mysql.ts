@@ -23,6 +23,7 @@ export interface ManageStoreRow {
   storeId: string;
   name: string;
   category: string;
+  locationLabel: string | null;
   maxCapacity: number;
   minGroupHeadcount: number;
   imageUrl: string | null;
@@ -54,6 +55,10 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
     storeId: String(r.storeId ?? '').trim(),
     name: String(r.name ?? '').trim(),
     category: String(r.category ?? '').trim(),
+    locationLabel:
+      rec.locationLabel != null && String(rec.locationLabel).trim()
+        ? String(rec.locationLabel).trim()
+        : null,
     maxCapacity: parseInt(String(r.maxCapacity ?? '0'), 10) || 0,
     minGroupHeadcount: readMinGroupHeadcount(rec),
     imageUrl: r.imageUrl != null && String(r.imageUrl).trim() ? String(r.imageUrl) : null,
@@ -106,6 +111,7 @@ export async function manageUpdateStore(
   storeId: string,
   patch: {
     name?: string;
+    locationLabel?: string | null;
     description?: string | null;
     imageUrl?: string | null;
     sortOrder?: number;
@@ -132,6 +138,14 @@ export async function manageUpdateStore(
   if (patch.name !== undefined) {
     sets.push('name = ?');
     params.push(String(patch.name).trim());
+  }
+  if (patch.locationLabel !== undefined) {
+    sets.push('locationLabel = ?');
+    params.push(
+      patch.locationLabel == null || patch.locationLabel === ''
+        ? null
+        : String(patch.locationLabel).trim(),
+    );
   }
   if (patch.description !== undefined) {
     sets.push('description = ?');

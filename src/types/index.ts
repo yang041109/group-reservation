@@ -54,6 +54,10 @@ export interface StoreCard {
   depositTiers?: DepositTier[];
   minGroupHeadcount?: number;
   closedOnDate?: boolean;
+  /** 간략 위치 (검색 카드) */
+  locationLabel?: string | null;
+  /** 전역관리 목록 순서 */
+  sortOrder?: number;
 }
 
 /** GET /api/stores/:id response – store detail */
@@ -79,6 +83,7 @@ export interface StoreDetail {
   ownerName?: string | null;
   ownerBankAccount?: string | null;
   closedOnDate?: boolean;
+  locationLabel?: string | null;
 }
 
 export interface MenuItemData {

@@ -21,6 +21,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
 
   const patch: Parameters<typeof manageUpdateStore>[1] = {};
   if (body.name !== undefined) patch.name = String(body.name);
+  if (body.locationLabel !== undefined) {
+    patch.locationLabel = body.locationLabel === null ? null : String(body.locationLabel);
+  }
   if (body.description !== undefined) {
     patch.description = body.description === null ? null : String(body.description);
   }
