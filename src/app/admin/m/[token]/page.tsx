@@ -23,12 +23,24 @@ interface Reservation {
   }>;
 }
 
+const REJECT_REASON_PRESETS = [
+  '예약 있음',
+  '재료 소진',
+  '해당 일시 수용이 어렵습니다',
+  '영업 일정이 변경되었습니다',
+] as const;
+
+const REJECT_REASON_MAX = 500;
+
 export default function AdminDashboardByToken() {
   const store = useAdminStore();
   const [pendingReservations, setPendingReservations] = useState<Reservation[]>([]);
   const [depositPendingReservations, setDepositPendingReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReasonDraft, setRejectReasonDraft] = useState('');
+  const [rejectAlternativeDraft, setRejectAlternativeDraft] = useState('');
 
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
 
@@ -41,6 +53,18 @@ export default function AdminDashboardByToken() {
     if (pJson.success) setPendingReservations((pJson.data || []) as Reservation[]);
     if (dJson.success) setDepositPendingReservations((dJson.data || []) as Reservation[]);
   }, [store.id]);
+
+  useEffect(() => {
+    if (!rejectTargetId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && actionLoading !== rejectTargetId) {
+        setRejectTargetId(null);
+        setRejectReasonDraft('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rejectTargetId, actionLoading]);
 
   useEffect(() => {
     void (async () => {
@@ -76,7 +100,7 @@ export default function AdminDashboardByToken() {
     }
   };
 
-  const handleAction = async (reservationId: string, action: 'accept' | 'reject' | 'cancel') => {
+  const handleAction = async (reservationId: string, action: 'accept' | 'cancel') => {
     setActionLoading(reservationId);
     try {
       const res = await fetch(`/api/admin/reservations/${reservationId}`, {
@@ -86,6 +110,53 @@ export default function AdminDashboardByToken() {
       });
       const data = await res.json();
       if (data.success) {
+        await reloadLists();
+      } else {
+        alert(data.message || '처리 실패');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const closeRejectModal = () => {
+    setRejectTargetId(null);
+    setRejectReasonDraft('');
+    setRejectAlternativeDraft('');
+  };
+
+  const submitReject = async () => {
+    if (!rejectTargetId) return;
+    const trimmed = rejectReasonDraft.trim();
+    const altTrimmed = rejectAlternativeDraft.trim();
+    if (!trimmed) {
+      alert('거절 사유를 입력하거나 아래에서 선택해 주세요.');
+      return;
+    }
+    if (trimmed.length > REJECT_REASON_MAX) {
+      alert(`거절 사유는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
+      return;
+    }
+    if (altTrimmed.length > REJECT_REASON_MAX) {
+      alert(`대안 안내는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
+      return;
+    }
+    setActionLoading(rejectTargetId);
+    try {
+      const res = await fetch(`/api/admin/reservations/${rejectTargetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject',
+          reason: trimmed,
+          alternative: altTrimmed || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeRejectModal();
         await reloadLists();
       } else {
         alert(data.message || '처리 실패');
@@ -271,7 +342,11 @@ export default function AdminDashboardByToken() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleAction(reservation.reservationId, 'reject')}
+                    onClick={() => {
+                      setRejectTargetId(reservation.reservationId);
+                      setRejectReasonDraft('');
+                      setRejectAlternativeDraft('');
+                    }}
                     disabled={actionLoading === reservation.reservationId}
                     className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
                   >
@@ -283,6 +358,103 @@ export default function AdminDashboardByToken() {
           </div>
         )}
       </main>
+
+      {rejectTargetId && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-dialog-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="닫기"
+            onClick={() => {
+              if (actionLoading !== rejectTargetId) closeRejectModal();
+            }}
+          />
+          <div className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <h2 id="reject-dialog-title" className="text-lg font-bold text-gray-900">
+              예약 거절
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              입력하신 사유는 예약하신 분의 &quot;내 예약 조회&quot; 화면에 표시됩니다.
+            </p>
+
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">자주 쓰는 사유</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {REJECT_REASON_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setRejectReasonDraft(preset.slice(0, REJECT_REASON_MAX))}
+                  disabled={actionLoading === rejectTargetId}
+                  className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            <label htmlFor="reject-reason" className="mt-4 block text-sm font-medium text-gray-700">
+              거절 사유 (직접 작성 가능)
+            </label>
+            <textarea
+              id="reject-reason"
+              rows={3}
+              maxLength={REJECT_REASON_MAX}
+              value={rejectReasonDraft}
+              onChange={(e) => setRejectReasonDraft(e.target.value)}
+              disabled={actionLoading === rejectTargetId}
+              placeholder="사유를 선택하거나 직접 입력해 주세요."
+              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-right text-xs text-gray-400">
+              {rejectReasonDraft.length} / {REJECT_REASON_MAX}
+            </p>
+
+            <label htmlFor="reject-alternative" className="mt-4 block text-sm font-medium text-gray-700">
+              대안 안내 (선택)
+            </label>
+            <p className="mt-0.5 text-xs text-gray-500">
+              예: &quot;해당 시간은 마감되었으나, 21시 이후로는 예약 가능합니다.&quot;
+            </p>
+            <textarea
+              id="reject-alternative"
+              rows={3}
+              maxLength={REJECT_REASON_MAX}
+              value={rejectAlternativeDraft}
+              onChange={(e) => setRejectAlternativeDraft(e.target.value)}
+              disabled={actionLoading === rejectTargetId}
+              placeholder="고객에게 전달할 대안이 있다면 입력해 주세요."
+              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-right text-xs text-gray-400">
+              {rejectAlternativeDraft.length} / {REJECT_REASON_MAX}
+            </p>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={closeRejectModal}
+                disabled={actionLoading === rejectTargetId}
+                className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitReject()}
+                disabled={actionLoading === rejectTargetId}
+                className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
+              >
+                {actionLoading === rejectTargetId ? '처리 중...' : '완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

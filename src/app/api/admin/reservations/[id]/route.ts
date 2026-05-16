@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
-import { adminAcceptReservation, adminConfirmDeposit, adminSetReservationStatus } from '@/lib/admin-mysql';
+import {
+  adminAcceptReservation,
+  adminCheckInReservation,
+  adminConfirmDeposit,
+  adminMarkNoShow,
+  adminRejectReservation,
+  adminSetReservationStatus,
+  adminUpdateReservation,
+} from '@/lib/admin-mysql';
 
 export const runtime = 'nodejs';
 
 /**
  * 예약 상태 변경 (MySQL)
  * PATCH /api/admin/reservations/[id]
- * body: { action: 'accept' | 'reject' | 'cancel' | 'confirmDeposit' }
+ * body:
+ *  - { action: 'accept' }
+ *  - { action: 'reject', reason: string, alternative?: string }
+ *  - { action: 'cancel' }
+ *  - { action: 'confirmDeposit' }
+ *  - { action: 'checkIn' }
+ *  - { action: 'noShow' }
+ *  - { action: 'update', startTime?: string, endTime?: string, headcount?: number }
  */
 export async function PATCH(
   request: Request,
@@ -15,7 +30,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action } = body;
+    const { action, reason, alternative, startTime, endTime, headcount } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -24,20 +39,29 @@ export async function PATCH(
       );
     }
 
-    if (!action || !['accept', 'reject', 'cancel', 'confirmDeposit'].includes(action)) {
+    const validActions = [
+      'accept',
+      'reject',
+      'cancel',
+      'confirmDeposit',
+      'checkIn',
+      'noShow',
+      'update',
+    ];
+    if (!action || !validActions.includes(action)) {
       return NextResponse.json(
         { success: false, message: '유효하지 않은 액션입니다.' },
         { status: 400 },
       );
     }
 
+    const pickStatusCode = (msg: string, fallback = 400) =>
+      msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : fallback;
+
     if (action === 'confirmDeposit') {
       const result = await adminConfirmDeposit(id);
       if (!result.success) {
-        const msg = result.message;
-        const code =
-          msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : 400;
-        return NextResponse.json(result, { status: code });
+        return NextResponse.json(result, { status: pickStatusCode(result.message) });
       }
       return NextResponse.json(result);
     }
@@ -45,24 +69,55 @@ export async function PATCH(
     if (action === 'accept') {
       const result = await adminAcceptReservation(id);
       if (!result.success) {
-        const msg = result.message;
-        const code =
-          msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : 404;
-        return NextResponse.json(result, { status: code });
+        return NextResponse.json(result, { status: pickStatusCode(result.message, 404) });
       }
       return NextResponse.json(result);
     }
 
-    const newStatus = 'CANCELED';
-    const result = await adminSetReservationStatus(id, newStatus);
-
-    if (!result.success) {
-      const msg = result.message;
-      const code =
-        msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : 404;
-      return NextResponse.json(result, { status: code });
+    if (action === 'reject') {
+      const reasonText = typeof reason === 'string' ? reason : '';
+      const altText = typeof alternative === 'string' ? alternative.trim() : '';
+      const fullReason = altText ? `${reasonText.trim()}\n\n[대안 안내]\n${altText}` : reasonText;
+      const result = await adminRejectReservation(id, fullReason);
+      if (!result.success) {
+        return NextResponse.json(result, { status: pickStatusCode(result.message) });
+      }
+      return NextResponse.json(result);
     }
 
+    if (action === 'checkIn') {
+      const result = await adminCheckInReservation(id);
+      if (!result.success) {
+        return NextResponse.json(result, { status: pickStatusCode(result.message) });
+      }
+      return NextResponse.json(result);
+    }
+
+    if (action === 'noShow') {
+      const result = await adminMarkNoShow(id);
+      if (!result.success) {
+        return NextResponse.json(result, { status: pickStatusCode(result.message) });
+      }
+      return NextResponse.json(result);
+    }
+
+    if (action === 'update') {
+      const result = await adminUpdateReservation(id, {
+        startTime: typeof startTime === 'string' ? startTime : undefined,
+        endTime: typeof endTime === 'string' ? endTime : undefined,
+        headcount: typeof headcount === 'number' ? headcount : undefined,
+      });
+      if (!result.success) {
+        return NextResponse.json(result, { status: pickStatusCode(result.message) });
+      }
+      return NextResponse.json(result);
+    }
+
+    // action === 'cancel'
+    const result = await adminSetReservationStatus(id, 'CANCELED');
+    if (!result.success) {
+      return NextResponse.json(result, { status: pickStatusCode(result.message, 404) });
+    }
     return NextResponse.json(result);
   } catch {
     return NextResponse.json(

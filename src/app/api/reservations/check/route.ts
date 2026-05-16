@@ -4,12 +4,16 @@ import {
   listReservationsByPhoneMysql,
   ReservationDbError,
 } from '@/lib/mysql-data';
+import { autoCheckInPastReservations } from '@/lib/admin-mysql';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const userPhone = url.searchParams.get('userPhone') ?? '';
   const userName = url.searchParams.get('userName') ?? '';
   const phoneLast4 = url.searchParams.get('phoneLast4') ?? '';
+
+  // 2일 이상 지난 확정 예약 자동 방문 완료 처리 (best-effort)
+  void autoCheckInPastReservations();
 
   try {
     let rows: unknown[];

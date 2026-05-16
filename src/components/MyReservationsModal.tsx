@@ -18,6 +18,7 @@ interface ReservationItem {
   status: string;
   createdAt: string;
   depositAmount?: number;
+  ownerRejectReason?: string;
   menus: { menuId: string; name: string; quantity: number; priceAtTime: number }[];
 }
 
@@ -26,6 +27,8 @@ const STATUS_STYLE: Record<string, { color: string; emoji: string }> = {
   CONFIRMED: { color: 'bg-green-100 text-green-700', emoji: '✅' },
   DEPOSIT_PENDING: { color: 'bg-blue-100 text-blue-700', emoji: '💳' },
   DEPOSIT_CONFIRMED: { color: 'bg-green-100 text-green-700', emoji: '✅' },
+  CHECKED_IN: { color: 'bg-purple-100 text-purple-700', emoji: '🎉' },
+  NO_SHOW: { color: 'bg-red-100 text-red-700', emoji: '🚫' },
   CANCELED: { color: 'bg-red-100 text-red-700', emoji: '❌' },
 };
 
@@ -88,8 +91,13 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
 
   const renderCard = (r: ReservationItem, isToday = false) => {
     const rid = r.reservationId || r.id;
-    const style = STATUS_STYLE[r.status] ?? { color: 'bg-gray-100 text-gray-700', emoji: '📋' };
-    const label = formatReservationStatus(r.status);
+    const ownerReject =
+      r.status === 'CANCELED' && r.ownerRejectReason && r.ownerRejectReason.trim().length > 0;
+    const baseStyle = STATUS_STYLE[r.status] ?? { color: 'bg-gray-100 text-gray-700', emoji: '📋' };
+    const style = ownerReject
+      ? { color: 'bg-amber-100 text-amber-900', emoji: '🚫' }
+      : baseStyle;
+    const label = ownerReject ? '예약 거절' : formatReservationStatus(r.status);
     const cancellable =
       (r.status === 'CONFIRMED' || r.status === 'DEPOSIT_PENDING') && (r.date || '') >= today;
     const isCancelling = cancellingId === rid;
@@ -116,6 +124,29 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
           <p>시간: {r.timeBlock}</p>
           <p>금액: {(r.totalAmount || 0).toLocaleString()}원</p>
         </div>
+        {ownerReject
+          ? (() => {
+              const fullText = (r.ownerRejectReason ?? '').trim();
+              const altMarker = '\n\n[대안 안내]\n';
+              const idx = fullText.indexOf(altMarker);
+              const reasonOnly = idx >= 0 ? fullText.slice(0, idx) : fullText;
+              const alternative = idx >= 0 ? fullText.slice(idx + altMarker.length) : '';
+              return (
+                <div className="mt-3 space-y-2">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-semibold">가게에서 예약을 거절했습니다</p>
+                    <p className="mt-1 whitespace-pre-line text-amber-800">{reasonOnly}</p>
+                  </div>
+                  {alternative ? (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                      <p className="font-semibold">💡 가게에서 안내드린 대안</p>
+                      <p className="mt-1 whitespace-pre-line text-blue-800">{alternative}</p>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()
+          : null}
         {r.menus?.length > 0 ? (
           <div className="mt-2 border-t border-gray-100 pt-2 text-sm text-gray-600">
             {r.menus.map((m, i) => (
@@ -124,6 +155,20 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
                 {i < r.menus.length - 1 ? ', ' : ''}
               </span>
             ))}
+          </div>
+        ) : null}
+        {r.status === 'CHECKED_IN' ? (
+          <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+            <p className="font-semibold">🎉 방문 확인이 완료되었어요</p>
+            <p className="mt-1 text-purple-800">우르르를 이용해 주셔서 감사합니다!</p>
+          </div>
+        ) : null}
+        {r.status === 'NO_SHOW' ? (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+            <p className="font-semibold">🚫 노쇼로 처리되었습니다</p>
+            <p className="mt-1 text-red-800">
+              예약 시간에 방문하지 않으셔서 노쇼 처리되었습니다. 재방문 시 가게에 직접 문의해 주세요.
+            </p>
           </div>
         ) : null}
         {r.status === 'DEPOSIT_PENDING' && r.depositAmount && r.depositAmount > 0 ? (

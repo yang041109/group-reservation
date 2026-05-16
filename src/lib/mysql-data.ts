@@ -471,6 +471,10 @@ function mapReservationListItem(
     status: r.status,
     createdAt: r.createdAt,
     menus: menuDetails,
+    ownerRejectReason:
+      r.ownerRejectReason != null && String(r.ownerRejectReason).trim()
+        ? String(r.ownerRejectReason).trim()
+        : undefined,
   };
 }
 

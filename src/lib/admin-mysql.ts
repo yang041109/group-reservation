@@ -104,6 +104,9 @@ function mapReservationRow(
     totalAmount: parseInt(String(r.totalAmount ?? '0'), 10) || 0,
     depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
     status: String(r.status ?? 'PENDING').trim(),
+    ownerRejectReason: r.ownerRejectReason != null && String(r.ownerRejectReason).trim()
+      ? String(r.ownerRejectReason).trim()
+      : undefined,
     createdAt: r.createdAt,
     menus: menuDetails,
   };
@@ -208,6 +211,53 @@ export async function adminAcceptReservation(
   }
 }
 
+const OWNER_REJECT_REASON_MAX = 500;
+
+/** 대기(PENDING) 예약만 거절 가능. 사유는 예약 조회 화면에 노출됩니다. */
+export async function adminRejectReservation(
+  reservationId: string,
+  reason: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  const msg = reason.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  if (!msg) {
+    return { success: false, message: '거절 사유를 입력해 주세요.' };
+  }
+  if (msg.length > OWNER_REJECT_REASON_MAX) {
+    return { success: false, message: `거절 사유는 ${OWNER_REJECT_REASON_MAX}자 이내로 입력해 주세요.` };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation SET status = 'CANCELED', ownerRejectReason = ? WHERE reservationId = ? AND status = 'PENDING'`,
+      [msg, id],
+    );
+    if (!header.affectedRows) {
+      const [rows] = await pool.query<ReservationRow[]>(
+        'SELECT status FROM reservation WHERE reservationId = ? LIMIT 1',
+        [id],
+      );
+      if (!rows.length) {
+        return { success: false, message: '예약을 찾을 수 없습니다.' };
+      }
+      return { success: false, message: '대기 중인 예약만 거절할 수 있습니다.' };
+    }
+    return { success: true, data: { reservationId: id, status: 'CANCELED' } };
+  } catch (e) {
+    console.error('[adminRejectReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
 export async function adminSetReservationStatus(
   reservationId: string,
   newStatus: string,
@@ -270,5 +320,161 @@ export async function adminConfirmDeposit(
   } catch (e) {
     console.error('[adminConfirmDeposit]', e);
     return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 방문 완료 체크인: CONFIRMED 또는 DEPOSIT_CONFIRMED 만 → CHECKED_IN */
+export async function adminCheckInReservation(
+  reservationId: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation SET status = 'CHECKED_IN' WHERE reservationId = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
+      [id],
+    );
+    if (!header.affectedRows) {
+      return { success: false, message: '확정된 예약만 방문 완료 처리할 수 있습니다.' };
+    }
+    return { success: true, data: { reservationId: id, status: 'CHECKED_IN' } };
+  } catch (e) {
+    console.error('[adminCheckInReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 노쇼 처리: CONFIRMED 또는 DEPOSIT_CONFIRMED 만 → NO_SHOW */
+export async function adminMarkNoShow(
+  reservationId: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation SET status = 'NO_SHOW' WHERE reservationId = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
+      [id],
+    );
+    if (!header.affectedRows) {
+      return { success: false, message: '확정된 예약만 노쇼 처리할 수 있습니다.' };
+    }
+    return { success: true, data: { reservationId: id, status: 'NO_SHOW' } };
+  } catch (e) {
+    console.error('[adminMarkNoShow]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 예약 시간 / 인원 수정 (확정 상태만 가능) */
+export async function adminUpdateReservation(
+  reservationId: string,
+  patch: { startTime?: string; endTime?: string; headcount?: number },
+): Promise<
+  | { success: true; data: { reservationId: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+
+  const sets: string[] = [];
+  const values: (string | number)[] = [];
+
+  if (patch.startTime !== undefined) {
+    const t = patch.startTime.trim();
+    if (!/^\d{2}:\d{2}(:\d{2})?$/.test(t)) {
+      return { success: false, message: '시작 시간 형식이 올바르지 않습니다. (HH:MM)' };
+    }
+    sets.push('startTime = ?');
+    values.push(t.length === 5 ? `${t}:00` : t);
+  }
+
+  if (patch.endTime !== undefined) {
+    const t = patch.endTime.trim();
+    if (!/^\d{2}:\d{2}(:\d{2})?$/.test(t)) {
+      return { success: false, message: '종료 시간 형식이 올바르지 않습니다. (HH:MM)' };
+    }
+    sets.push('endTime = ?');
+    values.push(t.length === 5 ? `${t}:00` : t);
+  }
+
+  if (patch.headcount !== undefined) {
+    const n = Number(patch.headcount);
+    if (!Number.isFinite(n) || n < 1 || n > 999) {
+      return { success: false, message: '인원수는 1 이상 999 이하의 숫자여야 합니다.' };
+    }
+    sets.push('headcount = ?');
+    values.push(Math.floor(n));
+  }
+
+  if (sets.length === 0) {
+    return { success: false, message: '수정할 항목이 없습니다.' };
+  }
+
+  try {
+    const pool = getPool();
+    values.push(id);
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation SET ${sets.join(', ')} WHERE reservationId = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED','DEPOSIT_PENDING','PENDING')`,
+      values,
+    );
+    if (!header.affectedRows) {
+      return { success: false, message: '수정 가능한 예약을 찾을 수 없습니다.' };
+    }
+    return { success: true, data: { reservationId: id } };
+  } catch (e) {
+    console.error('[adminUpdateReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/**
+ * 2일 이상 지난 CONFIRMED/DEPOSIT_CONFIRMED 예약을 자동으로 CHECKED_IN 처리.
+ * - 예약 날짜 기준 (date 컬럼)
+ * - 누구든 자유롭게 호출 가능 (idempotent). 사용자 조회·사장님 페이지 진입 시 가볍게 호출.
+ * - 실패해도 호출자에 영향 없도록 조용히 무시.
+ */
+export async function autoCheckInPastReservations(): Promise<{
+  ok: boolean;
+  affected?: number;
+  message?: string;
+}> {
+  if (!isMysqlConfigured()) {
+    return { ok: false, message: 'MySQL not configured' };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation
+        SET status = 'CHECKED_IN'
+        WHERE status IN ('CONFIRMED','DEPOSIT_CONFIRMED')
+          AND date < (CURRENT_DATE - INTERVAL 2 DAY)`,
+    );
+    return { ok: true, affected: header.affectedRows };
+  } catch (e) {
+    console.warn('[autoCheckInPastReservations]', e);
+    return { ok: false, message: 'auto check-in failed' };
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminListReservationsByStore } from '@/lib/admin-mysql';
+import { adminListReservationsByStore, autoCheckInPastReservations } from '@/lib/admin-mysql';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +11,9 @@ export const runtime = 'nodejs';
  */
 export async function GET(request: Request) {
   try {
+    // 2일 이상 지난 확정 예약을 자동으로 방문 완료 처리 (best-effort)
+    void autoCheckInPastReservations();
+
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get('storeId');
     const status = searchParams.get('status');
