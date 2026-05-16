@@ -1,460 +1,268 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAdminStore } from './AdminStoreContext';
 
 interface Reservation {
   reservationId: string;
-  userName: string;
-  groupName: string;
-  userPhone: string;
   date: string;
   startTime: string;
   endTime: string;
-  headcount: number;
-  totalAmount: number;
-  depositAmount: number;
   status: string;
-  menus: Array<{
-    name: string;
-    quantity: number;
-    priceAtTime: number;
-  }>;
 }
 
-const REJECT_REASON_PRESETS = [
-  '예약 있음',
-  '재료 소진',
-  '해당 일시 수용이 어렵습니다',
-  '영업 일정이 변경되었습니다',
-] as const;
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
 
-const REJECT_REASON_MAX = 500;
+function formatTodayLabel(): string {
+  const d = new Date();
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth() + 1);
+  const dd = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mi = pad2(d.getMinutes());
+  return `${yyyy}.${mm}.${dd} (${days[d.getDay()]}) ${hh}:${mi} 기준`;
+}
+
+function todayYmd(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
 
 export default function AdminDashboardByToken() {
   const store = useAdminStore();
-  const [pendingReservations, setPendingReservations] = useState<Reservation[]>([]);
-  const [depositPendingReservations, setDepositPendingReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
-  const [rejectReasonDraft, setRejectReasonDraft] = useState('');
-  const [rejectAlternativeDraft, setRejectAlternativeDraft] = useState('');
-
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
 
-  const reloadLists = useCallback(async () => {
-    const [pRes, dRes] = await Promise.all([
-      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
-      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
-    ]);
-    const [pJson, dJson] = await Promise.all([pRes.json(), dRes.json()]);
-    if (pJson.success) setPendingReservations((pJson.data || []) as Reservation[]);
-    if (dJson.success) setDepositPendingReservations((dJson.data || []) as Reservation[]);
-  }, [store.id]);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [depositPendingCount, setDepositPendingCount] = useState<number>(0);
+  const [todayReservationsCount, setTodayReservationsCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [todayLabel, setTodayLabel] = useState<string>('');
+
+  const today = useMemo(() => todayYmd(), []);
+
+  const reload = useCallback(async () => {
+    try {
+      const [pRes, dRes, tRes] = await Promise.all([
+        fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
+        fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
+        fetch(
+          `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${today}&to=${today}&calendarConfirmed=1`,
+        ),
+      ]);
+      const [pJson, dJson, tJson] = await Promise.all([pRes.json(), dRes.json(), tRes.json()]);
+      if (pJson.success) setPendingCount((pJson.data || []).length);
+      if (dJson.success) setDepositPendingCount((dJson.data || []).length);
+      if (tJson.success) {
+        const list = (tJson.data || []) as Reservation[];
+        // 캘린더에 표시되는 (취소 외) 모든 예약을 카운트
+        const visible = list.filter((r) => r.status !== 'CANCELED');
+        setTodayReservationsCount(visible.length);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [store.id, today]);
 
   useEffect(() => {
-    if (!rejectTargetId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && actionLoading !== rejectTargetId) {
-        setRejectTargetId(null);
-        setRejectReasonDraft('');
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [rejectTargetId, actionLoading]);
+    setTodayLabel(formatTodayLabel());
+    void reload();
+    const onFocus = () => void reload();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [reload]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        await reloadLists();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [reloadLists]);
-
-  const handleConfirmDeposit = async (reservationId: string) => {
-    if (!confirm('예약금 입금을 확인했습니까? 확인 후에는 캘린더·잔여 인원에 반영됩니다.')) return;
-    setActionLoading(reservationId);
-    try {
-      const res = await fetch(`/api/admin/reservations/${reservationId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirmDeposit' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await reloadLists();
-      } else {
-        alert(data.message || '처리 실패');
-      }
-    } catch {
-      alert('서버 오류가 발생했습니다.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleAction = async (reservationId: string, action: 'accept' | 'cancel') => {
-    setActionLoading(reservationId);
-    try {
-      const res = await fetch(`/api/admin/reservations/${reservationId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await reloadLists();
-      } else {
-        alert(data.message || '처리 실패');
-      }
-    } catch {
-      alert('서버 오류가 발생했습니다.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const closeRejectModal = () => {
-    setRejectTargetId(null);
-    setRejectReasonDraft('');
-    setRejectAlternativeDraft('');
-  };
-
-  const submitReject = async () => {
-    if (!rejectTargetId) return;
-    const trimmed = rejectReasonDraft.trim();
-    const altTrimmed = rejectAlternativeDraft.trim();
-    if (!trimmed) {
-      alert('거절 사유를 입력하거나 아래에서 선택해 주세요.');
-      return;
-    }
-    if (trimmed.length > REJECT_REASON_MAX) {
-      alert(`거절 사유는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
-      return;
-    }
-    if (altTrimmed.length > REJECT_REASON_MAX) {
-      alert(`대안 안내는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
-      return;
-    }
-    setActionLoading(rejectTargetId);
-    try {
-      const res = await fetch(`/api/admin/reservations/${rejectTargetId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reject',
-          reason: trimmed,
-          alternative: altTrimmed || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        closeRejectModal();
-        await reloadLists();
-      } else {
-        alert(data.message || '처리 실패');
-      }
-    } catch {
-      alert('서버 오류가 발생했습니다.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-600">로딩 중...</p>
-      </div>
-    );
-  }
+  const totalPending = pendingCount + depositPendingCount;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">🏪 {store.name}</h1>
-            <p className="text-sm text-gray-500">대기 중인 예약 관리</p>
+      {/* 헤더 */}
+      <header className="bg-blue-600 text-white">
+        <div className="mx-auto flex max-w-md items-center justify-between px-5 py-5">
+          <div className="flex items-center gap-2">
+            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path d="M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z" opacity="0.9" />
+            </svg>
+            <div>
+              <p className="text-xs leading-tight text-blue-100">우르르 사장님</p>
+              <h1 className="text-base font-bold leading-tight">{store.name}</h1>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href={`${base}/calendar`}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-            >
-              📅 날짜별 예약
-            </Link>
-          </div>
+          <button
+            type="button"
+            className="rounded-lg p-1 text-white transition hover:bg-white/10"
+            aria-label="메뉴"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6">
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">대기 중인 예약</h2>
-          <p className="text-gray-600">총 {pendingReservations.length}건의 예약이 대기 중입니다</p>
-        </div>
-
-        {depositPendingReservations.length > 0 && (
-          <div className="mb-10">
-            <h2 className="mb-2 text-xl font-bold text-gray-900">예약금 입금 대기</h2>
-            <p className="mb-4 text-sm text-gray-600">
-              입금 확인 시 예약이 완료되며, 날짜별 캘린더에 표시됩니다.
-            </p>
-            <div className="space-y-4">
-              {depositPendingReservations.map((reservation) => (
-                <div
-                  key={reservation.reservationId}
-                  className="rounded-lg border border-blue-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="mb-4 flex items-start justify-between">
-                    <div>
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                          입금 대기
-                        </span>
-                        <span className="text-sm text-gray-500">{reservation.reservationId}</span>
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {reservation.userName}
-                        {reservation.groupName && (
-                          <span className="ml-2 font-normal text-gray-500">({reservation.groupName})</span>
-                        )}
-                      </h3>
-                    </div>
-                    <div className="text-right text-sm text-gray-600">
-                      {reservation.date} {reservation.startTime} ~ {reservation.endTime}
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleConfirmDeposit(reservation.reservationId)}
-                      disabled={actionLoading === reservation.reservationId}
-                      className="flex-1 rounded-lg bg-emerald-600 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      {actionLoading === reservation.reservationId ? '처리 중...' : '입금 확인 (예약 완료)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleAction(reservation.reservationId, 'cancel')}
-                      disabled={actionLoading === reservation.reservationId}
-                      className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
-                    >
-                      예약 취소
-                    </button>
-                  </div>
-                </div>
-              ))}
+      <main className="mx-auto max-w-md px-5 py-6">
+        {/* 오늘의 현황 카드 컨테이너 */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="block h-4 w-1 rounded-full bg-blue-600" />
+              <h2 className="text-base font-bold text-gray-900">오늘의 현황</h2>
             </div>
+            <p className="text-xs text-gray-400">{todayLabel}</p>
           </div>
-        )}
 
-        {pendingReservations.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center shadow-sm">
-            <p className="text-gray-500">대기 중인 예약이 없습니다</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {pendingReservations.map((reservation) => (
-              <div
-                key={reservation.reservationId}
-                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-              >
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800">
-                        대기중
-                      </span>
-                      <span className="text-sm text-gray-500">{reservation.reservationId}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {reservation.userName}
-                      {reservation.groupName && (
-                        <span className="ml-2 font-normal text-gray-500">({reservation.groupName})</span>
-                      )}
-                    </h3>
+          {/* 그리드: 상단 2칸 통합 카드 + 하단 2개 카드 */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* 대기 중인 예약 (col-span-2 = 2칸) */}
+            <Link
+              href={`${base}/pending`}
+              className="col-span-2 rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5 transition hover:border-blue-200 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                    <svg
+                      className="h-6 w-6 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {reservation.totalAmount.toLocaleString()}원
-                    </div>
-                    {reservation.depositAmount > 0 && (
-                      <div className="text-sm font-medium text-red-600">
-                        예약금 {reservation.depositAmount.toLocaleString()}원
-                      </div>
-                    )}
-                  </div>
+                  <span className="text-sm font-semibold text-gray-700">대기 중인 예약</span>
                 </div>
-
-                <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">날짜/시간:</span>
-                    <span className="ml-2 font-medium">
-                      {reservation.date} {reservation.startTime} ~ {reservation.endTime}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">인원:</span>
-                    <span className="ml-2 font-medium">{reservation.headcount}명</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">연락처:</span>
-                    <span className="ml-2 font-medium">{reservation.userPhone}</span>
-                  </div>
-                </div>
-
-                {reservation.menus.length > 0 && (
-                  <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                    <div className="mb-2 text-sm font-medium text-gray-700">주문 메뉴</div>
-                    <div className="space-y-1">
-                      {reservation.menus.map((menu, idx) => (
-                        <div key={idx} className="flex justify-between text-sm text-gray-600">
-                          <span>
-                            {menu.name} x {menu.quantity}
-                          </span>
-                          <span>{(menu.priceAtTime * menu.quantity).toLocaleString()}원</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleAction(reservation.reservationId, 'accept')}
-                    disabled={actionLoading === reservation.reservationId}
-                    className="flex-1 rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {actionLoading === reservation.reservationId
-                      ? '처리 중...'
-                      : reservation.depositAmount > 0
-                        ? '수락 (예약금 입금 요청)'
-                        : '수락 (즉시 확정)'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRejectTargetId(reservation.reservationId);
-                      setRejectReasonDraft('');
-                      setRejectAlternativeDraft('');
-                    }}
-                    disabled={actionLoading === reservation.reservationId}
-                    className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
-                  >
-                    거절
-                  </button>
-                </div>
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
+              <div className="mt-4">
+                <span className="text-4xl font-extrabold text-gray-900">
+                  {loading ? '—' : totalPending}
+                </span>
+                <span className="ml-1 text-xl font-bold text-gray-700">건</span>
+                {depositPendingCount > 0 ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    예약 대기 {pendingCount}건 · 입금 대기 {depositPendingCount}건
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-500">탭하여 수락/거절을 진행하세요</p>
+                )}
+              </div>
+            </Link>
 
-      {rejectTargetId && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reject-dialog-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 cursor-default"
-            aria-label="닫기"
-            onClick={() => {
-              if (actionLoading !== rejectTargetId) closeRejectModal();
-            }}
-          />
-          <div className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-            <h2 id="reject-dialog-title" className="text-lg font-bold text-gray-900">
-              예약 거절
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              입력하신 사유는 예약하신 분의 &quot;내 예약 조회&quot; 화면에 표시됩니다.
-            </p>
-
-            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">자주 쓰는 사유</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {REJECT_REASON_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setRejectReasonDraft(preset.slice(0, REJECT_REASON_MAX))}
-                  disabled={actionLoading === rejectTargetId}
-                  className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+            {/* 공지사항 추가 */}
+            <button
+              type="button"
+              onClick={() => alert('공지사항 기능은 준비 중입니다.')}
+              className="rounded-xl border border-gray-100 bg-white p-4 text-left transition hover:border-purple-200 hover:shadow-md"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                <svg
+                  className="h-6 w-6 text-purple-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  {preset}
-                </button>
-              ))}
-            </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+              </div>
+              <p className="mt-3 text-sm font-medium text-gray-700">공지사항 추가</p>
+              <div className="mt-1 flex items-end justify-between">
+                <span className="text-2xl font-extrabold text-gray-900">+</span>
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
 
-            <label htmlFor="reject-reason" className="mt-4 block text-sm font-medium text-gray-700">
-              거절 사유 (직접 작성 가능)
-            </label>
-            <textarea
-              id="reject-reason"
-              rows={3}
-              maxLength={REJECT_REASON_MAX}
-              value={rejectReasonDraft}
-              onChange={(e) => setRejectReasonDraft(e.target.value)}
-              disabled={actionLoading === rejectTargetId}
-              placeholder="사유를 선택하거나 직접 입력해 주세요."
-              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-            />
-            <p className="mt-1 text-right text-xs text-gray-400">
-              {rejectReasonDraft.length} / {REJECT_REASON_MAX}
-            </p>
-
-            <label htmlFor="reject-alternative" className="mt-4 block text-sm font-medium text-gray-700">
-              대안 안내 (선택)
-            </label>
-            <p className="mt-0.5 text-xs text-gray-500">
-              예: &quot;해당 시간은 마감되었으나, 21시 이후로는 예약 가능합니다.&quot;
-            </p>
-            <textarea
-              id="reject-alternative"
-              rows={3}
-              maxLength={REJECT_REASON_MAX}
-              value={rejectAlternativeDraft}
-              onChange={(e) => setRejectAlternativeDraft(e.target.value)}
-              disabled={actionLoading === rejectTargetId}
-              placeholder="고객에게 전달할 대안이 있다면 입력해 주세요."
-              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-            />
-            <p className="mt-1 text-right text-xs text-gray-400">
-              {rejectAlternativeDraft.length} / {REJECT_REASON_MAX}
-            </p>
-
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={closeRejectModal}
-                disabled={actionLoading === rejectTargetId}
-                className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitReject()}
-                disabled={actionLoading === rejectTargetId}
-                className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
-              >
-                {actionLoading === rejectTargetId ? '처리 중...' : '완료'}
-              </button>
-            </div>
+            {/* 오늘의 단체 예약 확인하기 */}
+            <Link
+              href={`${base}/calendar`}
+              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-orange-200 hover:shadow-md"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                <svg
+                  className="h-6 w-6 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-3-3h-2m-3-7a4 4 0 11-8 0 4 4 0 018 0zm6 8a4 4 0 10-8 0 4 4 0 008 0z"
+                  />
+                </svg>
+              </div>
+              <p className="mt-3 text-sm font-medium text-gray-700">오늘의 단체 예약</p>
+              <div className="mt-1 flex items-end justify-between">
+                <span>
+                  <span className="text-2xl font-extrabold text-gray-900">
+                    {loading ? '—' : todayReservationsCount}
+                  </span>
+                  <span className="ml-0.5 text-base font-bold text-gray-700">건</span>
+                </span>
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </Link>
           </div>
-        </div>
-      )}
+        </section>
+
+        {/* 캘린더 보기 큰 버튼 */}
+        <Link
+          href={`${base}/calendar`}
+          className="mt-5 flex w-full items-center justify-between rounded-2xl bg-blue-600 px-6 py-5 text-white shadow-lg transition hover:bg-blue-700"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span className="text-lg font-bold">캘린더 보기</span>
+          </div>
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </main>
     </div>
   );
 }
