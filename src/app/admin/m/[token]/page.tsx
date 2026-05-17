@@ -116,7 +116,7 @@ export default function AdminDashboardByToken() {
             <p className="text-xs text-gray-400">{todayLabel}</p>
           </div>
 
-          {/* 그리드: 상단 2칸 통합 카드 + 하단 2개 카드 */}
+          {/* 그리드: 상단 2칸 통합 카드 (대기 중인 예약) + 하단 4개 카드 */}
           <div className="grid grid-cols-2 gap-3">
             {/* 대기 중인 예약 (col-span-2 = 2칸) */}
             <Link
@@ -166,29 +166,27 @@ export default function AdminDashboardByToken() {
               </div>
             </Link>
 
-            {/* 일정 등록 */}
+            {/* 일정 추가 */}
             <Link
               href={`${base}/calendar`}
-              className="rounded-xl border border-gray-100 bg-white p-4 text-left transition hover:border-violet-200 hover:shadow-md"
+              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
-                <svg
-                  className="h-6 w-6 text-violet-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              </div>
-              <p className="mt-3 text-sm font-medium text-gray-700">일정 등록</p>
-              <div className="mt-1 flex items-end justify-between">
-                <span className="text-2xl font-extrabold text-gray-900">+</span>
+              <div className="flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                  <svg
+                    className="h-6 w-6 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
                 <svg
                   className="h-5 w-5 text-gray-400"
                   fill="none"
@@ -198,36 +196,31 @@ export default function AdminDashboardByToken() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
+              <p className="mt-3 text-sm font-bold text-gray-900">일정 추가</p>
+              <p className="mt-0.5 text-xs text-gray-500">새로운 일정 등록</p>
             </Link>
 
-            {/* 오늘의 단체 예약 확인하기 */}
+            {/* 오늘의 단체 예약 */}
             <Link
               href={`${base}/calendar`}
               className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-orange-200 hover:shadow-md"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                <svg
-                  className="h-6 w-6 text-orange-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-3-3h-2m-3-7a4 4 0 11-8 0 4 4 0 018 0zm6 8a4 4 0 10-8 0 4 4 0 008 0z"
-                  />
-                </svg>
-              </div>
-              <p className="mt-3 text-sm font-medium text-gray-700">오늘의 단체 예약</p>
-              <div className="mt-1 flex items-end justify-between">
-                <span>
-                  <span className="text-2xl font-extrabold text-gray-900">
-                    {loading ? '—' : todayReservationsCount}
-                  </span>
-                  <span className="ml-0.5 text-base font-bold text-gray-700">건</span>
-                </span>
+              <div className="flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                  <svg
+                    className="h-6 w-6 text-orange-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-3-3h-2m-3-7a4 4 0 11-8 0 4 4 0 018 0zm6 8a4 4 0 10-8 0 4 4 0 008 0z"
+                    />
+                  </svg>
+                </div>
                 <svg
                   className="h-5 w-5 text-gray-400"
                   fill="none"
@@ -237,6 +230,84 @@ export default function AdminDashboardByToken() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
+              <p className="mt-3 text-sm font-bold text-gray-900">오늘의 단체 예약</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {loading ? '단체 예약 현황 확인' : `${todayReservationsCount}건 · 현황 확인`}
+              </p>
+            </Link>
+
+            {/* 지정 휴무일 설정 */}
+            <Link
+              href={`${base}/closed-dates`}
+              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-emerald-200 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                  <svg
+                    className="h-6 w-6 text-emerald-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
+                  </svg>
+                </div>
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <p className="mt-3 text-sm font-bold text-gray-900">지정 휴무일 설정</p>
+              <p className="mt-0.5 text-xs text-gray-500">휴무일 관리 및 설정</p>
+            </Link>
+
+            {/* 가게 설정 변경 */}
+            <Link
+              href={`${base}/settings`}
+              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                  <svg
+                    className="h-6 w-6 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </div>
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <p className="mt-3 text-sm font-bold text-gray-900">가게 설정 변경</p>
+              <p className="mt-0.5 text-xs text-gray-500">가게 정보 및 설정 관리</p>
             </Link>
           </div>
         </section>

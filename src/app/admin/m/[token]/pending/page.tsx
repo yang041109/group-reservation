@@ -24,10 +24,10 @@ interface Reservation {
 }
 
 const REJECT_REASON_PRESETS = [
-  '예약 있음',
-  '재료 소진',
-  '해당 일시 수용이 어렵습니다',
-  '영업 일정이 변경되었습니다',
+  '?�약 ?�음',
+  '?�료 ?�진',
+  '?�당 ?�시 ?�용???�렵?�니??,
+  '?�업 ?�정??변경되?�습?�다',
 ] as const;
 
 const REJECT_REASON_MAX = 500;
@@ -80,7 +80,7 @@ export default function AdminPendingByToken() {
   }, [reloadLists]);
 
   const handleConfirmDeposit = async (reservationId: string) => {
-    if (!confirm('예약금 입금을 확인했습니까? 확인 후에는 캘린더·잔여 인원에 반영됩니다.')) return;
+    if (!confirm('?�약�??�금???�인?�습?�까? ?�인 ?�에??캘린?�·잔???�원??반영?�니??')) return;
     setActionLoading(reservationId);
     try {
       const res = await fetch(`/api/admin/reservations/${reservationId}`, {
@@ -92,10 +92,10 @@ export default function AdminPendingByToken() {
       if (data.success) {
         await reloadLists();
       } else {
-        alert(data.message || '처리 실패');
+        alert(data.message || '처리 ?�패');
       }
     } catch {
-      alert('서버 오류가 발생했습니다.');
+      alert('?�버 ?�류가 발생?�습?�다.');
     } finally {
       setActionLoading(null);
     }
@@ -113,10 +113,10 @@ export default function AdminPendingByToken() {
       if (data.success) {
         await reloadLists();
       } else {
-        alert(data.message || '처리 실패');
+        alert(data.message || '처리 ?�패');
       }
     } catch {
-      alert('서버 오류가 발생했습니다.');
+      alert('?�버 ?�류가 발생?�습?�다.');
     } finally {
       setActionLoading(null);
     }
@@ -133,15 +133,15 @@ export default function AdminPendingByToken() {
     const trimmed = rejectReasonDraft.trim();
     const altTrimmed = rejectAlternativeDraft.trim();
     if (!trimmed) {
-      alert('거절 사유를 입력하거나 아래에서 선택해 주세요.');
+      alert('거절 ?�유�??�력?�거???�래?�서 ?�택??주세??');
       return;
     }
     if (trimmed.length > REJECT_REASON_MAX) {
-      alert(`거절 사유는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
+      alert(`거절 ?�유??${REJECT_REASON_MAX}???�내�??�력??주세??`);
       return;
     }
     if (altTrimmed.length > REJECT_REASON_MAX) {
-      alert(`대안 안내는 ${REJECT_REASON_MAX}자 이내로 입력해 주세요.`);
+      alert(`?�???�내??${REJECT_REASON_MAX}???�내�??�력??주세??`);
       return;
     }
     setActionLoading(rejectTargetId);
@@ -160,10 +160,10 @@ export default function AdminPendingByToken() {
         closeRejectModal();
         await reloadLists();
       } else {
-        alert(data.message || '처리 실패');
+        alert(data.message || '처리 ?�패');
       }
     } catch {
-      alert('서버 오류가 발생했습니다.');
+      alert('?�버 ?�류가 발생?�습?�다.');
     } finally {
       setActionLoading(null);
     }
@@ -172,50 +172,50 @@ export default function AdminPendingByToken() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-600">로딩 중...</p>
+        <p className="text-gray-600">로딩 �?..</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 헤더 (파란색) */}
+      {/* ?�더 (?��??? */}
       <header className="sticky top-0 z-10 bg-blue-600 text-white shadow-md">
         <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-4">
-          <Link href={base} className="rounded-lg p-1 text-white hover:bg-white/10" aria-label="뒤로가기">
+          <Link href={base} className="rounded-lg p-1 text-white hover:bg-white/10" aria-label="?�로가�?>
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
           <div>
             <h1 className="text-base font-bold leading-tight">{store.name}</h1>
-            <p className="text-xs leading-tight text-blue-100">대기 중인 예약 관리</p>
+            <p className="text-xs leading-tight text-blue-100">?��?중인 ?�약 관�?/p>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-md px-4 py-6">
         <div className="mb-6">
-          <h2 className="mb-1 text-2xl font-bold text-gray-900">대기 중인 예약</h2>
+          <h2 className="mb-1 text-2xl font-bold text-gray-900">?��?중인 ?�약</h2>
           <p className="text-sm text-gray-600">
-            총{' '}
+            �?' '}
             <span className="font-semibold text-blue-600">
               {pendingReservations.length + depositPendingReservations.length}
             </span>
-            건의 예약이 대기 중입니다
+            건의 ?�약???��?중입?�다
           </p>
         </div>
 
         {depositPendingReservations.length > 0 && (
           <div className="mb-8">
-            <h3 className="mb-1 text-base font-bold text-blue-700">예약금 입금 대기</h3>
+            <h3 className="mb-1 text-base font-bold text-blue-700">?�약�??�금 ?��?/h3>
             <p className="mb-3 text-xs text-gray-600">
-              입금 확인 시 예약이 완료되며, 캘린더에 표시됩니다.
+              ?�금 ?�인 ???�약???�료?�며, 캘린?�에 ?�시?�니??
             </p>
             <div className="space-y-3">
               {depositPendingReservations.map((reservation) => {
                 const dateObj = new Date(reservation.date);
-                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const days = ['??, '??, '??, '??, '�?, '�?, '??];
                 const dateLabel = `${reservation.date.replace(/-/g, '.')} (${days[dateObj.getDay()] ?? ''})`;
                 const isLoading = actionLoading === reservation.reservationId;
                 return (
@@ -225,8 +225,8 @@ export default function AdminPendingByToken() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-blue-50 text-center text-xs font-semibold text-blue-700">
-                        <span className="leading-tight">입금</span>
-                        <span className="leading-tight">대기</span>
+                        <span className="leading-tight">?�금</span>
+                        <span className="leading-tight">?��?/span>
                         <svg
                           className="mt-1 h-5 w-5"
                           fill="none"
@@ -262,7 +262,7 @@ export default function AdminPendingByToken() {
                           {reservation.startTime} ~ {reservation.endTime}
                         </p>
                         <p className="mt-1 text-[11px] text-gray-500">
-                          예약번호 {reservation.reservationId}
+                          ?�약번호 {reservation.reservationId}
                         </p>
                       </div>
                     </div>
@@ -271,13 +271,11 @@ export default function AdminPendingByToken() {
                       <p className="text-base font-bold text-gray-900">
                         {reservation.userName}
                         {reservation.groupName ? (
-                          <span className="ml-1.5 text-sm font-normal text-gray-500">
-                            ({reservation.groupName})
-                          </span>
+                          <span className="text-sm font-normal text-gray-500"> / {reservation.groupName}</span>
                         ) : null}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        👥 {reservation.headcount}명 · 📞 {reservation.userPhone}
+                        ?�� {reservation.headcount}�?· ?�� {reservation.userPhone}
                       </p>
                     </div>
 
@@ -289,12 +287,12 @@ export default function AdminPendingByToken() {
                         className="rounded-xl bg-blue-600 py-3 text-sm font-bold leading-tight text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
                       >
                         {isLoading ? (
-                          '처리 중...'
+                          '처리 �?..'
                         ) : (
                           <>
-                            입금 확인
+                            ?�금 ?�인
                             <span className="block text-[11px] font-medium opacity-90">
-                              (예약 완료)
+                              (?�약 ?�료)
                             </span>
                           </>
                         )}
@@ -305,7 +303,7 @@ export default function AdminPendingByToken() {
                         disabled={isLoading}
                         className="rounded-xl bg-gray-200 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
                       >
-                        예약 취소
+                        ?�약 취소
                       </button>
                     </div>
                   </div>
@@ -317,15 +315,15 @@ export default function AdminPendingByToken() {
 
         {pendingReservations.length === 0 && depositPendingReservations.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
-            <p className="text-gray-500">대기 중인 예약이 없습니다</p>
+            <p className="text-gray-500">?��?중인 ?�약???�습?�다</p>
           </div>
         ) : pendingReservations.length === 0 ? null : (
           <div className="mb-8">
-            <h3 className="mb-3 text-base font-bold text-yellow-700">신규 예약 대기</h3>
+            <h3 className="mb-3 text-base font-bold text-yellow-700">?�규 ?�약 ?��?/h3>
             <div className="space-y-3">
               {pendingReservations.map((reservation) => {
                 const dateObj = new Date(reservation.date);
-                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const days = ['??, '??, '??, '??, '�?, '�?, '??];
                 const dateLabel = `${reservation.date.replace(/-/g, '.')} (${days[dateObj.getDay()] ?? ''})`;
                 const isLoading = actionLoading === reservation.reservationId;
                 return (
@@ -335,8 +333,8 @@ export default function AdminPendingByToken() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-yellow-50 text-center text-xs font-semibold text-yellow-700">
-                        <span className="leading-tight">예약</span>
-                        <span className="leading-tight">대기</span>
+                        <span className="leading-tight">?�약</span>
+                        <span className="leading-tight">?��?/span>
                         <svg
                           className="mt-1 h-5 w-5"
                           fill="none"
@@ -372,7 +370,7 @@ export default function AdminPendingByToken() {
                           {reservation.startTime} ~ {reservation.endTime}
                         </p>
                         <p className="mt-1 text-[11px] text-gray-500">
-                          예약번호 {reservation.reservationId}
+                          ?�약번호 {reservation.reservationId}
                         </p>
                       </div>
                     </div>
@@ -381,25 +379,23 @@ export default function AdminPendingByToken() {
                       <p className="text-base font-bold text-gray-900">
                         {reservation.userName}
                         {reservation.groupName ? (
-                          <span className="ml-1.5 text-sm font-normal text-gray-500">
-                            ({reservation.groupName})
-                          </span>
+                          <span className="text-sm font-normal text-gray-500"> / {reservation.groupName}</span>
                         ) : null}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        👥 {reservation.headcount}명 · 📞 {reservation.userPhone}
+                        ?�� {reservation.headcount}�?· ?�� {reservation.userPhone}
                       </p>
                       <div className="mt-2 flex items-baseline justify-between">
-                        <span className="text-xs text-gray-500">총 결제 금액</span>
+                        <span className="text-xs text-gray-500">�?결제 금액</span>
                         <span className="text-base font-bold text-gray-900">
-                          {reservation.totalAmount.toLocaleString()}원
+                          {reservation.totalAmount.toLocaleString()}??
                         </span>
                       </div>
                       {reservation.depositAmount > 0 && (
                         <div className="mt-1 flex items-baseline justify-between">
-                          <span className="text-xs text-gray-500">예약금</span>
+                          <span className="text-xs text-gray-500">?�약�?/span>
                           <span className="text-sm font-bold text-red-600">
-                            {reservation.depositAmount.toLocaleString()}원
+                            {reservation.depositAmount.toLocaleString()}??
                           </span>
                         </div>
                       )}
@@ -420,7 +416,7 @@ export default function AdminPendingByToken() {
                                 {menu.name} × {menu.quantity}
                               </span>
                               <span>
-                                {(menu.priceAtTime * menu.quantity).toLocaleString()}원
+                                {(menu.priceAtTime * menu.quantity).toLocaleString()}??
                               </span>
                             </div>
                           ))}
@@ -436,19 +432,19 @@ export default function AdminPendingByToken() {
                         className="rounded-xl bg-blue-600 py-3 text-sm font-bold leading-tight text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
                       >
                         {isLoading ? (
-                          '처리 중...'
+                          '처리 �?..'
                         ) : reservation.depositAmount > 0 ? (
                           <>
-                            수락
+                            ?�락
                             <span className="block text-[11px] font-medium opacity-90">
-                              (입금 요청)
+                              (?�금 ?�청)
                             </span>
                           </>
                         ) : (
                           <>
-                            수락
+                            ?�락
                             <span className="block text-[11px] font-medium opacity-90">
-                              (즉시 확정)
+                              (즉시 ?�정)
                             </span>
                           </>
                         )}
@@ -473,7 +469,7 @@ export default function AdminPendingByToken() {
           </div>
         )}
 
-        {/* 캘린더 보기 큰 버튼 */}
+        {/* 캘린??보기 ??버튼 */}
         <Link
           href={`${base}/calendar`}
           className="mt-2 flex w-full items-center justify-between rounded-2xl bg-blue-600 px-6 py-5 text-white shadow-lg transition hover:bg-blue-700"
@@ -487,7 +483,7 @@ export default function AdminPendingByToken() {
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
-            <span className="text-lg font-bold">캘린더 보기</span>
+            <span className="text-lg font-bold">캘린??보기</span>
           </div>
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -505,20 +501,20 @@ export default function AdminPendingByToken() {
           <button
             type="button"
             className="absolute inset-0 cursor-default"
-            aria-label="닫기"
+            aria-label="?�기"
             onClick={() => {
               if (actionLoading !== rejectTargetId) closeRejectModal();
             }}
           />
           <div className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             <h2 id="reject-dialog-title" className="text-lg font-bold text-gray-900">
-              예약 거절
+              ?�약 거절
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              입력하신 사유는 예약하신 분의 &quot;내 예약 조회&quot; 화면에 표시됩니다.
+              ?�력?�신 ?�유???�약?�신 분의 &quot;???�약 조회&quot; ?�면???�시?�니??
             </p>
 
-            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">자주 쓰는 사유</p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">?�주 ?�는 ?�유</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {REJECT_REASON_PRESETS.map((preset) => (
                 <button
@@ -534,7 +530,7 @@ export default function AdminPendingByToken() {
             </div>
 
             <label htmlFor="reject-reason" className="mt-4 block text-sm font-medium text-gray-700">
-              거절 사유 (직접 작성 가능)
+              거절 ?�유 (직접 ?�성 가??
             </label>
             <textarea
               id="reject-reason"
@@ -543,7 +539,7 @@ export default function AdminPendingByToken() {
               value={rejectReasonDraft}
               onChange={(e) => setRejectReasonDraft(e.target.value)}
               disabled={actionLoading === rejectTargetId}
-              placeholder="사유를 선택하거나 직접 입력해 주세요."
+              placeholder="?�유�??�택?�거??직접 ?�력??주세??"
               className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
             />
             <p className="mt-1 text-right text-xs text-gray-400">
@@ -551,10 +547,10 @@ export default function AdminPendingByToken() {
             </p>
 
             <label htmlFor="reject-alternative" className="mt-4 block text-sm font-medium text-gray-700">
-              대안 안내 (선택)
+              ?�???�내 (?�택)
             </label>
             <p className="mt-0.5 text-xs text-gray-500">
-              예: &quot;해당 시간은 마감되었으나, 21시 이후로는 예약 가능합니다.&quot;
+              ?? &quot;?�당 ?�간?� 마감?�었?�나, 21???�후로는 ?�약 가?�합?�다.&quot;
             </p>
             <textarea
               id="reject-alternative"
@@ -563,7 +559,7 @@ export default function AdminPendingByToken() {
               value={rejectAlternativeDraft}
               onChange={(e) => setRejectAlternativeDraft(e.target.value)}
               disabled={actionLoading === rejectTargetId}
-              placeholder="고객에게 전달할 대안이 있다면 입력해 주세요."
+              placeholder="고객?�게 ?�달???�?�이 ?�다�??�력??주세??"
               className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
             />
             <p className="mt-1 text-right text-xs text-gray-400">
@@ -585,7 +581,7 @@ export default function AdminPendingByToken() {
                 disabled={actionLoading === rejectTargetId}
                 className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
               >
-                {actionLoading === rejectTargetId ? '처리 중...' : '완료'}
+                {actionLoading === rejectTargetId ? '처리 �?..' : '?�료'}
               </button>
             </div>
           </div>
@@ -594,3 +590,4 @@ export default function AdminPendingByToken() {
     </div>
   );
 }
+

@@ -654,3 +654,123 @@ export async function adminCreateManualReservation(
     return { success: false, message: formatMysqlUserError(e) };
   }
 }
+
+
+// ── 가게 지정 휴무일 (closedDatesJson) ──────────────────────
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseClosedDatesFromRow(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((v) => String(v ?? '').trim())
+      .filter((v) => YMD_RE.test(v));
+  }
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return [];
+    try {
+      const parsed = JSON.parse(t);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((v) => String(v ?? '').trim())
+          .filter((v) => YMD_RE.test(v));
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** 사장님 가게의 지정 휴무일 목록 조회 */
+export async function adminGetClosedDates(storeId: string): Promise<
+  | { success: true; data: string[] }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query<StoreRow[]>(
+      'SELECT closedDatesJson FROM store WHERE storeId = ? LIMIT 1',
+      [sid],
+    );
+    if (!rows.length) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    const list = parseClosedDatesFromRow(rows[0].closedDatesJson);
+    list.sort();
+    return { success: true, data: list };
+  } catch (e) {
+    console.error('[adminGetClosedDates]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 지정 휴무일 추가 (이미 있으면 그대로 두고 정상 응답) */
+export async function adminAddClosedDate(
+  storeId: string,
+  date: string,
+): Promise<
+  | { success: true; data: string[] }
+  | { success: false; message: string }
+> {
+  const d = String(date ?? '').trim();
+  if (!YMD_RE.test(d)) {
+    return { success: false, message: '날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' };
+  }
+  const cur = await adminGetClosedDates(storeId);
+  if (!cur.success) return cur;
+  if (cur.data.includes(d)) {
+    return { success: true, data: cur.data };
+  }
+  const next = [...cur.data, d].sort();
+  try {
+    const pool = getPool();
+    await pool.execute<ResultSetHeader>(
+      'UPDATE store SET closedDatesJson = ? WHERE storeId = ?',
+      [JSON.stringify(next), storeId.trim()],
+    );
+    return { success: true, data: next };
+  } catch (e) {
+    console.error('[adminAddClosedDate]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 지정 휴무일 해제 */
+export async function adminRemoveClosedDate(
+  storeId: string,
+  date: string,
+): Promise<
+  | { success: true; data: string[] }
+  | { success: false; message: string }
+> {
+  const d = String(date ?? '').trim();
+  if (!YMD_RE.test(d)) {
+    return { success: false, message: '날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' };
+  }
+  const cur = await adminGetClosedDates(storeId);
+  if (!cur.success) return cur;
+  if (!cur.data.includes(d)) {
+    return { success: true, data: cur.data };
+  }
+  const next = cur.data.filter((x) => x !== d).sort();
+  try {
+    const pool = getPool();
+    await pool.execute<ResultSetHeader>(
+      'UPDATE store SET closedDatesJson = ? WHERE storeId = ?',
+      [JSON.stringify(next), storeId.trim()],
+    );
+    return { success: true, data: next };
+  } catch (e) {
+    console.error('[adminRemoveClosedDate]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
