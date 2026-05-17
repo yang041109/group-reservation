@@ -76,10 +76,10 @@ function buildMonthCells(
 
 function getStatusColor(status: string): string {
   const s = status.trim();
-  if (s === 'PENDING') return 'bg-yellow-400';
-  if (s === 'CONFIRMED') return 'bg-green-400';
-  if (s === 'DEPOSIT_PENDING') return 'bg-orange-400';
-  if (s === 'DEPOSIT_CONFIRMED') return 'bg-blue-400';
+  // 대기중: PENDING + DEPOSIT_PENDING 통합
+  if (s === 'PENDING' || s === 'DEPOSIT_PENDING') return 'bg-yellow-400';
+  // 예약확정: CONFIRMED + DEPOSIT_CONFIRMED 통합
+  if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return 'bg-green-400';
   if (s === 'CHECKED_IN') return 'bg-purple-400';
   if (s === 'NO_SHOW') return 'bg-red-400';
   if (s === 'CANCELED') return 'bg-gray-300';
@@ -88,10 +88,10 @@ function getStatusColor(status: string): string {
 
 function getStatusLabel(status: string): string {
   const s = status.trim();
-  if (s === 'PENDING') return '대기중';
-  if (s === 'CONFIRMED') return '예약확정';
-  if (s === 'DEPOSIT_PENDING') return '입금대기';
-  if (s === 'DEPOSIT_CONFIRMED') return '결제완료';
+  // 대기중: PENDING + DEPOSIT_PENDING 통합
+  if (s === 'PENDING' || s === 'DEPOSIT_PENDING') return '대기중';
+  // 예약확정: CONFIRMED + DEPOSIT_CONFIRMED 통합
+  if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return '예약확정';
   if (s === 'CHECKED_IN') return '방문완료';
   if (s === 'NO_SHOW') return '노쇼';
   if (s === 'CANCELED') return '취소됨';
@@ -100,9 +100,10 @@ function getStatusLabel(status: string): string {
 
 function getStatusBadgeClass(status: string): string {
   const s = status.trim();
-  if (s === 'PENDING') return 'bg-yellow-100 text-yellow-800';
+  // 대기중
+  if (s === 'PENDING' || s === 'DEPOSIT_PENDING') return 'bg-yellow-100 text-yellow-800';
+  // 예약확정
   if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return 'bg-green-100 text-green-800';
-  if (s === 'DEPOSIT_PENDING') return 'bg-orange-100 text-orange-800';
   if (s === 'CHECKED_IN') return 'bg-purple-100 text-purple-800';
   if (s === 'NO_SHOW') return 'bg-red-100 text-red-800';
   if (s === 'CANCELED') return 'bg-gray-200 text-gray-600 line-through';
@@ -701,32 +702,12 @@ export default function AdminCalendarByToken() {
               <span>예약확정</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-orange-400" />
-              <span>입금대기</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-blue-400" />
-              <span>결제완료</span>
-            </div>
-            <div className="flex items-center gap-1.5">
               <div className="h-2 w-2 rounded-full bg-purple-400" />
               <span>방문완료</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="h-2 w-2 rounded-full bg-red-400" />
               <span>노쇼</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-violet-500" />
-              <span>공지</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-amber-500" />
-              <span>메모</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-              <span>예약 차단</span>
             </div>
           </div>
         </div>
