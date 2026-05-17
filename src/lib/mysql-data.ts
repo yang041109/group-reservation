@@ -475,6 +475,10 @@ function mapReservationListItem(
       r.ownerRejectReason != null && String(r.ownerRejectReason).trim()
         ? String(r.ownerRejectReason).trim()
         : undefined,
+    ownerEditNotice:
+      r.ownerEditNotice != null && String(r.ownerEditNotice).trim()
+        ? String(r.ownerEditNotice).trim()
+        : undefined,
   };
 }
 

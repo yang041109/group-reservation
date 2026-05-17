@@ -107,13 +107,20 @@ function mapReservationRow(
     ownerRejectReason: r.ownerRejectReason != null && String(r.ownerRejectReason).trim()
       ? String(r.ownerRejectReason).trim()
       : undefined,
+    ownerEditNotice: r.ownerEditNotice != null && String(r.ownerEditNotice).trim()
+      ? String(r.ownerEditNotice).trim()
+      : undefined,
     createdAt: r.createdAt,
     menus: menuDetails,
   };
 }
 
-/** 슬롯·용량에 반영되는 상태(캘린더 ‘확정 일정’과 동일) */
+/** 슬롯·용량에 반영되는 상태(현재 진행 중인 확정 예약) */
 const CALENDAR_CONFIRMED_STATUSES_SQL = "status IN ('CONFIRMED','DEPOSIT_CONFIRMED')";
+
+/** 캘린더 표시용(과거 방문 완료/노쇼 포함) */
+const CALENDAR_VISIBLE_STATUSES_SQL =
+  "status IN ('CONFIRMED','DEPOSIT_CONFIRMED','CHECKED_IN','NO_SHOW')";
 
 /** 가게별 예약 목록 (status·단일 date 또는 from~to 기간) */
 export async function adminListReservationsByStore(
@@ -122,7 +129,7 @@ export async function adminListReservationsByStore(
   dateFilter: string | null,
   rangeFrom: string | null = null,
   rangeTo: string | null = null,
-  opts?: { calendarConfirmed?: boolean },
+  opts?: { calendarConfirmed?: boolean; calendarVisible?: boolean },
 ): Promise<{ success: true; data: Record<string, unknown>[] } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -151,6 +158,8 @@ export async function adminListReservationsByStore(
     if (statusFilter?.trim()) {
       sql += ' AND status = ?';
       params.push(statusFilter.trim());
+    } else if (opts?.calendarVisible) {
+      sql += ` AND ${CALENDAR_VISIBLE_STATUSES_SQL}`;
     } else if (opts?.calendarConfirmed) {
       sql += ` AND ${CALENDAR_CONFIRMED_STATUSES_SQL}`;
     }
@@ -386,7 +395,7 @@ export async function adminMarkNoShow(
 /** 예약 시간 / 인원 수정 (확정 상태만 가능) */
 export async function adminUpdateReservation(
   reservationId: string,
-  patch: { startTime?: string; endTime?: string; headcount?: number },
+  patch: { startTime?: string; endTime?: string; headcount?: number; notice?: string },
 ): Promise<
   | { success: true; data: { reservationId: string } }
   | { success: false; message: string }
@@ -400,7 +409,7 @@ export async function adminUpdateReservation(
   }
 
   const sets: string[] = [];
-  const values: (string | number)[] = [];
+  const values: (string | number | null)[] = [];
 
   if (patch.startTime !== undefined) {
     const t = patch.startTime.trim();
@@ -427,6 +436,17 @@ export async function adminUpdateReservation(
     }
     sets.push('headcount = ?');
     values.push(Math.floor(n));
+  }
+
+  // 항상 안내 메시지 갱신 (제공되지 않으면 기본 문구 사용)
+  if (sets.length > 0) {
+    const notice = (patch.notice ?? '').trim();
+    const finalNotice = notice || '사장님이 예약 정보를 수정했어요. 변경된 내용을 확인해 주세요.';
+    if (finalNotice.length > 500) {
+      return { success: false, message: '안내 메시지는 500자 이내로 입력해 주세요.' };
+    }
+    sets.push('ownerEditNotice = ?');
+    values.push(finalNotice);
   }
 
   if (sets.length === 0) {
@@ -476,5 +496,58 @@ export async function autoCheckInPastReservations(): Promise<{
   } catch (e) {
     console.warn('[autoCheckInPastReservations]', e);
     return { ok: false, message: 'auto check-in failed' };
+  }
+}
+
+/**
+ * 확정 예약 직권 취소 (사유 필수)
+ * - 사장님이 매장 사정으로 확정된 예약을 취소할 때 사용
+ * - 거절과 동일하게 ownerRejectReason 컬럼에 사유 저장
+ * - CONFIRMED, DEPOSIT_PENDING, DEPOSIT_CONFIRMED 만 직권 취소 가능
+ */
+export async function adminCancelConfirmedReservation(
+  reservationId: string,
+  reason: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  const msg = reason.trim();
+  if (!id) {
+    return { success: false, message: '예약 ID가 필요합니다.' };
+  }
+  if (!msg) {
+    return { success: false, message: '취소 사유를 입력해 주세요.' };
+  }
+  if (msg.length > OWNER_REJECT_REASON_MAX) {
+    return { success: false, message: `취소 사유는 ${OWNER_REJECT_REASON_MAX}자 이내로 입력해 주세요.` };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      `UPDATE reservation
+        SET status = 'CANCELED', ownerRejectReason = ?
+        WHERE reservationId = ?
+          AND status IN ('CONFIRMED','DEPOSIT_PENDING','DEPOSIT_CONFIRMED')`,
+      [msg, id],
+    );
+    if (!header.affectedRows) {
+      const [rows] = await pool.query<ReservationRow[]>(
+        'SELECT status FROM reservation WHERE reservationId = ? LIMIT 1',
+        [id],
+      );
+      if (!rows.length) {
+        return { success: false, message: '예약을 찾을 수 없습니다.' };
+      }
+      return { success: false, message: '확정된 예약만 직권 취소할 수 있습니다.' };
+    }
+    return { success: true, data: { reservationId: id, status: 'CANCELED' } };
+  } catch (e) {
+    console.error('[adminCancelConfirmedReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
   }
 }

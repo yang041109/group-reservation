@@ -19,6 +19,7 @@ interface ReservationItem {
   createdAt: string;
   depositAmount?: number;
   ownerRejectReason?: string;
+  ownerEditNotice?: string;
   menus: { menuId: string; name: string; quantity: number; priceAtTime: number }[];
 }
 
@@ -147,6 +148,12 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
               );
             })()
           : null}
+        {!ownerReject && r.ownerEditNotice ? (
+          <div className="mt-3 rounded-lg border-2 border-orange-300 bg-orange-50 p-3 text-sm text-orange-900">
+            <p className="font-semibold">⚠️ 예약이 변경되었어요! 확인해 주세요</p>
+            <p className="mt-1 whitespace-pre-line text-orange-800">{r.ownerEditNotice}</p>
+          </div>
+        ) : null}
         {r.menus?.length > 0 ? (
           <div className="mt-2 border-t border-gray-100 pt-2 text-sm text-gray-600">
             {r.menus.map((m, i) => (

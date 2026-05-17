@@ -117,6 +117,12 @@ export default function AdminCalendarByToken() {
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
   const [editHeadcount, setEditHeadcount] = useState('');
+  const [editAgreed, setEditAgreed] = useState(false);
+  const [editNotice, setEditNotice] = useState('');
+  // 직권 취소 모달
+  const [cancelTarget, setCancelTarget] = useState<Reservation | null>(null);
+  const [cancelReasonDraft, setCancelReasonDraft] = useState('');
+  const [cancelAlternativeDraft, setCancelAlternativeDraft] = useState('');
 
   const monthRange = useMemo(() => {
     const mi = viewMonth - 1;
@@ -133,7 +139,7 @@ export default function AdminCalendarByToken() {
       const { from, to } = monthRange;
       // 캘린더는 모든 상태 포함 (CHECKED_IN, NO_SHOW 등도 보이게)
       const res = await fetch(
-        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}&calendarConfirmed=1`,
+        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}&calendarVisible=1`,
       );
       const data = await res.json();
       if (data.success) {
@@ -214,13 +220,43 @@ export default function AdminCalendarByToken() {
     if (ok) setDetail(null);
   };
 
-  const handleCancelReservation = async (id: string) => {
-    const ok = await callAction(
-      id,
-      { action: 'cancel' },
-      '이 예약을 취소하시겠습니까? 매장 측 사정으로 직권 취소 처리됩니다.',
-    );
-    if (ok) setDetail(null);
+  const openCancel = (r: Reservation) => {
+    setCancelTarget(r);
+    setCancelReasonDraft('');
+    setCancelAlternativeDraft('');
+  };
+
+  const closeCancel = () => {
+    setCancelTarget(null);
+    setCancelReasonDraft('');
+    setCancelAlternativeDraft('');
+  };
+
+  const submitCancel = async () => {
+    if (!cancelTarget) return;
+    const trimmed = cancelReasonDraft.trim();
+    const altTrimmed = cancelAlternativeDraft.trim();
+    if (!trimmed) {
+      alert('취소 사유를 입력해 주세요. (예약자에게 안내됩니다)');
+      return;
+    }
+    if (trimmed.length > 500) {
+      alert('취소 사유는 500자 이내로 입력해 주세요.');
+      return;
+    }
+    if (altTrimmed.length > 500) {
+      alert('대안 안내는 500자 이내로 입력해 주세요.');
+      return;
+    }
+    const ok = await callAction(cancelTarget.reservationId, {
+      action: 'cancel',
+      reason: trimmed,
+      alternative: altTrimmed || undefined,
+    });
+    if (ok) {
+      closeCancel();
+      setDetail(null);
+    }
   };
 
   const openEdit = (r: Reservation) => {
@@ -228,6 +264,8 @@ export default function AdminCalendarByToken() {
     setEditStartTime((r.startTime ?? '').slice(0, 5));
     setEditEndTime((r.endTime ?? '').slice(0, 5));
     setEditHeadcount(String(r.headcount ?? ''));
+    setEditAgreed(false);
+    setEditNotice('');
   };
 
   const closeEdit = () => {
@@ -235,10 +273,16 @@ export default function AdminCalendarByToken() {
     setEditStartTime('');
     setEditEndTime('');
     setEditHeadcount('');
+    setEditAgreed(false);
+    setEditNotice('');
   };
 
   const submitEdit = async () => {
     if (!editTarget) return;
+    if (!editAgreed) {
+      alert('예약자와 변경에 대해 합의된 상태인지 먼저 확인해 주세요.');
+      return;
+    }
     const headcountNum = parseInt(editHeadcount, 10);
     if (!Number.isFinite(headcountNum) || headcountNum < 1 || headcountNum > 999) {
       alert('인원수는 1 이상 999 이하의 숫자로 입력해 주세요.');
@@ -248,11 +292,17 @@ export default function AdminCalendarByToken() {
       alert('시간은 HH:MM 형식으로 입력해 주세요.');
       return;
     }
+    const noticeTrimmed = editNotice.trim();
+    if (noticeTrimmed.length > 500) {
+      alert('안내 메시지는 500자 이내로 입력해 주세요.');
+      return;
+    }
     const ok = await callAction(editTarget.reservationId, {
       action: 'update',
       startTime: editStartTime,
       endTime: editEndTime,
       headcount: headcountNum,
+      notice: noticeTrimmed || undefined,
     });
     if (ok) {
       closeEdit();
@@ -576,7 +626,7 @@ export default function AdminCalendarByToken() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleCancelReservation(detail.reservationId)}
+                  onClick={() => openCancel(detail)}
                   disabled={actionLoading === detail.reservationId}
                   className="w-full rounded-lg bg-red-50 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
@@ -615,7 +665,7 @@ export default function AdminCalendarByToken() {
           onClick={closeEdit}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
@@ -629,10 +679,24 @@ export default function AdminCalendarByToken() {
               </button>
             </div>
 
-            <p className="mb-4 text-xs text-gray-500">
-              고객 요청에 따라 시간이나 인원을 변경할 수 있습니다. 잔여 좌석 검증은 적용되지
-              않으니 신중히 입력해 주세요.
-            </p>
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">⚠️ 예약자 합의 확인</p>
+              <p className="mt-1 text-amber-800">
+                예약자(<span className="font-medium">{editTarget.userName}</span>)와 시간/인원
+                변경에 대해 미리 합의하셨나요? 합의되지 않은 임의 변경은 분쟁의 소지가 됩니다.
+              </p>
+              <label className="mt-3 flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={editAgreed}
+                  onChange={(e) => setEditAgreed(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm font-medium text-amber-900">
+                  예약자와 합의된 변경입니다
+                </span>
+              </label>
+            </div>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -666,6 +730,21 @@ export default function AdminCalendarByToken() {
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
               </label>
+
+              <label className="block">
+                <span className="text-xs text-gray-500">예약자에게 보일 안내 (선택)</span>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={editNotice}
+                  onChange={(e) => setEditNotice(e.target.value)}
+                  placeholder="비워두면 '사장님이 예약 정보를 수정했어요. 변경된 내용을 확인해 주세요.' 라고 안내됩니다."
+                  className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+                <span className="mt-1 block text-right text-xs text-gray-400">
+                  {editNotice.length} / 500
+                </span>
+              </label>
             </div>
 
             <div className="mt-5 flex gap-2">
@@ -680,10 +759,105 @@ export default function AdminCalendarByToken() {
               <button
                 type="button"
                 onClick={() => void submitEdit()}
-                disabled={actionLoading === editTarget.reservationId}
+                disabled={actionLoading === editTarget.reservationId || !editAgreed}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {actionLoading === editTarget.reservationId ? '저장 중…' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 직권 취소 모달 */}
+      {cancelTarget && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (actionLoading !== cancelTarget.reservationId) closeCancel();
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-gray-900">예약 직권 취소</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              매장 측 사정으로 확정된 예약을 취소합니다. 입력하신 사유는 예약자의 &quot;내 예약
+              조회&quot; 화면에 표시됩니다.
+            </p>
+
+            <div className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
+              <p>
+                예약자: <span className="font-medium">{cancelTarget.userName}</span>
+                {cancelTarget.groupName ? ` (${cancelTarget.groupName})` : ''}
+              </p>
+              <p className="mt-0.5">
+                일시: {cancelTarget.date} {cancelTarget.startTime} ~ {cancelTarget.endTime}
+              </p>
+            </div>
+
+            <label
+              htmlFor="cancel-reason"
+              className="mt-4 block text-sm font-medium text-gray-700"
+            >
+              취소 사유
+            </label>
+            <textarea
+              id="cancel-reason"
+              rows={3}
+              maxLength={500}
+              value={cancelReasonDraft}
+              onChange={(e) => setCancelReasonDraft(e.target.value)}
+              disabled={actionLoading === cancelTarget.reservationId}
+              placeholder="예: 매장 누수로 영업 중단, 단체 행사 변경 등"
+              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-right text-xs text-gray-400">
+              {cancelReasonDraft.length} / 500
+            </p>
+
+            <label
+              htmlFor="cancel-alternative"
+              className="mt-4 block text-sm font-medium text-gray-700"
+            >
+              대안 안내 (선택)
+            </label>
+            <p className="mt-0.5 text-xs text-gray-500">
+              예: &quot;다음 주 같은 시간대로 예약 가능합니다. 연락 주세요.&quot;
+            </p>
+            <textarea
+              id="cancel-alternative"
+              rows={3}
+              maxLength={500}
+              value={cancelAlternativeDraft}
+              onChange={(e) => setCancelAlternativeDraft(e.target.value)}
+              disabled={actionLoading === cancelTarget.reservationId}
+              placeholder="고객에게 전달할 대안이 있다면 입력해 주세요."
+              className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-right text-xs text-gray-400">
+              {cancelAlternativeDraft.length} / 500
+            </p>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={closeCancel}
+                disabled={actionLoading === cancelTarget.reservationId}
+                className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitCancel()}
+                disabled={actionLoading === cancelTarget.reservationId}
+                className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading === cancelTarget.reservationId ? '처리 중...' : '취소 처리'}
               </button>
             </div>
           </div>

@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS reservation (
   status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
   depositAmount INT NOT NULL DEFAULT 0,
   ownerRejectReason VARCHAR(500) NULL COMMENT '사장님 거절 시 예약자에게 전달되는 사유',
+  ownerEditNotice VARCHAR(500) NULL COMMENT '사장님이 시간/인원을 변경한 경우 사용자에게 보여줄 안내',
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_reservation_store FOREIGN KEY (storeId) REFERENCES store (storeId) ON DELETE CASCADE,
   KEY idx_reservation_store_date_status (storeId, date, status)

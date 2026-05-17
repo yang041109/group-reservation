@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   adminAcceptReservation,
+  adminCancelConfirmedReservation,
   adminCheckInReservation,
   adminConfirmDeposit,
   adminMarkNoShow,
@@ -17,11 +18,11 @@ export const runtime = 'nodejs';
  * body:
  *  - { action: 'accept' }
  *  - { action: 'reject', reason: string, alternative?: string }
- *  - { action: 'cancel' }
+ *  - { action: 'cancel', reason?: string, alternative?: string }
  *  - { action: 'confirmDeposit' }
  *  - { action: 'checkIn' }
  *  - { action: 'noShow' }
- *  - { action: 'update', startTime?: string, endTime?: string, headcount?: number }
+ *  - { action: 'update', startTime?: string, endTime?: string, headcount?: number, notice?: string }
  */
 export async function PATCH(
   request: Request,
@@ -30,7 +31,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, reason, alternative, startTime, endTime, headcount } = body;
+    const { action, reason, alternative, startTime, endTime, headcount, notice } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -106,6 +107,7 @@ export async function PATCH(
         startTime: typeof startTime === 'string' ? startTime : undefined,
         endTime: typeof endTime === 'string' ? endTime : undefined,
         headcount: typeof headcount === 'number' ? headcount : undefined,
+        notice: typeof notice === 'string' ? notice : undefined,
       });
       if (!result.success) {
         return NextResponse.json(result, { status: pickStatusCode(result.message) });
@@ -114,6 +116,18 @@ export async function PATCH(
     }
 
     // action === 'cancel'
+    // 사유가 있으면 ownerRejectReason 컬럼에 기록 (확정 예약 직권 취소).
+    // 사유가 없으면 기존 동작(단순 상태 변경) 유지 — 호환성 보존.
+    const reasonText = typeof reason === 'string' ? reason.trim() : '';
+    const altText = typeof alternative === 'string' ? alternative.trim() : '';
+    if (reasonText) {
+      const fullReason = altText ? `${reasonText}\n\n[대안 안내]\n${altText}` : reasonText;
+      const result = await adminCancelConfirmedReservation(id, fullReason);
+      if (!result.success) {
+        return NextResponse.json(result, { status: pickStatusCode(result.message, 404) });
+      }
+      return NextResponse.json(result);
+    }
     const result = await adminSetReservationStatus(id, 'CANCELED');
     if (!result.success) {
       return NextResponse.json(result, { status: pickStatusCode(result.message, 404) });
