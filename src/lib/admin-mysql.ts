@@ -553,93 +553,34 @@ export async function adminCancelConfirmedReservation(
 }
 
 
-// ── 사장님 일정(이벤트) ────────────────────────────────────
+// ── 사장님이 직접 입력하는 예약 ────────────────────────────
 
-type StoreEventRow = RowDataPacket & Record<string, unknown>;
-
-const EVENT_TITLE_MAX = 120;
-const EVENT_MEMO_MAX = 500;
-const EVENT_CATEGORIES = ['BLOCK', 'NOTICE', 'MEMO', 'OTHER'] as const;
-type EventCategory = (typeof EVENT_CATEGORIES)[number];
-
-function isEventCategory(v: unknown): v is EventCategory {
-  return typeof v === 'string' && (EVENT_CATEGORIES as readonly string[]).includes(v);
-}
-
-function timeToHHmm(v: unknown): string {
-  if (v instanceof Date) {
-    const hh = String(v.getHours()).padStart(2, '0');
-    const mm = String(v.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-  return String(v ?? '').trim().slice(0, 5);
-}
-
-function mapEventRow(r: StoreEventRow) {
-  return {
-    eventId: String(r.eventId ?? '').trim(),
-    storeId: String(r.storeId ?? '').trim(),
-    title: String(r.title ?? '').trim(),
-    memo: r.memo != null ? String(r.memo).trim() : '',
-    category: String(r.category ?? 'OTHER').trim() as EventCategory,
-    date: rowDateToYmd(r.date),
-    startTime: timeToHHmm(r.startTime),
-    endTime: timeToHHmm(r.endTime),
-    createdAt: r.createdAt,
-  };
-}
-
-/** 가게의 일정(이벤트) 목록 조회 (기간 또는 단일 날짜) */
-export async function adminListStoreEvents(
+/**
+ * 사장님이 직접 입력하는 수동 예약/예약 차단
+ * - mode 'phone'  : 전화로 받은 외부 예약 (CONFIRMED 로 바로 저장)
+ * - mode 'block'  : 예약 차단 (CONFIRMED 로 저장 → 슬롯 잔여 인원에 반영)
+ *
+ * 두 경우 모두 reservation 테이블 한 곳에 저장돼서 일반 우르르 타임라인에 그대로 반영됨.
+ * payload.userName 만 필수 (block 일 때는 자동 채움).
+ */
+export async function adminCreateManualReservation(
   storeId: string,
-  rangeFrom: string | null = null,
-  rangeTo: string | null = null,
-  date: string | null = null,
-): Promise<
-  | { success: true; data: ReturnType<typeof mapEventRow>[] }
-  | { success: false; message: string }
-> {
-  if (!isMysqlConfigured()) {
-    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
-  }
-  const sid = storeId.trim();
-  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
-
-  try {
-    const pool = getPool();
-    let sql = 'SELECT * FROM store_event WHERE storeId = ?';
-    const params: unknown[] = [sid];
-    const rf = rangeFrom?.trim().slice(0, 10);
-    const rt = rangeTo?.trim().slice(0, 10);
-    if (rf && rt) {
-      sql += ' AND DATE(`date`) >= ? AND DATE(`date`) <= ?';
-      params.push(rf, rt);
-    } else if (date?.trim()) {
-      sql += ' AND DATE(`date`) = ?';
-      params.push(date.trim().slice(0, 10));
-    }
-    sql += ' ORDER BY `date`, startTime';
-    const [rows] = await pool.query<StoreEventRow[]>(sql, params);
-    return { success: true, data: rows.map(mapEventRow) };
-  } catch (e) {
-    console.error('[adminListStoreEvents]', e);
-    return { success: false, message: formatMysqlUserError(e) };
-  }
-}
-
-/** 일정 등록 */
-export async function adminCreateStoreEvent(
-  storeId: string,
+  mode: 'phone' | 'block',
   payload: {
-    title?: string;
-    memo?: string;
-    category?: string;
+    userName?: string;
+    groupName?: string;
+    userPhone?: string;
+    userNote?: string;
+    headcount?: number;
     date?: string;
     startTime?: string;
     endTime?: string;
   },
 ): Promise<
-  | { success: true; data: ReturnType<typeof mapEventRow> }
+  | {
+      success: true;
+      data: { reservationId: string; status: string };
+    }
   | { success: false; message: string }
 > {
   if (!isMysqlConfigured()) {
@@ -648,75 +589,68 @@ export async function adminCreateStoreEvent(
   const sid = storeId.trim();
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
 
-  const title = (payload.title ?? '').trim();
-  if (!title) return { success: false, message: '일정 제목을 입력해 주세요.' };
-  if (title.length > EVENT_TITLE_MAX) {
-    return { success: false, message: `제목은 ${EVENT_TITLE_MAX}자 이내로 입력해 주세요.` };
-  }
-  const memo = (payload.memo ?? '').trim();
-  if (memo.length > EVENT_MEMO_MAX) {
-    return { success: false, message: `메모는 ${EVENT_MEMO_MAX}자 이내로 입력해 주세요.` };
-  }
-  const category = isEventCategory(payload.category) ? payload.category : 'OTHER';
   const date = (payload.date ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { success: false, message: '날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' };
   }
-  const startTime = (payload.startTime ?? '').trim();
-  const endTime = (payload.endTime ?? '').trim();
-  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(startTime) || !/^\d{2}:\d{2}(:\d{2})?$/.test(endTime)) {
+
+  const stRaw = (payload.startTime ?? '').trim();
+  const etRaw = (payload.endTime ?? '').trim();
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(stRaw) || !/^\d{2}:\d{2}(:\d{2})?$/.test(etRaw)) {
     return { success: false, message: '시간 형식이 올바르지 않습니다. (HH:MM)' };
   }
-  const stFull = startTime.length === 5 ? `${startTime}:00` : startTime;
-  const etFull = endTime.length === 5 ? `${endTime}:00` : endTime;
+  const startTime = stRaw.length === 5 ? `${stRaw}:00` : stRaw;
+  const endTime = etRaw.length === 5 ? `${etRaw}:00` : etRaw;
 
-  const eventId = `EVT${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  let userName = (payload.userName ?? '').trim();
+  if (mode === 'phone') {
+    if (!userName) {
+      return { success: false, message: '예약자명을 입력해 주세요.' };
+    }
+  } else {
+    // block 모드: 예약자명 자동 (사장님 직접 처리한 시간이라는 것을 기록)
+    userName = userName || '예약 차단';
+  }
+
+  if (userName.length > 80) {
+    return { success: false, message: '예약자명은 80자 이내로 입력해 주세요.' };
+  }
+
+  const groupName = (payload.groupName ?? '').trim();
+  const userPhone = (payload.userPhone ?? '').trim();
+  const userNote = (payload.userNote ?? '').trim();
+  const headcount = Math.max(1, Math.floor(Number(payload.headcount) || 1));
+
+  const reservationId = `RSVM${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   try {
     const pool = getPool();
     await pool.execute<ResultSetHeader>(
-      `INSERT INTO store_event (eventId, storeId, title, memo, category, date, startTime, endTime, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [eventId, sid, title, memo || null, category, date, stFull, etFull],
+      `INSERT INTO reservation (
+        reservationId, storeId, userName, groupName, userPhone, userNote,
+        headcount, date, startTime, endTime, menuItems, totalAmount, status, depositAmount, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)`,
+      [
+        reservationId,
+        sid,
+        userName,
+        groupName,
+        userPhone,
+        userNote,
+        headcount,
+        date,
+        startTime,
+        endTime,
+        '[]', // menuItems 빈 배열
+        0,    // totalAmount
+        0,    // depositAmount (사장님이 직접 처리하므로 우리가 받지 않음)
+        createdAt,
+      ],
     );
-    const [rows] = await pool.query<StoreEventRow[]>(
-      'SELECT * FROM store_event WHERE eventId = ? LIMIT 1',
-      [eventId],
-    );
-    return { success: true, data: mapEventRow(rows[0]) };
+    return { success: true, data: { reservationId, status: 'CONFIRMED' } };
   } catch (e) {
-    console.error('[adminCreateStoreEvent]', e);
-    return { success: false, message: formatMysqlUserError(e) };
-  }
-}
-
-/** 일정 삭제 */
-export async function adminDeleteStoreEvent(
-  storeId: string,
-  eventId: string,
-): Promise<
-  | { success: true; data: { eventId: string } }
-  | { success: false; message: string }
-> {
-  if (!isMysqlConfigured()) {
-    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
-  }
-  const sid = storeId.trim();
-  const eid = eventId.trim();
-  if (!sid || !eid) return { success: false, message: '가게 ID와 일정 ID가 필요합니다.' };
-
-  try {
-    const pool = getPool();
-    const [header] = await pool.execute<ResultSetHeader>(
-      'DELETE FROM store_event WHERE eventId = ? AND storeId = ?',
-      [eid, sid],
-    );
-    if (!header.affectedRows) {
-      return { success: false, message: '일정을 찾을 수 없습니다.' };
-    }
-    return { success: true, data: { eventId: eid } };
-  } catch (e) {
-    console.error('[adminDeleteStoreEvent]', e);
+    console.error('[adminCreateManualReservation]', e);
     return { success: false, message: formatMysqlUserError(e) };
   }
 }

@@ -24,19 +24,6 @@ interface Reservation {
   }>;
 }
 
-type EventCategory = 'BLOCK' | 'NOTICE' | 'MEMO' | 'OTHER';
-
-interface StoreEvent {
-  eventId: string;
-  storeId: string;
-  title: string;
-  memo: string;
-  category: EventCategory;
-  date: string;
-  startTime: string;
-  endTime: string;
-}
-
 const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function pad2(n: number) {
@@ -110,20 +97,6 @@ function getStatusBadgeClass(status: string): string {
   return 'bg-gray-100 text-gray-700';
 }
 
-function getEventDotColor(category: EventCategory): string {
-  if (category === 'BLOCK') return 'bg-red-500';
-  if (category === 'NOTICE') return 'bg-violet-500';
-  if (category === 'MEMO') return 'bg-amber-500';
-  return 'bg-slate-500';
-}
-
-function getEventCategoryLabel(category: EventCategory): string {
-  if (category === 'BLOCK') return '예약 차단';
-  if (category === 'NOTICE') return '공지';
-  if (category === 'MEMO') return '메모';
-  return '기타';
-}
-
 export default function AdminCalendarByToken() {
   const store = useAdminStore();
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
@@ -152,14 +125,16 @@ export default function AdminCalendarByToken() {
   const [cancelReasonDraft, setCancelReasonDraft] = useState('');
   const [cancelAlternativeDraft, setCancelAlternativeDraft] = useState('');
 
-  // 일정(이벤트) 관련
-  const [events, setEvents] = useState<StoreEvent[]>([]);
+  // 일정(수동 예약) 등록 모달
   const [eventCreateOpen, setEventCreateOpen] = useState(false);
-  const [eventTitle, setEventTitle] = useState('');
-  const [eventMemo, setEventMemo] = useState('');
-  const [eventCategory, setEventCategory] = useState<EventCategory>('NOTICE');
+  const [eventMode, setEventMode] = useState<'phone' | 'block'>('phone');
+  const [eventUserName, setEventUserName] = useState('');
+  const [eventGroupName, setEventGroupName] = useState('');
+  const [eventUserPhone, setEventUserPhone] = useState('');
+  const [eventHeadcount, setEventHeadcount] = useState('1');
   const [eventStartTime, setEventStartTime] = useState('09:00');
   const [eventEndTime, setEventEndTime] = useState('10:00');
+  const [eventMemo, setEventMemo] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
 
   const monthRange = useMemo(() => {
@@ -192,25 +167,9 @@ export default function AdminCalendarByToken() {
     }
   }, [store.id, monthRange]);
 
-  const fetchMonthEvents = useCallback(async () => {
-    try {
-      const { from, to } = monthRange;
-      const res = await fetch(
-        `/api/admin/events?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        setEvents((data.data || []) as StoreEvent[]);
-      }
-    } catch {
-      // 무시 (이벤트 테이블 미생성 환경에서 페이지 깨지지 않도록)
-    }
-  }, [store.id, monthRange]);
-
   useEffect(() => {
     void fetchMonthReservations();
-    void fetchMonthEvents();
-  }, [fetchMonthReservations, fetchMonthEvents]);
+  }, [fetchMonthReservations]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Reservation[]>();
@@ -227,30 +186,11 @@ export default function AdminCalendarByToken() {
     return map;
   }, [reservations]);
 
-  const eventsByDate = useMemo(() => {
-    const map = new Map<string, StoreEvent[]>();
-    for (const e of events) {
-      const d = e.date?.slice(0, 10) ?? '';
-      if (!d) continue;
-      const list = map.get(d) ?? [];
-      list.push(e);
-      map.set(d, list);
-    }
-    for (const [, list] of map) {
-      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
-    }
-    return map;
-  }, [events]);
-
   const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
 
   const selectedDateReservations = useMemo(() => {
     return byDate.get(selectedDate) ?? [];
   }, [byDate, selectedDate]);
-
-  const selectedDateEvents = useMemo(() => {
-    return eventsByDate.get(selectedDate) ?? [];
-  }, [eventsByDate, selectedDate]);
 
   const callAction = useCallback(
     async (reservationId: string, body: Record<string, unknown>, confirmMessage?: string) => {
@@ -384,11 +324,14 @@ export default function AdminCalendarByToken() {
   };
 
   const openEventCreate = () => {
-    setEventTitle('');
-    setEventMemo('');
-    setEventCategory('NOTICE');
+    setEventMode('phone');
+    setEventUserName('');
+    setEventGroupName('');
+    setEventUserPhone('');
+    setEventHeadcount('1');
     setEventStartTime('09:00');
     setEventEndTime('10:00');
+    setEventMemo('');
     setEventCreateOpen(true);
   };
 
@@ -397,25 +340,35 @@ export default function AdminCalendarByToken() {
   };
 
   const submitEventCreate = async () => {
-    const title = eventTitle.trim();
-    if (!title) {
-      alert('일정 제목을 입력해 주세요.');
-      return;
-    }
     if (!/^\d{2}:\d{2}$/.test(eventStartTime) || !/^\d{2}:\d{2}$/.test(eventEndTime)) {
       alert('시간은 HH:MM 형식으로 입력해 주세요.');
       return;
     }
+    if (eventMode === 'phone') {
+      if (!eventUserName.trim()) {
+        alert('예약자명을 입력해 주세요.');
+        return;
+      }
+    }
+    const headcountNum = parseInt(eventHeadcount, 10);
+    if (!Number.isFinite(headcountNum) || headcountNum < 1 || headcountNum > 999) {
+      alert('인원수는 1 이상 999 이하의 숫자로 입력해 주세요.');
+      return;
+    }
+
     setEventLoading(true);
     try {
-      const res = await fetch('/api/admin/events', {
+      const res = await fetch('/api/admin/reservations/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeId: store.id,
-          title,
-          memo: eventMemo.trim() || undefined,
-          category: eventCategory,
+          mode: eventMode,
+          userName: eventMode === 'phone' ? eventUserName.trim() : undefined,
+          groupName: eventMode === 'phone' ? eventGroupName.trim() || undefined : undefined,
+          userPhone: eventMode === 'phone' ? eventUserPhone.trim() || undefined : undefined,
+          userNote: eventMemo.trim() || undefined,
+          headcount: headcountNum,
           date: selectedDate,
           startTime: eventStartTime,
           endTime: eventEndTime,
@@ -423,31 +376,10 @@ export default function AdminCalendarByToken() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetchMonthEvents();
+        await fetchMonthReservations();
         closeEventCreate();
       } else {
         alert(data.message || '일정 등록에 실패했습니다.');
-      }
-    } catch {
-      alert('서버 오류가 발생했습니다.');
-    } finally {
-      setEventLoading(false);
-    }
-  };
-
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('이 일정을 삭제하시겠습니까?')) return;
-    setEventLoading(true);
-    try {
-      const res = await fetch(
-        `/api/admin/events/${encodeURIComponent(eventId)}?storeId=${encodeURIComponent(store.id)}`,
-        { method: 'DELETE' },
-      );
-      const data = await res.json();
-      if (data.success) {
-        await fetchMonthEvents();
-      } else {
-        alert(data.message || '삭제에 실패했습니다.');
       }
     } catch {
       alert('서버 오류가 발생했습니다.');
@@ -536,11 +468,9 @@ export default function AdminCalendarByToken() {
               const isSunCol = col === 0;
               const isSatCol = col === 6;
               const list = cell.dateStr ? byDate.get(cell.dateStr) ?? [] : [];
-              const eventList = cell.dateStr ? eventsByDate.get(cell.dateStr) ?? [] : [];
               const isToday = cell.dateStr === todayStr;
               const isSelected = cell.dateStr === selectedDate;
               const hasReservations = list.length > 0;
-              const hasEvents = eventList.length > 0;
 
               return (
                 <button
@@ -566,18 +496,12 @@ export default function AdminCalendarByToken() {
                       >
                         {cell.dayNum}
                       </div>
-                      {(hasReservations || hasEvents) && (
+                      {hasReservations && (
                         <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-0.5">
                           {list.slice(0, 3).map((r, i) => (
                             <div
                               key={`r-${i}`}
                               className={`h-1 w-1 rounded-full ${getStatusColor(r.status)}`}
-                            />
-                          ))}
-                          {eventList.slice(0, 3).map((e, i) => (
-                            <div
-                              key={`e-${i}`}
-                              className={`h-1 w-1 rounded-full ${getEventDotColor(e.category)}`}
                             />
                           ))}
                         </div>
@@ -606,7 +530,7 @@ export default function AdminCalendarByToken() {
             </div>
           )}
 
-          {selectedDateReservations.length === 0 && selectedDateEvents.length === 0 ? (
+          {selectedDateReservations.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               <p>예약이 없습니다</p>
             </div>
@@ -638,46 +562,6 @@ export default function AdminCalendarByToken() {
                     <div className="mt-0.5 text-xs text-gray-500">{reservation.headcount}명</div>
                   </div>
                 </button>
-              ))}
-
-              {selectedDateEvents.map((ev) => (
-                <div
-                  key={ev.eventId}
-                  className="flex w-full items-center gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4"
-                >
-                  <div
-                    className={`h-2 w-2 shrink-0 rounded-full ${getEventDotColor(ev.category)}`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900">{ev.startTime}</span>
-                      <span className="text-sm text-gray-500">~ {ev.endTime}</span>
-                      <span className="ml-auto rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
-                        {getEventCategoryLabel(ev.category)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-gray-900">{ev.title}</div>
-                    {ev.memo ? (
-                      <div className="mt-0.5 text-xs text-gray-500">{ev.memo}</div>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteEvent(ev.eventId)}
-                    disabled={eventLoading}
-                    className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-200 hover:text-red-600 disabled:opacity-50"
-                    aria-label="삭제"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                      />
-                    </svg>
-                  </button>
-                </div>
               ))}
             </div>
           )}
@@ -1088,42 +972,45 @@ export default function AdminCalendarByToken() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-500">분류</label>
-                <div className="mt-1 grid grid-cols-4 gap-2">
-                  {(['NOTICE', 'MEMO', 'BLOCK', 'OTHER'] as EventCategory[]).map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setEventCategory(c)}
-                      disabled={eventLoading}
-                      className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition ${
-                        eventCategory === c
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className={`h-2 w-2 rounded-full ${getEventDotColor(c)}`} />
-                      <span className="font-medium">{getEventCategoryLabel(c)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <label className="block">
-                <span className="text-xs text-gray-500">제목</span>
-                <input
-                  type="text"
-                  value={eventTitle}
-                  onChange={(e) => setEventTitle(e.target.value)}
+            {/* 모드 선택 */}
+            <div className="mb-4">
+              <label className="text-xs text-gray-500">분류</label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEventMode('phone')}
                   disabled={eventLoading}
-                  maxLength={120}
-                  placeholder="예: 임시 휴무, 단체 행사 안내"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-                />
-              </label>
+                  className={`rounded-lg border p-3 text-left text-sm transition ${
+                    eventMode === 'phone'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="font-bold">📞 전화 예약 추가</div>
+                  <div className="mt-0.5 text-[11px] text-gray-500">
+                    전화로 받은 예약을 직접 추가
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEventMode('block')}
+                  disabled={eventLoading}
+                  className={`rounded-lg border p-3 text-left text-sm transition ${
+                    eventMode === 'block'
+                      ? 'border-red-500 bg-red-50 text-red-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="font-bold">🚫 예약 차단</div>
+                  <div className="mt-0.5 text-[11px] text-gray-500">
+                    해당 시간 예약 받지 않음
+                  </div>
+                </button>
+              </div>
+            </div>
 
+            <div className="space-y-3">
+              {/* 시간 (공통) */}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-xs text-gray-500">시작 시간</span>
@@ -1148,6 +1035,65 @@ export default function AdminCalendarByToken() {
               </div>
 
               <label className="block">
+                <span className="text-xs text-gray-500">인원수</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={eventHeadcount}
+                  onChange={(e) => setEventHeadcount(e.target.value)}
+                  disabled={eventLoading}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
+                />
+              </label>
+
+              {/* 전화 예약 모드 전용 필드 */}
+              {eventMode === 'phone' && (
+                <>
+                  <label className="block">
+                    <span className="text-xs text-gray-500">
+                      예약자명 <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      value={eventUserName}
+                      onChange={(e) => setEventUserName(e.target.value)}
+                      disabled={eventLoading}
+                      maxLength={80}
+                      placeholder="예: 홍길동"
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs text-gray-500">단체명 (선택)</span>
+                    <input
+                      type="text"
+                      value={eventGroupName}
+                      onChange={(e) => setEventGroupName(e.target.value)}
+                      disabled={eventLoading}
+                      maxLength={80}
+                      placeholder="예: 동아리 회식"
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs text-gray-500">전화번호 (선택)</span>
+                    <input
+                      type="tel"
+                      value={eventUserPhone}
+                      onChange={(e) => setEventUserPhone(e.target.value)}
+                      disabled={eventLoading}
+                      maxLength={20}
+                      placeholder="010-0000-0000"
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                  </label>
+                </>
+              )}
+
+              <label className="block">
                 <span className="text-xs text-gray-500">메모 (선택)</span>
                 <textarea
                   rows={3}
@@ -1155,13 +1101,24 @@ export default function AdminCalendarByToken() {
                   value={eventMemo}
                   onChange={(e) => setEventMemo(e.target.value)}
                   disabled={eventLoading}
-                  placeholder="추가 메모"
+                  placeholder={
+                    eventMode === 'block'
+                      ? '예: 매장 행사로 예약 차단'
+                      : '예: 단골손님, 자리 안쪽으로 부탁'
+                  }
                   className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                 />
                 <span className="mt-1 block text-right text-xs text-gray-400">
                   {eventMemo.length} / 500
                 </span>
               </label>
+
+              {/* 안내 */}
+              <p className="rounded-lg bg-gray-50 p-2 text-[11px] text-gray-500">
+                {eventMode === 'phone'
+                  ? '※ 입력하신 일정은 예약 확정 상태로 캘린더와 우르르 가게 페이지의 잔여 인원에 즉시 반영됩니다.'
+                  : '※ 해당 시간은 예약 확정으로 잡혀 우르르에서 다른 손님이 예약할 수 없게 됩니다.'}
+              </p>
             </div>
 
             <div className="mt-5 flex gap-2">
