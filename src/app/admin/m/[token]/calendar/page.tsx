@@ -24,6 +24,19 @@ interface Reservation {
   }>;
 }
 
+type EventCategory = 'BLOCK' | 'NOTICE' | 'MEMO' | 'OTHER';
+
+interface StoreEvent {
+  eventId: string;
+  storeId: string;
+  title: string;
+  memo: string;
+  category: EventCategory;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
 const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function pad2(n: number) {
@@ -96,6 +109,20 @@ function getStatusBadgeClass(status: string): string {
   return 'bg-gray-100 text-gray-700';
 }
 
+function getEventDotColor(category: EventCategory): string {
+  if (category === 'BLOCK') return 'bg-red-500';
+  if (category === 'NOTICE') return 'bg-violet-500';
+  if (category === 'MEMO') return 'bg-amber-500';
+  return 'bg-slate-500';
+}
+
+function getEventCategoryLabel(category: EventCategory): string {
+  if (category === 'BLOCK') return '예약 차단';
+  if (category === 'NOTICE') return '공지';
+  if (category === 'MEMO') return '메모';
+  return '기타';
+}
+
 export default function AdminCalendarByToken() {
   const store = useAdminStore();
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
@@ -123,6 +150,16 @@ export default function AdminCalendarByToken() {
   const [cancelTarget, setCancelTarget] = useState<Reservation | null>(null);
   const [cancelReasonDraft, setCancelReasonDraft] = useState('');
   const [cancelAlternativeDraft, setCancelAlternativeDraft] = useState('');
+
+  // 일정(이벤트) 관련
+  const [events, setEvents] = useState<StoreEvent[]>([]);
+  const [eventCreateOpen, setEventCreateOpen] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventMemo, setEventMemo] = useState('');
+  const [eventCategory, setEventCategory] = useState<EventCategory>('NOTICE');
+  const [eventStartTime, setEventStartTime] = useState('09:00');
+  const [eventEndTime, setEventEndTime] = useState('10:00');
+  const [eventLoading, setEventLoading] = useState(false);
 
   const monthRange = useMemo(() => {
     const mi = viewMonth - 1;
@@ -154,9 +191,25 @@ export default function AdminCalendarByToken() {
     }
   }, [store.id, monthRange]);
 
+  const fetchMonthEvents = useCallback(async () => {
+    try {
+      const { from, to } = monthRange;
+      const res = await fetch(
+        `/api/admin/events?storeId=${encodeURIComponent(store.id)}&from=${from}&to=${to}`,
+      );
+      const data = await res.json();
+      if (data.success) {
+        setEvents((data.data || []) as StoreEvent[]);
+      }
+    } catch {
+      // 무시 (이벤트 테이블 미생성 환경에서 페이지 깨지지 않도록)
+    }
+  }, [store.id, monthRange]);
+
   useEffect(() => {
     void fetchMonthReservations();
-  }, [fetchMonthReservations]);
+    void fetchMonthEvents();
+  }, [fetchMonthReservations, fetchMonthEvents]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Reservation[]>();
@@ -173,11 +226,30 @@ export default function AdminCalendarByToken() {
     return map;
   }, [reservations]);
 
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, StoreEvent[]>();
+    for (const e of events) {
+      const d = e.date?.slice(0, 10) ?? '';
+      if (!d) continue;
+      const list = map.get(d) ?? [];
+      list.push(e);
+      map.set(d, list);
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+    return map;
+  }, [events]);
+
   const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
 
   const selectedDateReservations = useMemo(() => {
     return byDate.get(selectedDate) ?? [];
   }, [byDate, selectedDate]);
+
+  const selectedDateEvents = useMemo(() => {
+    return eventsByDate.get(selectedDate) ?? [];
+  }, [eventsByDate, selectedDate]);
 
   const callAction = useCallback(
     async (reservationId: string, body: Record<string, unknown>, confirmMessage?: string) => {
@@ -310,6 +382,79 @@ export default function AdminCalendarByToken() {
     }
   };
 
+  const openEventCreate = () => {
+    setEventTitle('');
+    setEventMemo('');
+    setEventCategory('NOTICE');
+    setEventStartTime('09:00');
+    setEventEndTime('10:00');
+    setEventCreateOpen(true);
+  };
+
+  const closeEventCreate = () => {
+    setEventCreateOpen(false);
+  };
+
+  const submitEventCreate = async () => {
+    const title = eventTitle.trim();
+    if (!title) {
+      alert('일정 제목을 입력해 주세요.');
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(eventStartTime) || !/^\d{2}:\d{2}$/.test(eventEndTime)) {
+      alert('시간은 HH:MM 형식으로 입력해 주세요.');
+      return;
+    }
+    setEventLoading(true);
+    try {
+      const res = await fetch('/api/admin/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId: store.id,
+          title,
+          memo: eventMemo.trim() || undefined,
+          category: eventCategory,
+          date: selectedDate,
+          startTime: eventStartTime,
+          endTime: eventEndTime,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMonthEvents();
+        closeEventCreate();
+      } else {
+        alert(data.message || '일정 등록에 실패했습니다.');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setEventLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm('이 일정을 삭제하시겠습니까?')) return;
+    setEventLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/events/${encodeURIComponent(eventId)}?storeId=${encodeURIComponent(store.id)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (data.success) {
+        await fetchMonthEvents();
+      } else {
+        alert(data.message || '삭제에 실패했습니다.');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setEventLoading(false);
+    }
+  };
+
   const goPrevMonth = () => {
     setViewMonth((m) => {
       if (m <= 1) {
@@ -390,9 +535,11 @@ export default function AdminCalendarByToken() {
               const isSunCol = col === 0;
               const isSatCol = col === 6;
               const list = cell.dateStr ? byDate.get(cell.dateStr) ?? [] : [];
+              const eventList = cell.dateStr ? eventsByDate.get(cell.dateStr) ?? [] : [];
               const isToday = cell.dateStr === todayStr;
               const isSelected = cell.dateStr === selectedDate;
               const hasReservations = list.length > 0;
+              const hasEvents = eventList.length > 0;
 
               return (
                 <button
@@ -418,12 +565,18 @@ export default function AdminCalendarByToken() {
                       >
                         {cell.dayNum}
                       </div>
-                      {hasReservations && (
+                      {(hasReservations || hasEvents) && (
                         <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-0.5">
                           {list.slice(0, 3).map((r, i) => (
                             <div
-                              key={i}
+                              key={`r-${i}`}
                               className={`h-1 w-1 rounded-full ${getStatusColor(r.status)}`}
+                            />
+                          ))}
+                          {eventList.slice(0, 3).map((e, i) => (
+                            <div
+                              key={`e-${i}`}
+                              className={`h-1 w-1 rounded-full ${getEventDotColor(e.category)}`}
                             />
                           ))}
                         </div>
@@ -452,7 +605,7 @@ export default function AdminCalendarByToken() {
             </div>
           )}
 
-          {selectedDateReservations.length === 0 ? (
+          {selectedDateReservations.length === 0 && selectedDateEvents.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               <p>예약이 없습니다</p>
             </div>
@@ -485,11 +638,60 @@ export default function AdminCalendarByToken() {
                   </div>
                 </button>
               ))}
+
+              {selectedDateEvents.map((ev) => (
+                <div
+                  key={ev.eventId}
+                  className="flex w-full items-center gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4"
+                >
+                  <div
+                    className={`h-2 w-2 shrink-0 rounded-full ${getEventDotColor(ev.category)}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">{ev.startTime}</span>
+                      <span className="text-sm text-gray-500">~ {ev.endTime}</span>
+                      <span className="ml-auto rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                        {getEventCategoryLabel(ev.category)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-gray-900">{ev.title}</div>
+                    {ev.memo ? (
+                      <div className="mt-0.5 text-xs text-gray-500">{ev.memo}</div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteEvent(ev.eventId)}
+                    disabled={eventLoading}
+                    className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-200 hover:text-red-600 disabled:opacity-50"
+                    aria-label="삭제"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
+          {/* 일정 등록 버튼 */}
+          <button
+            type="button"
+            onClick={openEventCreate}
+            className="mt-6 w-full rounded-2xl bg-blue-600 py-4 text-base font-bold text-white shadow-md transition hover:bg-blue-700"
+          >
+            + 일정 등록
+          </button>
+
           {/* 범례 */}
-          <div className="mt-6 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-700">
+          <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-700">
             <div className="flex items-center gap-1.5">
               <div className="h-2 w-2 rounded-full bg-yellow-400" />
               <span>대기중</span>
@@ -513,6 +715,18 @@ export default function AdminCalendarByToken() {
             <div className="flex items-center gap-1.5">
               <div className="h-2 w-2 rounded-full bg-red-400" />
               <span>노쇼</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-violet-500" />
+              <span>공지</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-amber-500" />
+              <span>메모</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              <span>예약 차단</span>
             </div>
           </div>
         </div>
@@ -858,6 +1072,133 @@ export default function AdminCalendarByToken() {
                 className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
               >
                 {actionLoading === cancelTarget.reservationId ? '처리 중...' : '취소 처리'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일정 등록 모달 */}
+      {eventCreateOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!eventLoading) closeEventCreate();
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">일정 등록</h3>
+                <p className="mt-0.5 text-xs text-gray-500">{selectedDate}에 등록됩니다</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEventCreate}
+                disabled={eventLoading}
+                className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-500">분류</label>
+                <div className="mt-1 grid grid-cols-4 gap-2">
+                  {(['NOTICE', 'MEMO', 'BLOCK', 'OTHER'] as EventCategory[]).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setEventCategory(c)}
+                      disabled={eventLoading}
+                      className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition ${
+                        eventCategory === c
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${getEventDotColor(c)}`} />
+                      <span className="font-medium">{getEventCategoryLabel(c)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="text-xs text-gray-500">제목</span>
+                <input
+                  type="text"
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  disabled={eventLoading}
+                  maxLength={120}
+                  placeholder="예: 임시 휴무, 단체 행사 안내"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs text-gray-500">시작 시간</span>
+                  <input
+                    type="time"
+                    value={eventStartTime}
+                    onChange={(e) => setEventStartTime(e.target.value)}
+                    disabled={eventLoading}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-gray-500">종료 시간</span>
+                  <input
+                    type="time"
+                    value={eventEndTime}
+                    onChange={(e) => setEventEndTime(e.target.value)}
+                    disabled={eventLoading}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-xs text-gray-500">메모 (선택)</span>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={eventMemo}
+                  onChange={(e) => setEventMemo(e.target.value)}
+                  disabled={eventLoading}
+                  placeholder="추가 메모"
+                  className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+                <span className="mt-1 block text-right text-xs text-gray-400">
+                  {eventMemo.length} / 500
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={closeEventCreate}
+                disabled={eventLoading}
+                className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitEventCreate()}
+                disabled={eventLoading}
+                className="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {eventLoading ? '등록 중...' : '등록'}
               </button>
             </div>
           </div>

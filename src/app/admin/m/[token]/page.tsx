@@ -166,15 +166,14 @@ export default function AdminDashboardByToken() {
               </div>
             </Link>
 
-            {/* 공지사항 추가 */}
-            <button
-              type="button"
-              onClick={() => alert('공지사항 기능은 준비 중입니다.')}
-              className="rounded-xl border border-gray-100 bg-white p-4 text-left transition hover:border-purple-200 hover:shadow-md"
+            {/* 일정 등록 */}
+            <Link
+              href={`${base}/calendar`}
+              className="rounded-xl border border-gray-100 bg-white p-4 text-left transition hover:border-violet-200 hover:shadow-md"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
                 <svg
-                  className="h-6 w-6 text-purple-600"
+                  className="h-6 w-6 text-violet-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -183,11 +182,11 @@ export default function AdminDashboardByToken() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                    d="M12 4v16m8-8H4"
                   />
                 </svg>
               </div>
-              <p className="mt-3 text-sm font-medium text-gray-700">공지사항 추가</p>
+              <p className="mt-3 text-sm font-medium text-gray-700">일정 등록</p>
               <div className="mt-1 flex items-end justify-between">
                 <span className="text-2xl font-extrabold text-gray-900">+</span>
                 <svg
@@ -199,7 +198,7 @@ export default function AdminDashboardByToken() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-            </button>
+            </Link>
 
             {/* 오늘의 단체 예약 확인하기 */}
             <Link

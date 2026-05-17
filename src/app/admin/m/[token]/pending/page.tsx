@@ -179,184 +179,320 @@ export default function AdminPendingByToken() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Link href={base} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100" aria-label="뒤로가기">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">🏪 {store.name}</h1>
-              <p className="text-sm text-gray-500">대기 중인 예약 관리</p>
-            </div>
+      {/* 헤더 (파란색) */}
+      <header className="sticky top-0 z-10 bg-blue-600 text-white shadow-md">
+        <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-4">
+          <Link href={base} className="rounded-lg p-1 text-white hover:bg-white/10" aria-label="뒤로가기">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div>
+            <h1 className="text-base font-bold leading-tight">{store.name}</h1>
+            <p className="text-xs leading-tight text-blue-100">대기 중인 예약 관리</p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-md px-4 py-6">
         <div className="mb-6">
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">대기 중인 예약</h2>
-          <p className="text-gray-600">총 {pendingReservations.length}건의 예약이 대기 중입니다</p>
+          <h2 className="mb-1 text-2xl font-bold text-gray-900">대기 중인 예약</h2>
+          <p className="text-sm text-gray-600">
+            총{' '}
+            <span className="font-semibold text-blue-600">
+              {pendingReservations.length + depositPendingReservations.length}
+            </span>
+            건의 예약이 대기 중입니다
+          </p>
         </div>
 
         {depositPendingReservations.length > 0 && (
-          <div className="mb-10">
-            <h2 className="mb-2 text-xl font-bold text-gray-900">예약금 입금 대기</h2>
-            <p className="mb-4 text-sm text-gray-600">
-              입금 확인 시 예약이 완료되며, 날짜별 캘린더에 표시됩니다.
+          <div className="mb-8">
+            <h3 className="mb-1 text-base font-bold text-blue-700">예약금 입금 대기</h3>
+            <p className="mb-3 text-xs text-gray-600">
+              입금 확인 시 예약이 완료되며, 캘린더에 표시됩니다.
             </p>
-            <div className="space-y-4">
-              {depositPendingReservations.map((reservation) => (
-                <div
-                  key={reservation.reservationId}
-                  className="rounded-lg border border-blue-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="mb-4 flex items-start justify-between">
-                    <div>
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                          입금 대기
-                        </span>
-                        <span className="text-sm text-gray-500">{reservation.reservationId}</span>
+            <div className="space-y-3">
+              {depositPendingReservations.map((reservation) => {
+                const dateObj = new Date(reservation.date);
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const dateLabel = `${reservation.date.replace(/-/g, '.')} (${days[dateObj.getDay()] ?? ''})`;
+                const isLoading = actionLoading === reservation.reservationId;
+                return (
+                  <div
+                    key={reservation.reservationId}
+                    className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-blue-50 text-center text-xs font-semibold text-blue-700">
+                        <span className="leading-tight">입금</span>
+                        <span className="leading-tight">대기</span>
+                        <svg
+                          className="mt-1 h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-blue-700">
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                          <span className="text-sm font-semibold">{dateLabel}</span>
+                        </div>
+                        <p className="text-lg font-bold text-blue-700">
+                          {reservation.startTime} ~ {reservation.endTime}
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          예약번호 {reservation.reservationId}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="text-base font-bold text-gray-900">
                         {reservation.userName}
-                        {reservation.groupName && (
-                          <span className="ml-2 font-normal text-gray-500">({reservation.groupName})</span>
+                        {reservation.groupName ? (
+                          <span className="ml-1.5 text-sm font-normal text-gray-500">
+                            ({reservation.groupName})
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        👥 {reservation.headcount}명 · 📞 {reservation.userPhone}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleConfirmDeposit(reservation.reservationId)}
+                        disabled={isLoading}
+                        className="rounded-xl bg-blue-600 py-3 text-sm font-bold leading-tight text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          '처리 중...'
+                        ) : (
+                          <>
+                            입금 확인
+                            <span className="block text-[11px] font-medium opacity-90">
+                              (예약 완료)
+                            </span>
+                          </>
                         )}
-                      </h3>
-                    </div>
-                    <div className="text-right text-sm text-gray-600">
-                      {reservation.date} {reservation.startTime} ~ {reservation.endTime}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAction(reservation.reservationId, 'cancel')}
+                        disabled={isLoading}
+                        className="rounded-xl bg-gray-200 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
+                      >
+                        예약 취소
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleConfirmDeposit(reservation.reservationId)}
-                      disabled={actionLoading === reservation.reservationId}
-                      className="flex-1 rounded-lg bg-emerald-600 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      {actionLoading === reservation.reservationId ? '처리 중...' : '입금 확인 (예약 완료)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleAction(reservation.reservationId, 'cancel')}
-                      disabled={actionLoading === reservation.reservationId}
-                      className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
-                    >
-                      예약 취소
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {pendingReservations.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center shadow-sm">
+        {pendingReservations.length === 0 && depositPendingReservations.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
             <p className="text-gray-500">대기 중인 예약이 없습니다</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {pendingReservations.map((reservation) => (
-              <div
-                key={reservation.reservationId}
-                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-              >
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800">
-                        대기중
-                      </span>
-                      <span className="text-sm text-gray-500">{reservation.reservationId}</span>
+        ) : pendingReservations.length === 0 ? null : (
+          <div className="mb-8">
+            <h3 className="mb-3 text-base font-bold text-yellow-700">신규 예약 대기</h3>
+            <div className="space-y-3">
+              {pendingReservations.map((reservation) => {
+                const dateObj = new Date(reservation.date);
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const dateLabel = `${reservation.date.replace(/-/g, '.')} (${days[dateObj.getDay()] ?? ''})`;
+                const isLoading = actionLoading === reservation.reservationId;
+                return (
+                  <div
+                    key={reservation.reservationId}
+                    className="rounded-2xl border border-yellow-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-yellow-50 text-center text-xs font-semibold text-yellow-700">
+                        <span className="leading-tight">예약</span>
+                        <span className="leading-tight">대기</span>
+                        <svg
+                          className="mt-1 h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-yellow-700">
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                          <span className="text-sm font-semibold">{dateLabel}</span>
+                        </div>
+                        <p className="text-lg font-bold text-yellow-700">
+                          {reservation.startTime} ~ {reservation.endTime}
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          예약번호 {reservation.reservationId}
+                        </p>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {reservation.userName}
-                      {reservation.groupName && (
-                        <span className="ml-2 font-normal text-gray-500">({reservation.groupName})</span>
+
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="text-base font-bold text-gray-900">
+                        {reservation.userName}
+                        {reservation.groupName ? (
+                          <span className="ml-1.5 text-sm font-normal text-gray-500">
+                            ({reservation.groupName})
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        👥 {reservation.headcount}명 · 📞 {reservation.userPhone}
+                      </p>
+                      <div className="mt-2 flex items-baseline justify-between">
+                        <span className="text-xs text-gray-500">총 결제 금액</span>
+                        <span className="text-base font-bold text-gray-900">
+                          {reservation.totalAmount.toLocaleString()}원
+                        </span>
+                      </div>
+                      {reservation.depositAmount > 0 && (
+                        <div className="mt-1 flex items-baseline justify-between">
+                          <span className="text-xs text-gray-500">예약금</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {reservation.depositAmount.toLocaleString()}원
+                          </span>
+                        </div>
                       )}
-                    </h3>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {reservation.totalAmount.toLocaleString()}원
                     </div>
-                    {reservation.depositAmount > 0 && (
-                      <div className="text-sm font-medium text-red-600">
-                        예약금 {reservation.depositAmount.toLocaleString()}원
+
+                    {reservation.menus.length > 0 && (
+                      <div className="mt-3 rounded-xl bg-gray-50 p-3">
+                        <div className="mb-1.5 text-xs font-semibold text-gray-700">
+                          주문 메뉴
+                        </div>
+                        <div className="space-y-1">
+                          {reservation.menus.map((menu, idx) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between text-xs text-gray-600"
+                            >
+                              <span>
+                                {menu.name} × {menu.quantity}
+                              </span>
+                              <span>
+                                {(menu.priceAtTime * menu.quantity).toLocaleString()}원
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
 
-                <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">날짜/시간:</span>
-                    <span className="ml-2 font-medium">
-                      {reservation.date} {reservation.startTime} ~ {reservation.endTime}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">인원:</span>
-                    <span className="ml-2 font-medium">{reservation.headcount}명</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">연락처:</span>
-                    <span className="ml-2 font-medium">{reservation.userPhone}</span>
-                  </div>
-                </div>
-
-                {reservation.menus.length > 0 && (
-                  <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                    <div className="mb-2 text-sm font-medium text-gray-700">주문 메뉴</div>
-                    <div className="space-y-1">
-                      {reservation.menus.map((menu, idx) => (
-                        <div key={idx} className="flex justify-between text-sm text-gray-600">
-                          <span>
-                            {menu.name} x {menu.quantity}
-                          </span>
-                          <span>{(menu.priceAtTime * menu.quantity).toLocaleString()}원</span>
-                        </div>
-                      ))}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleAction(reservation.reservationId, 'accept')}
+                        disabled={isLoading}
+                        className="rounded-xl bg-blue-600 py-3 text-sm font-bold leading-tight text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          '처리 중...'
+                        ) : reservation.depositAmount > 0 ? (
+                          <>
+                            수락
+                            <span className="block text-[11px] font-medium opacity-90">
+                              (입금 요청)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            수락
+                            <span className="block text-[11px] font-medium opacity-90">
+                              (즉시 확정)
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectTargetId(reservation.reservationId);
+                          setRejectReasonDraft('');
+                          setRejectAlternativeDraft('');
+                        }}
+                        disabled={isLoading}
+                        className="rounded-xl bg-gray-200 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
+                      >
+                        거절
+                      </button>
                     </div>
                   </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleAction(reservation.reservationId, 'accept')}
-                    disabled={actionLoading === reservation.reservationId}
-                    className="flex-1 rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {actionLoading === reservation.reservationId
-                      ? '처리 중...'
-                      : reservation.depositAmount > 0
-                        ? '수락 (예약금 입금 요청)'
-                        : '수락 (즉시 확정)'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRejectTargetId(reservation.reservationId);
-                      setRejectReasonDraft('');
-                      setRejectAlternativeDraft('');
-                    }}
-                    disabled={actionLoading === reservation.reservationId}
-                    className="flex-1 rounded-lg bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 disabled:opacity-50"
-                  >
-                    거절
-                  </button>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         )}
+
+        {/* 캘린더 보기 큰 버튼 */}
+        <Link
+          href={`${base}/calendar`}
+          className="mt-2 flex w-full items-center justify-between rounded-2xl bg-blue-600 px-6 py-5 text-white shadow-lg transition hover:bg-blue-700"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span className="text-lg font-bold">캘린더 보기</span>
+          </div>
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
       </main>
 
       {rejectTargetId && (
