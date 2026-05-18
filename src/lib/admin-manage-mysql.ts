@@ -639,3 +639,27 @@ export async function manageListReservations(options: {
     return { success: false, message: formatMysqlUserError(e) };
   }
 }
+
+
+/** 단일 가게 정보 (사장님 설정 페이지용) */
+export async function manageGetStoreById(
+  storeId: string,
+): Promise<
+  | { success: true; data: ManageStoreRow }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query<StoreRow[]>('SELECT * FROM store WHERE storeId = ? LIMIT 1', [sid]);
+    if (!rows.length) return { success: false, message: '가게를 찾을 수 없습니다.' };
+    return { success: true, data: mapStoreRow(rows[0]) };
+  } catch (e) {
+    console.error('[manageGetStoreById]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
