@@ -47,51 +47,51 @@ export default function HeadcountSelector({
       className={`w-full rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)] ${className}`}
     >
       <FieldSectionHeader icon={<PeopleFieldIcon />} title="인원수" />
-      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:gap-x-10">
-        <div className="flex flex-col items-center gap-2">
-          <button
-            type="button"
-            disabled={selectedHeadcount <= effectiveMin}
-            onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 1))}
-            className={circleBtnClass}
-            aria-label="1명 줄이기"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            disabled={selectedHeadcount <= effectiveMin}
-            onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 10))}
-            className={stepBtnClass}
-            aria-label="10명 줄이기"
-          >
-            −10
-          </button>
-        </div>
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-nowrap items-center justify-center gap-x-6 sm:gap-x-10">
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            <button
+              type="button"
+              disabled={selectedHeadcount <= effectiveMin}
+              onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 1))}
+              className={circleBtnClass}
+              aria-label="1명 줄이기"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              disabled={selectedHeadcount <= effectiveMin}
+              onClick={() => onChange(Math.max(effectiveMin, selectedHeadcount - 10))}
+              className={stepBtnClass}
+              aria-label="10명 줄이기"
+            >
+              −10
+            </button>
+          </div>
 
-        <label className="flex min-w-[4.5rem] flex-col items-center">
-          <span className="sr-only">인원수 직접 입력</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            aria-label="인원수"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
-            onBlur={commitDraft}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitDraft();
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            className="w-full border-0 bg-transparent text-center text-[2.5rem] font-extrabold leading-none tabular-nums tracking-tight text-gray-900 outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded-lg"
-          />
-        </label>
+          <label className="flex shrink-0 items-center justify-center px-1">
+            <span className="sr-only">인원수 직접 입력</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              aria-label="인원수"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
+              onBlur={commitDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitDraft();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-[4.5rem] border-0 bg-transparent text-center text-[2.5rem] font-extrabold leading-none tabular-nums tracking-tight text-gray-900 outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded-lg"
+            />
+          </label>
 
-        <div className="flex items-center gap-4 sm:gap-5">
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex shrink-0 flex-col items-center gap-2">
             <button
               type="button"
               disabled={selectedHeadcount >= maxCapacity}
@@ -111,10 +111,10 @@ export default function HeadcountSelector({
               +10
             </button>
           </div>
-          <p className="whitespace-nowrap text-sm font-medium text-gray-400">
-            {effectiveMin}명 ~ {maxCapacity}명
-          </p>
         </div>
+        <p className="text-sm font-medium text-gray-400">
+          {effectiveMin}명 ~ {maxCapacity}명
+        </p>
       </div>
     </div>
   );
