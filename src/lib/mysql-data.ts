@@ -6,6 +6,7 @@ import {
   slotOverlapsReservation,
 } from '@/lib/booking-slots';
 import {
+  getDefaultSlotHourRangeForStore,
   getSlotHourRangeForStoreOnDate,
   isStoreClosedOnDate,
   readMinGroupHeadcount,
@@ -552,7 +553,7 @@ export async function getAllDataFromMysql() {
   const storeList = stores.map((store) => {
     const sid = String(store.storeId ?? '').trim();
     const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-    const range = getSlotHourRangeFromStoreRow(store as Record<string, unknown>);
+    const range = getDefaultSlotHourRangeForStore(store as Record<string, unknown>);
     const depOpts = readStoreDepositOpts(store);
     const rec = store as Record<string, unknown>;
     return {

@@ -310,6 +310,12 @@ export default function ManagePageClient() {
 
   const saveStore = async () => {
     if (!selectedId) return;
+    const minH = Math.max(1, parseInt(minGroupHeadcount, 10) || 2);
+    const maxH = Math.max(0, parseInt(maxCapacity, 10) || 0);
+    if (maxH > 0 && maxH < minH) {
+      setErr('단체예약 최대 인원은 최소 인원 이상이어야 합니다.');
+      return;
+    }
     setLoading(true);
     setErr(null);
     try {
@@ -336,8 +342,8 @@ export default function ManagePageClient() {
           locationLabel: locationLabel.trim() === '' ? null : locationLabel.trim(),
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
-          minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
-          maxCapacity: Math.max(0, parseInt(maxCapacity, 10) || 0),
+          minGroupHeadcount: minH,
+          maxCapacity: maxH,
           depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
           depositUseTiers,
           depositTiers: depositUseTiers ? tiersPayload : null,

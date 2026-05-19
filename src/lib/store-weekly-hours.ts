@@ -101,6 +101,51 @@ export function serializeClosedDatesForDb(dates: string[]): string | null {
   return uniq.length ? JSON.stringify(uniq) : null;
 }
 
+/** 요일별 설정에서 첫 번째 영업 요일의 시작·종료 시 */
+export function firstOpenDayHoursFromWeekly(
+  weekly: WeeklyHours,
+): { start: number; end: number } | null {
+  for (const key of DAY_KEYS) {
+    const d = weekly[key];
+    if (!d || d.closed || d.start == null || d.end == null) continue;
+    const start = d.start;
+    const end = d.end;
+    if (start >= 0 && start <= 23 && end >= 0 && end <= 23) {
+      return { start, end };
+    }
+  }
+  return null;
+}
+
+function slotRangeFromHours(start: number, end: number) {
+  return {
+    slotStartHour: start,
+    slotEndHour: end,
+    crossesMidnight: end < start,
+    closed: false as const,
+  };
+}
+
+/** weeklyHoursJson 우선, 없으면 DB slotStartHour/slotEndHour (캐시·목록용) */
+export function getDefaultSlotHourRangeForStore(store: Record<string, unknown>): {
+  slotStartHour: number;
+  slotEndHour: number;
+  crossesMidnight: boolean;
+} {
+  const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
+  if (weekly) {
+    const open = firstOpenDayHoursFromWeekly(weekly);
+    if (open) {
+      return {
+        slotStartHour: open.start,
+        slotEndHour: open.end,
+        crossesMidnight: open.end < open.start,
+      };
+    }
+  }
+  return getSlotHourRangeFromStoreRow(store);
+}
+
 export function isStoreClosedOnDate(store: Record<string, unknown>, dateYmd: string): boolean {
   const closedDates = parseClosedDatesJson(store.closedDatesJson);
   if (closedDates.includes(dateYmd)) return true;
@@ -131,12 +176,11 @@ export function getSlotHourRangeForStoreOnDate(
   }
 
   if (weekly) {
-    return {
-      slotStartHour: DEFAULT_SLOT_START_HOUR,
-      slotEndHour: DEFAULT_SLOT_END_HOUR,
-      crossesMidnight: false,
-      closed: false,
-    };
+    const fallback = firstOpenDayHoursFromWeekly(weekly);
+    if (fallback) {
+      return slotRangeFromHours(fallback.start, fallback.end);
+    }
+    return slotRangeFromHours(DEFAULT_SLOT_START_HOUR, DEFAULT_SLOT_END_HOUR);
   }
 
   const def = getSlotHourRangeFromStoreRow(store);

@@ -50,16 +50,18 @@ export default function SearchPage() {
         };
         const dayRange =
           selectedDate != null ? getSlotHourRangeForStoreOnDate(storeMeta, selectedDate) : null;
+        const slotStart = dayRange?.slotStartHour ?? s.slotStartHour;
+        const slotEnd = dayRange?.slotEndHour ?? s.slotEndHour;
         const timeline =
-          selectedDate != null
+          selectedDate != null && dayRange && !dayRange.closed
             ? buildSlotsForDate(
                 s.storeId,
                 selectedDate,
                 s.maxCapacity,
                 reservations,
-                dayRange?.slotStartHour ?? s.slotStartHour,
-                dayRange?.slotEndHour ?? s.slotEndHour,
-                dayRange?.closed,
+                slotStart,
+                slotEnd,
+                false,
               )
             : [];
         return {
@@ -74,8 +76,8 @@ export default function SearchPage() {
           availableTimes: timeline.filter((t) => t.isAvailable).map((t) => t.timeBlock),
           reservedTimes: timeline.filter((t) => !t.isAvailable).map((t) => t.timeBlock),
           minOrderRules: s.minOrderRules,
-          slotStartHour: dayRange?.slotStartHour ?? s.slotStartHour,
-          slotEndHour: dayRange?.slotEndHour ?? s.slotEndHour,
+          slotStartHour: slotStart,
+          slotEndHour: slotEnd,
           minGroupHeadcount: s.minGroupHeadcount ?? readMinGroupHeadcount(storeMeta),
           closedOnDate: dayRange?.closed,
           depositAmount:
