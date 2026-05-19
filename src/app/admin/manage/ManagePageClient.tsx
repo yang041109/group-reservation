@@ -146,8 +146,7 @@ export default function ManagePageClient() {
   const [resFilterStatus, setResFilterStatus] = useState('');
   const [resDepositSum, setResDepositSum] = useState(0);
   const [minGroupHeadcount, setMinGroupHeadcount] = useState('2');
-  const [slotStartHour, setSlotStartHour] = useState('11');
-  const [slotEndHour, setSlotEndHour] = useState('20');
+  const [maxCapacity, setMaxCapacity] = useState('80');
   const [ownerName, setOwnerName] = useState('');
   const [ownerBankAccount, setOwnerBankAccount] = useState('');
   const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(defaultWeeklyForm);
@@ -247,8 +246,7 @@ export default function ManagePageClient() {
       setDepositUseTiers(false);
       setTierRows(defaultTierRows());
       setMinGroupHeadcount('2');
-      setSlotStartHour('11');
-      setSlotEndHour('20');
+      setMaxCapacity('80');
       setOwnerName('');
       setOwnerBankAccount('');
       setWeeklyForm(defaultWeeklyForm());
@@ -261,8 +259,7 @@ export default function ManagePageClient() {
     setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
     setMinGroupHeadcount(String(selected.minGroupHeadcount ?? 2));
-    setSlotStartHour(String(selected.slotStartHour ?? 11));
-    setSlotEndHour(String(selected.slotEndHour ?? 20));
+    setMaxCapacity(String(selected.maxCapacity ?? 80));
     setOwnerName(selected.ownerName ?? '');
     setOwnerBankAccount(selected.ownerBankAccount ?? '');
     const parsedWeekly = parseWeeklyHoursJson(selected.weeklyHoursJson);
@@ -277,6 +274,12 @@ export default function ManagePageClient() {
             end: d.end != null ? String(d.end) : wf[key].end,
           };
         }
+      }
+    } else if (selected.slotStartHour != null && selected.slotEndHour != null) {
+      const start = String(selected.slotStartHour);
+      const end = String(selected.slotEndHour);
+      for (const key of DAY_KEYS) {
+        wf[key] = { closed: false, start, end };
       }
     }
     setWeeklyForm(wf);
@@ -321,16 +324,6 @@ export default function ManagePageClient() {
         : [];
 
       const weeklyPayload: Record<DayKey, DayFormRow> = { ...weeklyForm };
-      const firstOpenDay = DAY_KEYS.find((k) => !weeklyPayload[k].closed);
-      const openDay = firstOpenDay ? weeklyPayload[firstOpenDay] : null;
-      const slotStartForDb =
-        openDay && !openDay.closed
-          ? Math.min(23, Math.max(0, parseInt(openDay.start, 10) || 11))
-          : parseInt(slotStartHour, 10);
-      const slotEndForDb =
-        openDay && !openDay.closed
-          ? Math.min(23, Math.max(0, parseInt(openDay.end, 10) || 20))
-          : parseInt(slotEndHour, 10);
       const closedList = closedDatesText
         .split(/[\n,]+/)
         .map((s) => s.trim())
@@ -344,8 +337,7 @@ export default function ManagePageClient() {
           description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
           minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
-          slotStartHour: slotStartForDb,
-          slotEndHour: slotEndForDb,
+          maxCapacity: Math.max(0, parseInt(maxCapacity, 10) || 0),
           depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
           depositUseTiers,
           depositTiers: depositUseTiers ? tiersPayload : null,
@@ -1032,41 +1024,34 @@ export default function ManagePageClient() {
                           </div>
                         ) : null}
 
-                        <label className="block">
-                          <span className="text-xs text-gray-500">단체예약 최소 인원</span>
-                          <input
-                            type="number"
-                            min={1}
-                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
-                            value={minGroupHeadcount}
-                            onChange={(e) => setMinGroupHeadcount(e.target.value)}
-                          />
-                        </label>
+                        <div className="flex flex-wrap gap-4">
+                          <label className="block">
+                            <span className="text-xs text-gray-500">단체예약 최소 인원</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
+                              value={minGroupHeadcount}
+                              onChange={(e) => setMinGroupHeadcount(e.target.value)}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs text-gray-500">단체예약 최대 인원</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
+                              value={maxCapacity}
+                              onChange={(e) => setMaxCapacity(e.target.value)}
+                            />
+                            <span className="mt-1 block text-[11px] text-gray-400">
+                              검색 카드 인원 태그·타임슬롯 수용 인원에 반영됩니다.
+                            </span>
+                          </label>
+                        </div>
                         <p className="sm:col-span-2 text-xs text-gray-500">
-                          요일별 영업시간이 우선 적용됩니다. 아래 「기본」 값은 요일별이 비어 있거나 캐시용일 때 쓰입니다. 저장 시 첫 번째 영업 요일 기준으로 기본값도 맞춰 둡니다.
+                          영업 시간은 아래 요일별 설정만 사용합니다. 선택한 날짜의 요일에 맞춰 검색·가게 카드 타임슬롯이 바뀝니다.
                         </p>
-                        <label className="block">
-                          <span className="text-xs text-gray-500">기본 영업 시작 시 (0–23)</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={23}
-                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
-                            value={slotStartHour}
-                            onChange={(e) => setSlotStartHour(e.target.value)}
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-xs text-gray-500">기본 영업 종료(마감) 시 (0–23, 예: 2 → 01:30~02:00까지)</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={23}
-                            className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
-                            value={slotEndHour}
-                            onChange={(e) => setSlotEndHour(e.target.value)}
-                          />
-                        </label>
 
                         <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3">
                           <p className="text-sm font-medium text-gray-800">요일별 영업시간</p>

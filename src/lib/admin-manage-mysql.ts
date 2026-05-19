@@ -119,6 +119,7 @@ export async function manageUpdateStore(
     depositUseTiers?: boolean;
     depositTiersJson?: string | null;
     minGroupHeadcount?: number;
+    maxCapacity?: number;
     ownerName?: string | null;
     ownerBankAccount?: string | null;
     weeklyHoursJson?: string | null;
@@ -177,6 +178,11 @@ export async function manageUpdateStore(
     sets.push('minGroupHeadcount = ?');
     const n = Math.floor(Number(patch.minGroupHeadcount));
     params.push(Number.isFinite(n) && n >= 1 ? n : 2);
+  }
+  if (patch.maxCapacity !== undefined) {
+    sets.push('maxCapacity = ?');
+    const n = Math.floor(Number(patch.maxCapacity));
+    params.push(Number.isFinite(n) && n >= 0 ? n : 0);
   }
   if (patch.ownerName !== undefined) {
     sets.push('ownerName = ?');

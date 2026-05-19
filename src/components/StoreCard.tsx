@@ -58,12 +58,7 @@ export default function StoreCard({
 }: StoreCardDisplayProps) {
   const thumbnailUrl = store.images[0];
   const minGroup = store.minGroupHeadcount ?? 2;
-  const minCapacity = Math.max(
-    minGroup,
-    store.minOrderRules.length > 0
-      ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount))
-      : 1,
-  );
+  const maxGroup = store.maxCapacity > 0 ? store.maxCapacity : minGroup;
 
   const deposit = store.depositAmount ?? 0;
 
@@ -85,7 +80,6 @@ export default function StoreCard({
     crossesMidnight: false,
   };
 
-  const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
   const timelineMap = new Map<string, TimeSlot>();
   if (store.timeline) {
     for (const slot of store.timeline) {
@@ -95,7 +89,12 @@ export default function StoreCard({
 
   const availableSet = new Set(store.availableTimes || []);
   const reservedSet = new Set(store.reservedTimes || []);
-  const allSlots = generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
+  const allSlots =
+    store.timeline && store.timeline.length > 0
+      ? store.timeline.map((s) => s.timeBlock)
+      : generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
+  const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
+  const closedOnDate = store.closedOnDate === true;
 
   return (
     <Link
@@ -135,7 +134,7 @@ export default function StoreCard({
 
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               <span className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600">
-                예약 가능 {minCapacity}~{store.maxCapacity}명
+                예약 가능 {minGroup}~{maxGroup}명
               </span>
               {deposit > 0 ? (
                 <span className="rounded-lg border border-orange-200 bg-orange-50/50 px-2.5 py-1 text-[11px] font-semibold text-orange-700">
@@ -151,6 +150,10 @@ export default function StoreCard({
         </div>
 
         <div className="mt-4">
+          {closedOnDate ? (
+            <p className="rounded-lg bg-gray-100 px-3 py-2 text-center text-sm text-gray-500">선택한 날짜 휴무</p>
+          ) : (
+          <>
           <div className="mb-1 flex">
             {hours.map((hour) => (
               <div
@@ -210,6 +213,8 @@ export default function StoreCard({
               </span>
             ))}
           </div>
+          </>
+          )}
         </div>
       </div>
     </Link>

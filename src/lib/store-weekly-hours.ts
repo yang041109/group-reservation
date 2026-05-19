@@ -1,4 +1,8 @@
 import { coerceHourFromValue, getSlotHourRangeFromStoreRow } from '@/lib/booking-slots';
+import {
+  DEFAULT_SLOT_END_HOUR,
+  DEFAULT_SLOT_START_HOUR,
+} from '@/lib/slot-hour-range';
 
 export type DayKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -124,6 +128,15 @@ export function getSlotHourRangeForStoreOnDate(
     if (start >= 0 && start <= 23 && end >= 0 && end <= 23) {
       return { slotStartHour: start, slotEndHour: end, crossesMidnight: end < start, closed: false };
     }
+  }
+
+  if (weekly) {
+    return {
+      slotStartHour: DEFAULT_SLOT_START_HOUR,
+      slotEndHour: DEFAULT_SLOT_END_HOUR,
+      crossesMidnight: false,
+      closed: false,
+    };
   }
 
   const def = getSlotHourRangeFromStoreRow(store);

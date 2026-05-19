@@ -52,6 +52,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
     const n = Number(body.minGroupHeadcount);
     patch.minGroupHeadcount = Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 2;
   }
+  if (body.maxCapacity !== undefined) {
+    const n = Number(body.maxCapacity);
+    patch.maxCapacity = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
   if (body.ownerName !== undefined) {
     patch.ownerName = body.ownerName === null ? null : String(body.ownerName);
   }
