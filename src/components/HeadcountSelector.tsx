@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { FieldSectionHeader, PeopleFieldIcon } from '@/components/icons/BookingFieldIcons';
 
 interface HeadcountSelectorProps {
@@ -24,6 +25,22 @@ export default function HeadcountSelector({
   className = '',
 }: HeadcountSelectorProps) {
   const effectiveMin = Math.max(0, minCapacity);
+  const [draft, setDraft] = useState(String(selectedHeadcount));
+
+  useEffect(() => {
+    setDraft(String(selectedHeadcount));
+  }, [selectedHeadcount]);
+
+  const commitDraft = () => {
+    const parsed = parseInt(draft.replace(/\D/g, ''), 10);
+    if (Number.isNaN(parsed)) {
+      setDraft(String(selectedHeadcount));
+      return;
+    }
+    const clamped = Math.min(maxCapacity, Math.max(effectiveMin, parsed));
+    onChange(clamped);
+    setDraft(String(clamped));
+  };
 
   return (
     <div
@@ -52,9 +69,26 @@ export default function HeadcountSelector({
           </button>
         </div>
 
-        <span className="min-w-[3.5rem] text-center text-[2.5rem] font-extrabold leading-none tabular-nums tracking-tight text-gray-900">
-          {selectedHeadcount}
-        </span>
+        <label className="flex min-w-[4.5rem] flex-col items-center">
+          <span className="sr-only">인원수 직접 입력</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            aria-label="인원수"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            className="w-full border-0 bg-transparent text-center text-[2.5rem] font-extrabold leading-none tabular-nums tracking-tight text-gray-900 outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded-lg"
+          />
+        </label>
 
         <div className="flex items-center gap-4 sm:gap-5">
           <div className="flex flex-col items-center gap-2">

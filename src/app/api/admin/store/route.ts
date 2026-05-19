@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStoreIdFromToken, requireOwnerStoreId } from '@/lib/admin-token-guard';
 import { manageGetStoreById, manageUpdateStore } from '@/lib/admin-manage-mysql';
-import { serializeDepositTiersForDb } from '@/lib/deposit-tiers';
+import { depositModeToDb, serializeDepositTiersForDb, type DepositMode } from '@/lib/deposit-tiers';
 import type { DepositTier } from '@/types';
 
 export const runtime = 'nodejs';
@@ -67,8 +67,12 @@ export async function PATCH(request: Request) {
     const n = Number(body.depositAmount);
     patch.depositAmount = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   }
-  if (body.depositUseTiers !== undefined) {
-    patch.depositUseTiers = Boolean(body.depositUseTiers);
+  if (body.depositMode !== undefined) {
+    patch.depositUseTiers = depositModeToDb(String(body.depositMode) as DepositMode);
+  } else if (body.depositUseTiers !== undefined) {
+    const v = body.depositUseTiers;
+    patch.depositUseTiers =
+      typeof v === 'number' ? Math.min(2, Math.max(0, Math.floor(v))) : Boolean(v) ? 1 : 0;
   }
   if (body.depositTiers !== undefined) {
     if (body.depositTiers === null) {

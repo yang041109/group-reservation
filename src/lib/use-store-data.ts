@@ -20,6 +20,7 @@ export interface CachedStore {
   weeklyHoursJson?: string | null;
   closedDatesJson?: string | null;
   depositAmount?: number;
+  depositMode?: import('@/types').DepositMode;
   depositUseTiers?: boolean;
   depositTiers?: DepositTier[];
   ownerName?: string | null;

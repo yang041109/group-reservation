@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
+import {
+  formatTierDepositLabel,
+  resolveDepositForHeadcount,
+} from '@/lib/deposit-tiers';
+import type { DepositMode } from '@/types';
 import { DEFAULT_SLOT_END_HOUR, DEFAULT_SLOT_START_HOUR } from '@/lib/slot-hour-range';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
@@ -135,6 +139,8 @@ export default function StoreDetailPageClient() {
                 slotEndHour: dayRange?.slotEndHour ?? found.slotEndHour,
                 closedOnDate: dayRange?.closed,
                 depositAmount: found.depositAmount ?? 0,
+                depositMode:
+                  found.depositMode ?? (found.depositUseTiers ? 'tiered' : 'flat'),
                 depositUseTiers: !!found.depositUseTiers,
                 depositTiers: found.depositTiers ?? [],
                 minGroupHeadcount: found.minGroupHeadcount ?? readMinGroupHeadcount(found),
@@ -222,8 +228,11 @@ export default function StoreDetailPageClient() {
   const endHour = store.slotEndHour ?? DEFAULT_SLOT_END_HOUR;
   const crossesMidnight = endHour < startHour;
 
+  const depositMode: DepositMode =
+    store.depositMode ?? (store.depositUseTiers ? 'tiered' : 'flat');
+
   const effectiveDeposit = resolveDepositForHeadcount(selectedHeadcount, {
-    depositUseTiers: !!store.depositUseTiers,
+    depositMode,
     depositTiers: store.depositTiers ?? [],
     flatDepositAmount: store.depositAmount ?? 0,
   });
@@ -261,11 +270,14 @@ export default function StoreDetailPageClient() {
 
       <h1 className="mt-4 text-2xl font-bold text-gray-900">{store.name}</h1>
 
-      {(effectiveDeposit > 0 || (store.depositUseTiers && (store.depositTiers?.length ?? 0) > 0)) && (
+      {(effectiveDeposit > 0 ||
+        depositMode === 'tiered' ||
+        depositMode === 'per_person' ||
+        (store.depositAmount ?? 0) > 0) && (
         <div className="mt-3 space-y-2 rounded-lg bg-blue-50 px-4 py-3">
-          {store.depositUseTiers && (store.depositTiers?.length ?? 0) > 0 ? (
+          {depositMode === 'tiered' && (store.depositTiers?.length ?? 0) > 0 ? (
             <>
-              <p className="text-sm font-medium text-blue-900">인원별 예약금</p>
+              <p className="text-sm font-medium text-blue-900">인원 구간별 예약금</p>
               <ul className="space-y-1 text-sm text-blue-800">
                 {(store.depositTiers ?? []).map((t, idx) => {
                   const active =
@@ -275,7 +287,7 @@ export default function StoreDetailPageClient() {
                       key={`${t.minHeadcount}-${t.maxHeadcount}-${idx}`}
                       className={active ? 'font-bold text-blue-950' : ''}
                     >
-                      {t.minHeadcount}명 ~ {t.maxHeadcount}명: {t.amount.toLocaleString()}원
+                      {t.minHeadcount}명 ~ {t.maxHeadcount}명: {formatTierDepositLabel(t)}
                       {active ? ' ← 현재 선택 인원' : ''}
                     </li>
                   );
@@ -292,6 +304,11 @@ export default function StoreDetailPageClient() {
                 </p>
               )}
             </>
+          ) : depositMode === 'per_person' ? (
+            <p className="text-sm text-blue-700">
+              💳 인당 {(store.depositAmount ?? 0).toLocaleString()}원 × {selectedHeadcount}명 ={' '}
+              <span className="font-bold">{effectiveDeposit.toLocaleString()}원</span>
+            </p>
           ) : effectiveDeposit > 0 ? (
             <p className="text-sm text-blue-700">
               💳 예약금: <span className="font-bold">{effectiveDeposit.toLocaleString()}원</span>

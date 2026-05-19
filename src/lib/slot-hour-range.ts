@@ -124,20 +124,32 @@ export function generateSlotTimeBlocks(
   return out;
 }
 
+/** 슬롯 막대 위 시 라벨 — `generateSlotTimeBlocks`와 동일하게 종료 시는 exclusive */
 export function getHourLabels(
   startHour: number,
   endHour: number,
   crossesMidnight: boolean,
 ): number[] {
-  if (!crossesMidnight) {
-    const r: number[] = [];
-    for (let h = startHour; h <= endHour; h++) r.push(h);
-    return r;
-  }
   const r: number[] = [];
-  for (let h = startHour; h <= 23; h++) r.push(h);
-  for (let h = 0; h <= endHour; h++) r.push(h);
+  forEachBusinessHour(startHour, endHour, crossesMidnight, (h) => {
+    if (!r.includes(h)) r.push(h);
+  });
   return r;
+}
+
+/** 실제 슬롯 블록 순서대로 시 라벨 추출 (검색 카드 타임라인 정렬용) */
+export function getHourLabelsFromSlotBlocks(blocks: string[]): number[] {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const block of blocks) {
+    const m = /^(\d{1,2}):/.exec(block.trim());
+    if (!m) continue;
+    const h = parseInt(m[1], 10);
+    if (h < 0 || h > 23 || seen.has(h)) continue;
+    seen.add(h);
+    out.push(h);
+  }
+  return out;
 }
 
 // ── 시트/API 시각 정규화 (문자열·숫자 모두) ───────────────────

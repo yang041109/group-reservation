@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateSlotTimeBlocks,
+  getHourLabels,
+  getHourLabelsFromSlotBlocks,
   normalizeSlotHour,
   resolveSlotHourRange,
   slotHourRangeFromSheet,
@@ -156,6 +158,17 @@ describe('generateSlotTimeBlocks', () => {
     const blocks = generateSlotTimeBlocks(11, 20, false);
     expect(blocks[blocks.length - 1]).toBe('19:30');
     expect(blocks).not.toContain('20:00');
+  });
+});
+
+describe('getHourLabels', () => {
+  it('matches slot blocks for overnight 17~2 (no extra hour at end)', () => {
+    const blocks = generateSlotTimeBlocks(17, 2, true);
+    const labels = getHourLabels(17, 2, true);
+    const fromBlocks = getHourLabelsFromSlotBlocks(blocks);
+    expect(labels).toEqual(fromBlocks);
+    expect(labels).not.toContain(2);
+    expect(labels[labels.length - 1]).toBe(1);
   });
 });
 

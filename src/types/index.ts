@@ -15,7 +15,11 @@ export interface DepositTier {
   minHeadcount: number;
   maxHeadcount: number;
   amount: number;
+  /** 구간별 모드에서 고정 vs 인당 (기본 고정) */
+  calcType?: 'fixed' | 'per_person';
 }
+
+export type DepositMode = 'flat' | 'per_person' | 'tiered';
 
 // --- 슬롯 관련 (slots 테이블 대응) ---
 
@@ -49,7 +53,9 @@ export interface StoreCard {
   slotEndHour?: number;
   /** 예약금 (원) — 검색·카드용: 선택 인원 기준으로 이미 계산된 값이면 그대로, 아니면 단일 금액 */
   depositAmount?: number;
+  /** @deprecated depositMode 사용 */
   depositUseTiers?: boolean;
+  depositMode?: DepositMode;
   depositTiers?: DepositTier[];
   minGroupHeadcount?: number;
   closedOnDate?: boolean;
@@ -73,10 +79,11 @@ export interface StoreDetail {
   /** slots 테이블 기반 슬롯 목록 */
   slots?: TimeSlot[];
   minOrderRules: MinOrderRule[];
-  /** 단일 예약금 모드일 때 금액(원). 구간 모드일 때는 0일 수 있음 */
+  /** 고정·인당 모드 기준 금액(원) */
   depositAmount?: number;
-  /** true면 depositTiers로 인원별 예약금 */
+  /** @deprecated depositMode 사용 */
   depositUseTiers?: boolean;
+  depositMode?: DepositMode;
   depositTiers?: DepositTier[];
   minGroupHeadcount?: number;
   ownerName?: string | null;

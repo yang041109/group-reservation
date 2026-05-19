@@ -8,6 +8,7 @@ import {
   DEFAULT_SLOT_START_HOUR,
   generateSlotTimeBlocks,
   getHourLabels,
+  getHourLabelsFromSlotBlocks,
   slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
 
@@ -75,7 +76,10 @@ export default function StoreCard({
     store.timeline && store.timeline.length > 0
       ? store.timeline.map((s) => s.timeBlock)
       : generateSlotTimeBlocks(START_HOUR, END_HOUR, crossesMidnight);
-  const hours = getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
+  const hours =
+    allSlots.length > 0
+      ? getHourLabelsFromSlotBlocks(allSlots)
+      : getHourLabels(START_HOUR, END_HOUR, crossesMidnight);
   const closedOnDate = store.closedOnDate === true;
 
   return (

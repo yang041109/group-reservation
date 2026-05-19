@@ -1,6 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { parseDepositTiersJson } from '@/lib/deposit-tiers';
+import {
+  depositModeFromDb,
+  parseDepositTiersJson,
+  serializeDepositTiersForDb,
+  type DepositMode,
+} from '@/lib/deposit-tiers';
 import { readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import type { DepositTier } from '@/types';
@@ -30,7 +35,8 @@ export interface ManageStoreRow {
   slotStartHour: number | null;
   slotEndHour: number | null;
   depositAmount: number;
-  /** 인원 구간별 예약금 사용 여부 */
+  depositMode: DepositMode;
+  /** @deprecated depositMode === 'tiered' */
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
   ownerName: string | null;
@@ -45,12 +51,7 @@ export interface ManageStoreRow {
 
 function mapStoreRow(r: StoreRow): ManageStoreRow {
   const rec = r as Record<string, unknown>;
-  const rawUt = rec.depositUseTiers;
-  const depositUseTiers =
-    rawUt === true ||
-    rawUt === 1 ||
-    String(rawUt).toLowerCase() === 'true' ||
-    Number(rawUt) === 1;
+  const depositMode = depositModeFromDb(rec.depositUseTiers);
   return {
     storeId: String(r.storeId ?? '').trim(),
     name: String(r.name ?? '').trim(),
@@ -65,7 +66,8 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
     slotStartHour: r.slotStartHour != null ? Number(r.slotStartHour) : null,
     slotEndHour: r.slotEndHour != null ? Number(r.slotEndHour) : null,
     depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
-    depositUseTiers,
+    depositMode,
+    depositUseTiers: depositMode === 'tiered',
     depositTiers: parseDepositTiersJson(rec.depositTiersJson),
     ownerName:
       rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null,
@@ -116,7 +118,7 @@ export async function manageUpdateStore(
     imageUrl?: string | null;
     sortOrder?: number;
     depositAmount?: number;
-    depositUseTiers?: boolean;
+    depositUseTiers?: boolean | number;
     depositTiersJson?: string | null;
     minGroupHeadcount?: number;
     maxCapacity?: number;
@@ -168,7 +170,9 @@ export async function manageUpdateStore(
   }
   if (patch.depositUseTiers !== undefined) {
     sets.push('depositUseTiers = ?');
-    params.push(patch.depositUseTiers ? 1 : 0);
+    const v = patch.depositUseTiers;
+    const n = typeof v === 'number' ? Math.floor(v) : v ? 1 : 0;
+    params.push(Math.min(2, Math.max(0, n)));
   }
   if (patch.depositTiersJson !== undefined) {
     sets.push('depositTiersJson = ?');

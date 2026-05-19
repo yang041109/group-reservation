@@ -82,7 +82,7 @@ export default function SearchPage() {
           depositAmount:
             selectedHeadcount >= 1
               ? resolveDepositForHeadcount(selectedHeadcount, {
-                  depositUseTiers: !!s.depositUseTiers,
+                  depositMode: s.depositMode ?? (s.depositUseTiers ? 'tiered' : 'flat'),
                   depositTiers: s.depositTiers ?? [],
                   flatDepositAmount: s.depositAmount ?? 0,
                 })

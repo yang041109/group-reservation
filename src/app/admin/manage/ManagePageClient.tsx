@@ -20,6 +20,15 @@ import {
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
+import DepositSettingsFields, {
+  defaultDepositTierRows,
+  type DepositTierFormRow,
+} from '@/components/admin/DepositSettingsFields';
+import {
+  depositModeFromDb,
+  depositRequiresBankInfo,
+  type DepositMode,
+} from '@/lib/deposit-tiers';
 import type { DepositTier } from '@/types';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
@@ -42,6 +51,7 @@ type ManageStore = {
   slotStartHour: number | null;
   slotEndHour: number | null;
   depositAmount: number;
+  depositMode?: DepositMode;
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
   ownerName: string | null;
@@ -52,10 +62,10 @@ type ManageStore = {
   sortOrder: number;
 };
 
-type TierRow = { min: string; max: string; amount: string };
+type TierRow = DepositTierFormRow;
 
 function defaultTierRows(): TierRow[] {
-  return [{ min: '1', max: '10', amount: '0' }];
+  return defaultDepositTierRows();
 }
 
 type ManageMenu = {
@@ -108,7 +118,7 @@ export default function ManagePageClient() {
   const [locationLabel, setLocationLabel] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [depositFlat, setDepositFlat] = useState('0');
-  const [depositUseTiers, setDepositUseTiers] = useState(false);
+  const [depositMode, setDepositMode] = useState<DepositMode>('flat');
   const [tierRows, setTierRows] = useState<TierRow[]>(defaultTierRows);
   const [newStoreId, setNewStoreId] = useState('');
   const [newStoreName, setNewStoreName] = useState('');
@@ -146,9 +156,16 @@ export default function ManagePageClient() {
 
   const selected = useMemo(() => stores.find((s) => s.storeId === selectedId) ?? null, [stores, selectedId]);
 
-  const depositRequiresBankInfo = depositUseTiers
-    ? tierRows.some((r) => (parseInt(r.amount, 10) || 0) >= 1)
-    : (parseInt(depositFlat, 10) || 0) >= 1;
+  const showBankFields = depositRequiresBankInfo({
+    depositMode,
+    flatDepositAmount: parseInt(depositFlat, 10) || 0,
+    depositTiers: tierRows.map((row) => ({
+      minHeadcount: parseInt(row.min, 10) || 0,
+      maxHeadcount: parseInt(row.max, 10) || 0,
+      amount: parseInt(row.amount, 10) || 0,
+      calcType: row.calcType,
+    })),
+  });
 
   useEffect(() => {
     void (async () => {
@@ -232,7 +249,7 @@ export default function ManagePageClient() {
       setLocationLabel('');
       setImageUrl('');
       setDepositFlat('0');
-      setDepositUseTiers(false);
+      setDepositMode('flat');
       setTierRows(defaultTierRows());
       setMinGroupHeadcount('2');
       setMaxCapacity('80');
@@ -275,13 +292,16 @@ export default function ManagePageClient() {
     setWeeklyForm(wf);
     setClosedDatesText(parseClosedDatesJson(selected.closedDatesJson).join('\n'));
     setDepositFlat(String(selected.depositAmount ?? 0));
-    setDepositUseTiers(!!selected.depositUseTiers);
+    setDepositMode(
+      selected.depositMode ?? depositModeFromDb(selected.depositUseTiers ? 1 : 0),
+    );
     setTierRows(
       selected.depositTiers?.length
         ? selected.depositTiers.map((t) => ({
             min: String(t.minHeadcount),
             max: String(t.maxHeadcount),
             amount: String(t.amount),
+            calcType: t.calcType === 'per_person' ? 'per_person' : 'fixed',
           }))
         : defaultTierRows(),
     );
@@ -309,15 +329,17 @@ export default function ManagePageClient() {
     setLoading(true);
     setErr(null);
     try {
-      const tiersPayload: DepositTier[] = depositUseTiers
-        ? tierRows
-            .map((row) => ({
-              minHeadcount: Math.max(0, parseInt(row.min, 10) || 0),
-              maxHeadcount: Math.max(0, parseInt(row.max, 10) || 0),
-              amount: Math.max(0, parseInt(row.amount, 10) || 0),
-            }))
-            .filter((t) => t.maxHeadcount >= t.minHeadcount)
-        : [];
+      const tiersPayload: DepositTier[] =
+        depositMode === 'tiered'
+          ? tierRows
+              .map((row) => ({
+                minHeadcount: Math.max(0, parseInt(row.min, 10) || 0),
+                maxHeadcount: Math.max(0, parseInt(row.max, 10) || 0),
+                amount: Math.max(0, parseInt(row.amount, 10) || 0),
+                calcType: row.calcType,
+              }))
+              .filter((t) => t.maxHeadcount >= t.minHeadcount)
+          : [];
 
       const weeklyPayload: Record<DayKey, DayFormRow> = { ...weeklyForm };
       const closedList = closedDatesText
@@ -334,10 +356,10 @@ export default function ManagePageClient() {
           minGroupHeadcount: minH,
           maxCapacity: maxH,
           depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
-          depositUseTiers,
-          depositTiers: depositUseTiers ? tiersPayload : null,
-          ownerName: depositRequiresBankInfo ? ownerName.trim() || null : null,
-          ownerBankAccount: depositRequiresBankInfo ? ownerBankAccount.trim() || null : null,
+          depositMode,
+          depositTiers: depositMode === 'tiered' ? tiersPayload : null,
+          ownerName: showBankFields ? ownerName.trim() || null : null,
+          ownerBankAccount: showBankFields ? ownerBankAccount.trim() || null : null,
           slotStartHour: Math.min(23, Math.max(0, parseInt(slotStartHour, 10) || 11)),
           slotEndHour: Math.min(23, Math.max(0, parseInt(slotEndHour, 10) || 20)),
           weeklyHoursJson: useWeeklyHours
@@ -896,167 +918,22 @@ export default function ManagePageClient() {
                           />
                         </label>
 
-                        <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3">
-                          <label className="flex cursor-pointer items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={depositUseTiers}
-                              onChange={(e) => {
-                                const on = e.target.checked;
-                                setDepositUseTiers(on);
-                                if (on && tierRows.length === 0) setTierRows(defaultTierRows());
-                              }}
-                            />
-                            <span className="text-sm font-medium text-gray-800">인원 구간별 예약금 적용</span>
-                          </label>
-                          {!depositUseTiers ? (
-                            <label className="mt-3 block">
-                              <span className="text-xs text-gray-500">예약금 (원) — 모든 인원 동일</span>
-                              <input
-                                type="number"
-                                min={0}
-                                className="mt-1 w-full max-w-[12rem] rounded-lg border border-gray-300 px-3 py-2"
-                                value={depositFlat}
-                                onChange={(e) => setDepositFlat(e.target.value)}
-                              />
-                            </label>
-                          ) : (
-                            <div className="mt-3 space-y-2">
-                              <p className="text-xs text-gray-600">
-                                각 행: 최소 인원 ~ 최대 인원(명), 해당 구간 예약금(원). 고객 예약 화면에 표시됩니다.
-                              </p>
-                              {tierRows.map((row, i) => (
-                                <div key={i} className="flex flex-wrap items-end gap-2 rounded-md bg-white p-2 shadow-sm">
-                                  <label className="text-xs text-gray-600">
-                                    최소
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      className="ml-1 w-16 rounded border border-gray-200 px-1 py-0.5"
-                                      value={row.min}
-                                      onChange={(e) =>
-                                        setTierRows((rows) =>
-                                          rows.map((r, j) => (j === i ? { ...r, min: e.target.value } : r)),
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <label className="text-xs text-gray-600">
-                                    최대
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      className="ml-1 w-16 rounded border border-gray-200 px-1 py-0.5"
-                                      value={row.max}
-                                      onChange={(e) =>
-                                        setTierRows((rows) =>
-                                          rows.map((r, j) => (j === i ? { ...r, max: e.target.value } : r)),
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <label className="text-xs text-gray-600">
-                                    예약금
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      className="ml-1 w-24 rounded border border-gray-200 px-1 py-0.5"
-                                      value={row.amount}
-                                      onChange={(e) =>
-                                        setTierRows((rows) =>
-                                          rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <button
-                                    type="button"
-                                    disabled={tierRows.length <= 1}
-                                    onClick={() => setTierRows((rows) => rows.filter((_, j) => j !== i))}
-                                    className="text-xs text-red-600 hover:underline disabled:opacity-30"
-                                  >
-                                    행 삭제
-                                  </button>
-                                </div>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setTierRows((rows) => [...rows, { min: '1', max: '20', amount: '0' }])
-                                }
-                                className="text-sm text-blue-600 hover:underline"
-                              >
-                                + 구간 추가
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {depositRequiresBankInfo ? (
-                          <div className="sm:col-span-2 space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
-                            <p className="text-sm font-medium text-blue-900">예약금 입금 안내 (고객 확정 화면에 표시)</p>
-                            <label className="block">
-                              <span className="text-xs text-gray-600">사장님 성함 (예금주)</span>
-                              <input
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
-                                value={ownerName}
-                                onChange={(e) => setOwnerName(e.target.value)}
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="text-xs text-gray-600">계좌번호</span>
-                              <input
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
-                                value={ownerBankAccount}
-                                onChange={(e) => setOwnerBankAccount(e.target.value)}
-                                placeholder="은행명 포함 입력"
-                              />
-                            </label>
-                          </div>
-                        ) : null}
-
-                        <div className="flex flex-wrap gap-4">
-                          <label className="block">
-                            <span className="text-xs text-gray-500">단체예약 최소 인원</span>
-                            <input
-                              type="number"
-                              min={1}
-                              className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
-                              value={minGroupHeadcount}
-                              onChange={(e) => setMinGroupHeadcount(e.target.value)}
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-xs text-gray-500">단체예약 최대 인원</span>
-                            <input
-                              type="number"
-                              min={1}
-                              className="mt-1 w-full max-w-[8rem] rounded-lg border border-gray-300 px-3 py-2"
-                              value={maxCapacity}
-                              onChange={(e) => setMaxCapacity(e.target.value)}
-                            />
-                            <span className="mt-1 block text-[11px] text-gray-400">
-                              검색 카드 인원 태그·타임슬롯 수용 인원에 반영됩니다.
-                            </span>
-                          </label>
-                        </div>
-                        <div className="sm:col-span-2">
-                          <h4 className="text-sm font-semibold text-gray-900">영업 시간</h4>
-                        </div>
-                        <StoreBusinessHoursFields
-                          useWeeklyHours={useWeeklyHours}
-                          onUseWeeklyHoursChange={setUseWeeklyHours}
-                          slotStartHour={slotStartHour}
-                          slotEndHour={slotEndHour}
-                          onSlotStartHourChange={setSlotStartHour}
-                          onSlotEndHourChange={setSlotEndHour}
-                          weeklyForm={weeklyForm}
-                          onWeeklyFormChange={setWeeklyForm}
+                        <DepositSettingsFields
+                          depositMode={depositMode}
+                          onDepositModeChange={setDepositMode}
+                          depositFlat={depositFlat}
+                          onDepositFlatChange={setDepositFlat}
+                          tierRows={tierRows}
+                          onTierRowsChange={setTierRows}
+                          ownerName={ownerName}
+                          onOwnerNameChange={setOwnerName}
+                          ownerBankAccount={ownerBankAccount}
+                          onOwnerBankAccountChange={setOwnerBankAccount}
+                          showBankFields={showBankFields}
                           variant="manage"
                         />
 
-
-                        <label className="block sm:col-span-2">
+                                                <label className="block sm:col-span-2">
                           <span className="text-xs text-gray-500">지정 휴무일 (YYYY-MM-DD, 줄바꿈)</span>
                           <textarea
                             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"

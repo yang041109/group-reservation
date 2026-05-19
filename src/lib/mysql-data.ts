@@ -11,7 +11,13 @@ import {
   isStoreClosedOnDate,
   readMinGroupHeadcount,
 } from '@/lib/store-weekly-hours';
-import { parseDepositTiersJson, resolveDepositForHeadcount, type DepositTier } from '@/lib/deposit-tiers';
+import {
+  depositModeFromDb,
+  parseDepositTiersJson,
+  resolveDepositForHeadcount,
+  type DepositMode,
+  type DepositTier,
+} from '@/lib/deposit-tiers';
 import type { MenuItemData, MinOrderRule } from '@/types';
 
 export class ReservationDbError extends Error {
@@ -54,20 +60,21 @@ type RuleRow = RowDataPacket & Record<string, unknown>;
 type ReservationRow = RowDataPacket & Record<string, unknown>;
 
 function readStoreDepositOpts(store: StoreRow): {
+  depositMode: DepositMode;
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
   flatDepositAmount: number;
 } {
   const rec = store as Record<string, unknown>;
-  const raw = rec.depositUseTiers;
-  const useTiers =
-    raw === true ||
-    raw === 1 ||
-    String(raw).toLowerCase() === 'true' ||
-    Number(raw) === 1;
+  const depositMode = depositModeFromDb(rec.depositUseTiers);
   const flat = parseInt(String(rec.depositAmount ?? '0'), 10) || 0;
   const tiers = parseDepositTiersJson(rec.depositTiersJson);
-  return { depositUseTiers: useTiers, depositTiers: tiers, flatDepositAmount: flat };
+  return {
+    depositMode,
+    depositUseTiers: depositMode === 'tiered',
+    depositTiers: tiers,
+    flatDepositAmount: flat,
+  };
 }
 
 async function fetchAllStoresMenusRulesReservations(): Promise<{
@@ -130,7 +137,7 @@ export async function getStoresFromMysql(date: string, headcount: number) {
 
     const depOpts = readStoreDepositOpts(store);
     const resolvedDeposit = resolveDepositForHeadcount(headcount, {
-      depositUseTiers: depOpts.depositUseTiers,
+      depositMode: depOpts.depositMode,
       depositTiers: depOpts.depositTiers,
       flatDepositAmount: depOpts.flatDepositAmount,
     });
@@ -142,6 +149,7 @@ export async function getStoresFromMysql(date: string, headcount: number) {
       slotStartHour,
       slotEndHour,
       depositAmount: resolvedDeposit,
+      depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
       depositFlatAmount: depOpts.flatDepositAmount,
@@ -219,6 +227,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       slotStartHour,
       slotEndHour,
       depositAmount: depOpts.flatDepositAmount,
+      depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
       minGroupHeadcount,
@@ -349,7 +358,7 @@ export async function insertReservationValidated(
 
     const depOpts = readStoreDepositOpts(store);
     const depositAmount = resolveDepositForHeadcount(headcount, {
-      depositUseTiers: depOpts.depositUseTiers,
+      depositMode: depOpts.depositMode,
       depositTiers: depOpts.depositTiers,
       flatDepositAmount: depOpts.flatDepositAmount,
     });
@@ -551,6 +560,7 @@ export async function getAllDataFromMysql() {
           ? String(rec.closedDatesJson)
           : null,
       depositAmount: depOpts.flatDepositAmount,
+      depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
       menus: menus
