@@ -148,11 +148,7 @@ export async function getStoresFromMysql(date: string, headcount: number) {
       depositTiers: depOpts.depositTiers,
       depositFlatAmount: depOpts.flatDepositAmount,
       timeline,
-      minOrderRules: storeRules.map((r) => ({
-        minHeadcount: parseInt(String(r.minHeadcount ?? '0'), 10) || 0,
-        maxHeadcount: parseInt(String(r.maxHeadcount ?? '0'), 10) || 0,
-        minOrderAmount: parseInt(String(r.minOrderAmount ?? '0'), 10) || 0,
-      })),
+      minOrderRules: [],
       minGroupHeadcount,
       closedOnDate: closed,
     };
@@ -205,12 +201,6 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
     crossesMidnight,
   );
 
-  const minOrderRules: MinOrderRule[] = storeRules.map((r) => ({
-    minHeadcount: parseInt(String(r.minHeadcount ?? '0'), 10) || 0,
-    maxHeadcount: parseInt(String(r.maxHeadcount ?? '0'), 10) || 0,
-    minOrderAmount: parseInt(String(r.minOrderAmount ?? '0'), 10) || 0,
-  }));
-
   const menusPayload: MenuItemData[] = storeMenus.map((m) => ({
     id: String(m.menuId ?? '').trim(),
     name: String(m.name ?? ''),
@@ -239,7 +229,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       closedOnDate: closed,
       availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
       slots,
-      minOrderRules,
+      minOrderRules: [],
     },
     menus: menusPayload,
     slots,
@@ -342,21 +332,6 @@ export async function insertReservationValidated(
       throw new ReservationDbError(
         400,
         `해당 시간대 잔여 인원(${minRemaining}명)을 초과합니다.`,
-      );
-    }
-
-    const [ruleRows] = await conn.query<RuleRow[]>('SELECT * FROM rule WHERE storeId = ?', [storeId]);
-    const rule = ruleRows.find((r) => {
-      const lo = parseInt(String(r.minHeadcount ?? '0'), 10) || 0;
-      const hi = parseInt(String(r.maxHeadcount ?? '0'), 10) || 999;
-      return headcount >= lo && headcount <= hi;
-    });
-    const minOrder = rule ? parseInt(String(rule.minOrderAmount ?? '0'), 10) || 0 : 0;
-    if (minOrder > 0 && totalAmount < minOrder) {
-      await conn.rollback();
-      throw new ReservationDbError(
-        400,
-        `최소 주문 금액(${minOrder.toLocaleString('ko-KR')}원)을 충족하지 못합니다.`,
       );
     }
 
@@ -592,13 +567,13 @@ export async function getAllDataFromMysql() {
           isRequired: String(m.isRequired ?? '').toLowerCase() === 'true' || Number(m.isRequired) === 1,
           imageUrl: m.imageUrl || '',
         })),
-      minOrderRules: rules
-        .filter((r) => String(r.storeId ?? '').trim() === sid)
-        .map((r) => ({
-          minHeadcount: parseInt(String(r.minHeadcount ?? '0'), 10) || 0,
-          maxHeadcount: parseInt(String(r.maxHeadcount ?? '0'), 10) || 0,
-          minOrderAmount: parseInt(String(r.minOrderAmount ?? '0'), 10) || 0,
-        })),
+      minOrderRules: [],
+      ownerName:
+        rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null,
+      ownerBankAccount:
+        rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
+          ? String(rec.ownerBankAccount).trim()
+          : null,
     };
   });
 

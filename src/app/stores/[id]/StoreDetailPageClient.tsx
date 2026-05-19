@@ -4,21 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { DEFAULT_SLOT_END_HOUR, DEFAULT_SLOT_START_HOUR } from '@/lib/slot-hour-range';
-import { getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
+import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
-import type { GetStoreDetailResponse, MinOrderRule } from '@/types';
+import type { GetStoreDetailResponse } from '@/types';
 import TimeSelector from '@/components/TimeSelector';
 import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
 import ReserveButton from '@/components/ReserveButton';
 import BackLink from '@/components/BackLink';
-
-function getMinOrderAmount(headcount: number, rules: MinOrderRule[]): number {
-  const rule = rules.find(
-    (r) => headcount >= r.minHeadcount && headcount <= r.maxHeadcount,
-  );
-  return rule ? rule.minOrderAmount : 0;
-}
 
 function isYmd(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -107,14 +100,13 @@ export default function StoreDetailPageClient() {
     async function fetchStore() {
       setError(null);
 
-      // 1단계: SWR 캐시에서 즉시 표시
       let usedCache = false;
       try {
         const cachedRaw = sessionStorage.getItem('cachedStoresRaw');
         const cachedRes = sessionStorage.getItem('cachedReservations');
         if (cachedRaw) {
           const allStores = JSON.parse(cachedRaw);
-          const found = allStores.find((s: any) => s.storeId === storeId);
+          const found = allStores.find((s: { storeId: string }) => s.storeId === storeId);
           if (found) {
             const resData = cachedRes ? JSON.parse(cachedRes) : [];
             const { buildSlotsForDate } = await import('@/lib/use-store-data');
@@ -130,7 +122,7 @@ export default function StoreDetailPageClient() {
                     resData,
                     dayRange.slotStartHour,
                     dayRange.slotEndHour,
-                    dayRange.closed,
+                    false,
                   )
                 : [];
             const cacheData: GetStoreDetailResponse = {
@@ -145,14 +137,17 @@ export default function StoreDetailPageClient() {
                 depositAmount: found.depositAmount ?? 0,
                 depositUseTiers: !!found.depositUseTiers,
                 depositTiers: found.depositTiers ?? [],
-                availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
+                minGroupHeadcount: found.minGroupHeadcount ?? readMinGroupHeadcount(found),
+                ownerName: found.ownerName ?? null,
+                ownerBankAccount: found.ownerBankAccount ?? null,
+                availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
                 slots,
-                minOrderRules: found.minOrderRules || [],
+                minOrderRules: [],
               },
               menus: found.menus || [],
               slots,
-              availableTimes: slots.filter((s: any) => s.isAvailable).map((s: any) => s.timeBlock),
-              reservedTimes: slots.filter((s: any) => !s.isAvailable).map((s: any) => s.timeBlock),
+              availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+              reservedTimes: slots.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
             };
             if (!cancelled) {
               setData(cacheData);
@@ -161,11 +156,12 @@ export default function StoreDetailPageClient() {
             }
           }
         }
-      } catch {}
+      } catch {
+        // ignore cache errors
+      }
 
       if (!usedCache) setLoading(true);
 
-      // 2단계: API에서 최신 데이터 가져오기 (백그라운드)
       try {
         const qp = dateVal ? `?date=${encodeURIComponent(dateVal)}` : '';
         const res = await fetch(`/api/stores/${storeId}${qp}`, { cache: 'no-store' });
@@ -197,7 +193,7 @@ export default function StoreDetailPageClient() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center justify-center py-16">
           <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
             <p className="mt-4 text-sm text-gray-500">가게 정보를 불러오는 중...</p>
           </div>
         </div>
@@ -225,7 +221,6 @@ export default function StoreDetailPageClient() {
   const startHour = store.slotStartHour ?? DEFAULT_SLOT_START_HOUR;
   const endHour = store.slotEndHour ?? DEFAULT_SLOT_END_HOUR;
   const crossesMidnight = endHour < startHour;
-  const minOrderAmount = getMinOrderAmount(selectedHeadcount, store.minOrderRules);
 
   const effectiveDeposit = resolveDepositForHeadcount(selectedHeadcount, {
     depositUseTiers: !!store.depositUseTiers,
@@ -258,15 +253,9 @@ export default function StoreDetailPageClient() {
       )}
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gray-100">
         {store.images.length > 0 ? (
-          <img
-            src={store.images[0]}
-            alt={store.name}
-            className="h-full w-full object-cover"
-          />
+          <img src={store.images[0]} alt={store.name} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-gray-400">
-            이미지 없음
-          </div>
+          <div className="flex h-full items-center justify-center text-gray-400">이미지 없음</div>
         )}
       </div>
 
@@ -340,24 +329,11 @@ export default function StoreDetailPageClient() {
           selectedTime={selectedTime}
           onChange={setSelectedTime}
         />
-
-        {minOrderAmount > 0 && (
-          <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
-            💰 {selectedHeadcount}명 기준 최소 주문 금액:{' '}
-            <span className="font-semibold">
-              {minOrderAmount.toLocaleString()}원
-            </span>
-          </div>
-        )}
       </div>
 
-      <MenuSection
-        menus={menus}
-        quantities={menuQuantities}
-        onChange={setMenuQuantities}
-      />
+      <MenuSection menus={menus} quantities={menuQuantities} onChange={setMenuQuantities} />
 
-      <TotalPrice totalAmount={totalAmount} minOrderAmount={minOrderAmount} />
+      <TotalPrice totalAmount={totalAmount} minOrderAmount={0} />
 
       <div className="h-28" />
 
@@ -366,7 +342,6 @@ export default function StoreDetailPageClient() {
         selectedDate={selectedDate}
         selectedTime={selectedTime}
         totalAmount={totalAmount}
-        minOrderAmount={minOrderAmount}
         storeId={storeId}
         storeName={store.name}
         menuQuantities={menuQuantities}

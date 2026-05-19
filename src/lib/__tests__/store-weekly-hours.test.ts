@@ -41,16 +41,30 @@ describe('getSlotHourRangeForStoreOnDate', () => {
     expect(r.slotEndHour).toBe(23);
   });
 
-  it('uses legacy slotStartHour when weeklyHoursJson is absent', () => {
+  it('uses basic slot hours when weeklyHoursJson is absent', () => {
     const store = { slotStartHour: 9, slotEndHour: 21 };
     const r = getSlotHourRangeForStoreOnDate(store, '2026-05-18');
     expect(r.slotStartHour).toBe(9);
     expect(r.slotEndHour).toBe(21);
   });
+
+  it('does not treat weekday as closed when weekly mode is off', () => {
+    const off = { slotStartHour: 11, slotEndHour: 20, weeklyHoursJson: null };
+    const r = getSlotHourRangeForStoreOnDate(off, '2026-05-20');
+    expect(r.closed).toBe(false);
+    expect(r.slotStartHour).toBe(11);
+  });
 });
 
 describe('getDefaultSlotHourRangeForStore', () => {
-  it('prefers weekly hours over legacy DB columns', () => {
+  it('uses basic hours when weekly mode is off', () => {
+    const store = { slotStartHour: 9, slotEndHour: 21, weeklyHoursJson: null };
+    const r = getDefaultSlotHourRangeForStore(store);
+    expect(r.slotStartHour).toBe(9);
+    expect(r.slotEndHour).toBe(21);
+  });
+
+  it('prefers weekly hours when weekly mode is on', () => {
     const store = {
       slotStartHour: 9,
       slotEndHour: 21,

@@ -7,7 +7,6 @@ interface ReserveButtonProps {
   selectedDate: string | null;
   selectedTime: string | null;
   totalAmount: number;
-  minOrderAmount: number;
   storeId: string;
   storeName: string;
   menuQuantities: Record<string, number>;
@@ -24,7 +23,6 @@ export default function ReserveButton({
   selectedDate,
   selectedTime,
   totalAmount,
-  minOrderAmount,
   storeId,
   storeName,
   menuQuantities,
@@ -38,10 +36,8 @@ export default function ReserveButton({
 
   const dateNotSelected = selectedDate === null;
   const timeNotSelected = selectedTime === null;
-  const minOrderNotMet = minOrderAmount > 0 && totalAmount < minOrderAmount;
   const belowGroupMin = selectedHeadcount < minGroupHeadcount;
-  const deficit = minOrderAmount - totalAmount;
-  const isDisabled = dateNotSelected || timeNotSelected || minOrderNotMet || belowGroupMin;
+  const isDisabled = dateNotSelected || timeNotSelected || belowGroupMin;
 
   let validationMessage: string | null = null;
   if (dateNotSelected) {
@@ -50,8 +46,6 @@ export default function ReserveButton({
     validationMessage = '시간을 선택해주세요';
   } else if (belowGroupMin) {
     validationMessage = `단체예약은 ${minGroupHeadcount}명 이상부터 가능합니다`;
-  } else if (minOrderNotMet) {
-    validationMessage = `최소 주문 금액까지 ${deficit.toLocaleString()}원 부족합니다`;
   }
 
   const handleClick = () => {
@@ -75,7 +69,7 @@ export default function ReserveButton({
       time: selectedTime,
       menuItems,
       totalAmount,
-      minOrderAmount,
+      minOrderAmount: 0,
       depositAmount: Math.max(0, Math.floor(expectedDeposit) || 0),
       ownerName: ownerName ?? null,
       ownerBankAccount: ownerBankAccount ?? null,
@@ -89,9 +83,7 @@ export default function ReserveButton({
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">
       <div className="mx-auto max-w-3xl px-4 py-3">
         {validationMessage && (
-          <p className="mb-2 text-center text-sm text-red-500">
-            {validationMessage}
-          </p>
+          <p className="mb-2 text-center text-sm text-red-500">{validationMessage}</p>
         )}
         <button
           type="button"

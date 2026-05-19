@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import StoreBusinessHoursFields, {
+  defaultWeeklyForm,
+} from '@/components/admin/StoreBusinessHoursFields';
 import { useAdminStore } from '../AdminStoreContext';
+import {
+  DAY_KEYS,
+  parseWeeklyHoursJson,
+  serializeWeeklyHoursForDb,
+} from '@/lib/store-weekly-hours';
 import type { DepositTier } from '@/types';
 
 interface ManageStore {
@@ -21,6 +29,7 @@ interface ManageStore {
   ownerName: string | null;
   ownerBankAccount: string | null;
   description: string | null;
+  weeklyHoursJson: string | null;
 }
 
 interface MenuItem {
@@ -56,8 +65,11 @@ export default function AdminSettingsPage() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [minGroupHeadcount, setMinGroupHeadcount] = useState('2');
+  const [maxCapacity, setMaxCapacity] = useState('80');
   const [slotStartHour, setSlotStartHour] = useState('11');
   const [slotEndHour, setSlotEndHour] = useState('20');
+  const [useWeeklyHours, setUseWeeklyHours] = useState(false);
+  const [weeklyForm, setWeeklyForm] = useState(defaultWeeklyForm);
   const [depositFlat, setDepositFlat] = useState('0');
   const [depositUseTiers, setDepositUseTiers] = useState(false);
   const [tierRows, setTierRows] = useState<TierRow[]>(defaultTierRows);
@@ -100,8 +112,25 @@ export default function AdminSettingsPage() {
         setDescription(s.description ?? '');
         setImageUrl(s.imageUrl ?? '');
         setMinGroupHeadcount(String(s.minGroupHeadcount ?? 2));
+        setMaxCapacity(String(s.maxCapacity ?? 80));
         setSlotStartHour(String(s.slotStartHour ?? 11));
         setSlotEndHour(String(s.slotEndHour ?? 20));
+        const parsedWeekly = parseWeeklyHoursJson(s.weeklyHoursJson);
+        setUseWeeklyHours(!!parsedWeekly);
+        const wf = defaultWeeklyForm();
+        if (parsedWeekly) {
+          for (const key of DAY_KEYS) {
+            const d = parsedWeekly[key];
+            if (d) {
+              wf[key] = {
+                closed: !!d.closed,
+                start: d.start != null ? String(d.start) : wf[key].start,
+                end: d.end != null ? String(d.end) : wf[key].end,
+              };
+            }
+          }
+        }
+        setWeeklyForm(wf);
         setDepositFlat(String(s.depositAmount ?? 0));
         setDepositUseTiers(!!s.depositUseTiers);
         setTierRows(
@@ -137,7 +166,17 @@ export default function AdminSettingsPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const depositRequiresBankInfo = depositUseTiers
+    ? tierRows.some((r) => (parseInt(r.amount, 10) || 0) >= 1)
+    : (parseInt(depositFlat, 10) || 0) >= 1;
+
   const saveStore = async () => {
+    const minH = Math.max(1, parseInt(minGroupHeadcount, 10) || 2);
+    const maxH = Math.max(0, parseInt(maxCapacity, 10) || 0);
+    if (maxH > 0 && maxH < minH) {
+      setError('최대 인원은 최소 인원 이상이어야 합니다.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -158,14 +197,29 @@ export default function AdminSettingsPage() {
         locationLabel: locationLabel.trim() || null,
         description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
-        minGroupHeadcount: Math.max(1, parseInt(minGroupHeadcount, 10) || 2),
+        minGroupHeadcount: minH,
+        maxCapacity: maxH,
         slotStartHour: Math.min(23, Math.max(0, parseInt(slotStartHour, 10) || 11)),
         slotEndHour: Math.min(23, Math.max(0, parseInt(slotEndHour, 10) || 20)),
         depositAmount: Math.max(0, parseInt(depositFlat, 10) || 0),
         depositUseTiers,
         depositTiers: depositUseTiers ? tiersPayload : null,
-        ownerName: ownerName.trim() || null,
-        ownerBankAccount: ownerBankAccount.trim() || null,
+        ownerName: depositRequiresBankInfo ? ownerName.trim() || null : null,
+        ownerBankAccount: depositRequiresBankInfo ? ownerBankAccount.trim() || null : null,
+        weeklyHoursJson: useWeeklyHours
+          ? serializeWeeklyHoursForDb(
+              Object.fromEntries(
+                DAY_KEYS.map((k) => [
+                  k,
+                  {
+                    closed: weeklyForm[k].closed,
+                    start: parseInt(weeklyForm[k].start, 10),
+                    end: parseInt(weeklyForm[k].end, 10),
+                  },
+                ]),
+              ),
+            )
+          : null,
       };
 
       const res = await fetch('/api/admin/store', {
@@ -416,60 +470,58 @@ export default function AdminSettingsPage() {
           <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
             <span className="block h-5 w-1 rounded-full bg-blue-600" /> 영업 시간
           </h2>
-          <p className="mb-3 text-xs text-gray-500">
-            예약을 받는 기본 시간대입니다. 종료 시간이 시작 시간보다 작으면 다음 날까지로 처리돼요.
-            (예: 시작 17, 종료 2 → 17:00 ~ 02:00)
-          </p>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">시작 시</span>
-              <select
-                value={slotStartHour}
-                onChange={(e) => setSlotStartHour(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-              >
-                {Array.from({ length: 24 }).map((_, h) => (
-                  <option key={h} value={h}>
-                    {String(h).padStart(2, '0')}시
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">종료 시</span>
-              <select
-                value={slotEndHour}
-                onChange={(e) => setSlotEndHour(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-              >
-                {Array.from({ length: 24 }).map((_, h) => (
-                  <option key={h} value={h}>
-                    {String(h).padStart(2, '0')}시
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <StoreBusinessHoursFields
+            useWeeklyHours={useWeeklyHours}
+            onUseWeeklyHoursChange={setUseWeeklyHours}
+            slotStartHour={slotStartHour}
+            slotEndHour={slotEndHour}
+            onSlotStartHourChange={setSlotStartHour}
+            onSlotEndHourChange={setSlotEndHour}
+            weeklyForm={weeklyForm}
+            onWeeklyFormChange={setWeeklyForm}
+            variant="owner"
+          />
         </section>
 
-        {/* 3. 단체 예약 최소 인원 */}
+        {/* 3. 단체 예약 인원 */}
         <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
-            <span className="block h-5 w-1 rounded-full bg-blue-600" /> 단체 예약 최소 인원
+            <span className="block h-5 w-1 rounded-full bg-blue-600" /> 단체 예약 인원
           </h2>
           <p className="mb-3 text-xs text-gray-500">
-            이 인원 미만이면 우르르에서 예약을 받지 않습니다.
+            고객 검색 카드에 「예약 가능 N~M명」으로 표시되며, 타임슬롯별 최대 수용 인원에도 반영됩니다.
           </p>
-          <input
-            type="number"
-            min={1}
-            max={999}
-            value={minGroupHeadcount}
-            onChange={(e) => setMinGroupHeadcount(e.target.value)}
-            className="w-32 rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-          />
-          <span className="ml-2 text-sm text-gray-600">명</span>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">최소 인원</span>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={minGroupHeadcount}
+                  onChange={(e) => setMinGroupHeadcount(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
+                />
+                <span className="shrink-0 text-sm text-gray-600">명</span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">최대 인원</span>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={maxCapacity}
+                  onChange={(e) => setMaxCapacity(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
+                />
+                <span className="shrink-0 text-sm text-gray-600">명</span>
+              </div>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">최소 인원 미만 예약은 받지 않습니다.</p>
         </section>
 
         {/* 4. 예약금 */}
@@ -556,36 +608,32 @@ export default function AdminSettingsPage() {
               </button>
             </div>
           )}
-        </section>
 
-        {/* 5. 입금 계좌 */}
-        <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
-            <span className="block h-5 w-1 rounded-full bg-blue-600" /> 예약금 입금 계좌
-          </h2>
-
-          <div className="space-y-3">
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">예금주</span>
-              <input
-                type="text"
-                value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
-                placeholder="홍길동"
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">계좌 번호</span>
-              <input
-                type="text"
-                value={ownerBankAccount}
-                onChange={(e) => setOwnerBankAccount(e.target.value)}
-                placeholder="농협 123-4567-8901"
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-              />
-            </label>
-          </div>
+          {depositRequiresBankInfo ? (
+            <div className="mt-4 space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+              <p className="text-sm font-semibold text-blue-900">예약금 입금 안내 (고객 예약 확정 화면에 표시)</p>
+              <label className="block">
+                <span className="text-sm font-semibold text-gray-700">예금주</span>
+                <input
+                  type="text"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  placeholder="홍길동"
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-gray-700">계좌 번호</span>
+                <input
+                  type="text"
+                  value={ownerBankAccount}
+                  onChange={(e) => setOwnerBankAccount(e.target.value)}
+                  placeholder="농협 123-4567-8901"
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
+                />
+              </label>
+            </div>
+          ) : null}
         </section>
 
         {/* 저장 버튼 */}

@@ -24,6 +24,8 @@ export interface CachedStore {
   depositAmount?: number;
   depositUseTiers?: boolean;
   depositTiers?: DepositTier[];
+  ownerName?: string | null;
+  ownerBankAccount?: string | null;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
 }

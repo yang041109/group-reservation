@@ -1,7 +1,6 @@
 import type {
   CreateReservationRequest,
   MenuItemData,
-  MinOrderRule,
   ReservationStatus,
   StatusTransitionResult,
   ValidationResult,
@@ -11,20 +10,6 @@ import type {
 function toMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
-}
-
-/**
- * 인원수가 속하는 구간의 최소 주문 금액을 반환한다.
- * 해당하는 구간이 없으면 0을 반환한다.
- */
-export function getMinOrderAmount(
-  headcount: number,
-  rules: MinOrderRule[],
-): number {
-  const rule = rules.find(
-    (r) => headcount >= r.minHeadcount && headcount <= r.maxHeadcount,
-  );
-  return rule ? rule.minOrderAmount : 0;
 }
 
 /**
@@ -41,7 +26,6 @@ export function validateReservationRequest(
   req: Partial<CreateReservationRequest>,
   store: { maxCapacity: number },
   availableTimes: string[],
-  minOrderRules: MinOrderRule[],
   menuData?: MenuItemData[],
 ): ValidationResult {
   const errors: string[] = [];
@@ -94,16 +78,6 @@ export function validateReservationRequest(
       }
     } else if (!availableTimes.includes(req.time)) {
       errors.push('선택한 시간은 예약이 불가능합니다.');
-    }
-  }
-
-  // 최소 주문 금액 검증
-  if (req.headcount && req.headcount >= 1 && req.totalAmount !== undefined) {
-    const minAmount = getMinOrderAmount(req.headcount, minOrderRules);
-    if (minAmount > 0 && req.totalAmount < minAmount) {
-      errors.push(
-        `${req.headcount}명 기준 최소 주문 금액은 ${minAmount.toLocaleString()}원입니다. 현재 ${req.totalAmount.toLocaleString()}원 (${(minAmount - req.totalAmount).toLocaleString()}원 부족)`,
-      );
     }
   }
 

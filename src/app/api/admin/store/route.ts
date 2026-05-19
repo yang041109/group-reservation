@@ -81,6 +81,10 @@ export async function PATCH(request: Request) {
     const n = Number(body.minGroupHeadcount);
     patch.minGroupHeadcount = Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 2;
   }
+  if (body.maxCapacity !== undefined) {
+    const n = Number(body.maxCapacity);
+    patch.maxCapacity = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
   if (body.ownerName !== undefined) {
     patch.ownerName = body.ownerName === null ? null : String(body.ownerName);
   }
@@ -96,6 +100,10 @@ export async function PATCH(request: Request) {
     const n = body.slotEndHour === null ? null : Number(body.slotEndHour);
     patch.slotEndHour =
       n === null || Number.isNaN(n) ? null : Math.min(23, Math.max(0, Math.floor(n)));
+  }
+  if (body.weeklyHoursJson !== undefined) {
+    patch.weeklyHoursJson =
+      body.weeklyHoursJson === null ? null : String(body.weeklyHoursJson);
   }
 
   const result = await manageUpdateStore(sid, patch);

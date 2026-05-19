@@ -26,6 +26,11 @@ export interface DaySchedule {
 
 export type WeeklyHours = Partial<Record<DayKey, DaySchedule>>;
 
+/** weeklyHoursJson 이 저장되어 있으면 요일별 모드 */
+export function isWeeklyHoursEnabled(store: Record<string, unknown>): boolean {
+  return parseWeeklyHoursJson(store.weeklyHoursJson) != null;
+}
+
 export function dayKeyFromYmd(dateYmd: string): DayKey {
   const d = new Date(`${dateYmd}T12:00:00`);
   const idx = d.getDay();
@@ -126,12 +131,15 @@ function slotRangeFromHours(start: number, end: number) {
   };
 }
 
-/** weeklyHoursJson 우선, 없으면 DB slotStartHour/slotEndHour (캐시·목록용) */
+/** 요일별 미사용 시 기본 영업시, 사용 시 첫 영업 요일 (캐시·목록용) */
 export function getDefaultSlotHourRangeForStore(store: Record<string, unknown>): {
   slotStartHour: number;
   slotEndHour: number;
   crossesMidnight: boolean;
 } {
+  if (!isWeeklyHoursEnabled(store)) {
+    return getSlotHourRangeFromStoreRow(store);
+  }
   const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
   if (weekly) {
     const open = firstOpenDayHoursFromWeekly(weekly);
@@ -149,6 +157,7 @@ export function getDefaultSlotHourRangeForStore(store: Record<string, unknown>):
 export function isStoreClosedOnDate(store: Record<string, unknown>, dateYmd: string): boolean {
   const closedDates = parseClosedDatesJson(store.closedDatesJson);
   if (closedDates.includes(dateYmd)) return true;
+  if (!isWeeklyHoursEnabled(store)) return false;
   const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
   if (!weekly) return false;
   const day = dayKeyFromYmd(dateYmd);
@@ -164,27 +173,27 @@ export function getSlotHourRangeForStoreOnDate(
     return { slotStartHour: 0, slotEndHour: 0, crossesMidnight: false, closed: true };
   }
 
-  const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
+  if (!isWeeklyHoursEnabled(store)) {
+    const def = getSlotHourRangeFromStoreRow(store);
+    return { ...def, closed: false };
+  }
+
+  const weekly = parseWeeklyHoursJson(store.weeklyHoursJson)!;
   const day = dayKeyFromYmd(dateYmd);
-  const sched = weekly?.[day];
+  const sched = weekly[day];
   if (sched && !sched.closed && sched.start != null && sched.end != null) {
-    let start = sched.start;
-    let end = sched.end;
+    const start = sched.start;
+    const end = sched.end;
     if (start >= 0 && start <= 23 && end >= 0 && end <= 23) {
       return { slotStartHour: start, slotEndHour: end, crossesMidnight: end < start, closed: false };
     }
   }
 
-  if (weekly) {
-    const fallback = firstOpenDayHoursFromWeekly(weekly);
-    if (fallback) {
-      return slotRangeFromHours(fallback.start, fallback.end);
-    }
-    return slotRangeFromHours(DEFAULT_SLOT_START_HOUR, DEFAULT_SLOT_END_HOUR);
+  const fallback = firstOpenDayHoursFromWeekly(weekly);
+  if (fallback) {
+    return slotRangeFromHours(fallback.start, fallback.end);
   }
-
-  const def = getSlotHourRangeFromStoreRow(store);
-  return { ...def, closed: false };
+  return slotRangeFromHours(DEFAULT_SLOT_START_HOUR, DEFAULT_SLOT_END_HOUR);
 }
 
 export function readMinGroupHeadcount(store: Record<string, unknown>): number {

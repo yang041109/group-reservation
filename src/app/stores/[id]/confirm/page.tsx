@@ -130,7 +130,7 @@ export default function ReservationConfirmPage() {
     );
   }
 
-  const meetsMinOrder = reservation.minOrderAmount <= 0 || reservation.totalAmount >= reservation.minOrderAmount;
+  const hasDeposit = (reservation.depositAmount ?? 0) > 0;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -163,21 +163,6 @@ export default function ReservationConfirmPage() {
           <span className="font-semibold text-gray-900">{reservation.time}</span>
         </div>
 
-        {reservation.depositAmount != null && reservation.depositAmount > 0 && (
-          <div className="space-y-2 rounded-lg bg-blue-50 px-3 py-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-800">예약금 ({reservation.headcount}명 기준)</span>
-              <span className="font-bold text-blue-900">{reservation.depositAmount.toLocaleString()}원</span>
-            </div>
-            {(reservation.ownerName || reservation.ownerBankAccount) && (
-              <div className="border-t border-blue-200 pt-2 text-sm text-blue-900">
-                <p className="font-semibold">예약금 입금 안내</p>
-                {reservation.ownerName ? <p>예금주: {reservation.ownerName}</p> : null}
-                {reservation.ownerBankAccount ? <p>계좌: {reservation.ownerBankAccount}</p> : null}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 예약자 정보 입력 */}
@@ -259,31 +244,35 @@ export default function ReservationConfirmPage() {
         </div>
       </div>
 
-      {/* 최소 주문 금액 충족 여부 */}
-      {reservation.minOrderAmount > 0 && (
-        <div
-          className={`mt-4 flex items-center gap-2 rounded-xl px-5 py-3 text-sm ${
-            meetsMinOrder
-              ? 'bg-green-50 text-green-700'
-              : 'bg-red-50 text-red-700'
-          }`}
-        >
-          {meetsMinOrder ? (
-            <>
-              <span className="text-green-500">✅</span>
-              <span>최소 주문 금액 {reservation.minOrderAmount.toLocaleString()}원 충족</span>
-            </>
-          ) : (
-            <>
-              <span className="text-red-500">❌</span>
-              <span>
-                최소 주문 금액 {reservation.minOrderAmount.toLocaleString()}원 미달 (
-                {(reservation.minOrderAmount - reservation.totalAmount).toLocaleString()}원 부족)
-              </span>
-            </>
-          )}
+      {hasDeposit ? (
+        <div className="mt-4 rounded-xl border-2 border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-base font-bold text-blue-900">예약금 입금 안내</h2>
+          <p className="mt-2 text-2xl font-extrabold text-blue-950">
+            {reservation.depositAmount!.toLocaleString()}원
+          </p>
+          <p className="mt-1 text-sm text-blue-800">
+            아래 계좌로 입금해 주세요. 예약 확정 후 가게에서 확인합니다.
+          </p>
+          <div className="mt-4 space-y-1 rounded-lg bg-white px-4 py-3 text-sm text-gray-900">
+            {reservation.ownerName ? (
+              <p>
+                <span className="text-gray-500">예금주</span>{' '}
+                <span className="font-semibold">{reservation.ownerName}</span>
+              </p>
+            ) : (
+              <p className="text-amber-700">예금주 정보가 등록되지 않았습니다. 가게에 문의해 주세요.</p>
+            )}
+            {reservation.ownerBankAccount ? (
+              <p>
+                <span className="text-gray-500">계좌</span>{' '}
+                <span className="font-mono font-semibold">{reservation.ownerBankAccount}</span>
+              </p>
+            ) : (
+              <p className="text-amber-700">계좌번호가 등록되지 않았습니다. 가게에 문의해 주세요.</p>
+            )}
+          </div>
         </div>
-      )}
+      ) : null}
 
       {/* 에러 메시지 */}
       {error && (
@@ -318,7 +307,7 @@ export default function ReservationConfirmPage() {
               : 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700'
           }`}
         >
-          {submitting ? '처리 중...' : '예약 확정'}
+          {submitting ? '처리 중...' : hasDeposit ? '예약금 확인 후 확정' : '예약 확정'}
         </button>
       </div>
     </main>

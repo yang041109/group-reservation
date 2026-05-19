@@ -26,9 +26,6 @@ function categoryEmoji(category: string): string {
 }
 
 function minPerPersonWon(store: CachedStore): number {
-  if (store.minOrderRules.length > 0) {
-    return Math.min(...store.minOrderRules.map((r) => r.minOrderAmount / r.minHeadcount));
-  }
   if (store.menus.length > 0) {
     return Math.min(...store.menus.map((m) => m.price));
   }
@@ -47,7 +44,7 @@ function formatPriceFromWon(won: number): string {
 }
 
 function capacityLabel(store: CachedStore): string {
-  const minC = store.minOrderRules.length > 0 ? Math.min(...store.minOrderRules.map((r) => r.minHeadcount)) : 1;
+  const minC = store.minGroupHeadcount ?? 2;
   return `${minC}~${store.maxCapacity}인`;
 }
 

@@ -6,9 +6,12 @@ import {
   formatReservationStatus,
   RESERVATION_STATUS_FILTER_OPTIONS,
 } from '@/lib/reservation-status-labels';
+import StoreBusinessHoursFields, {
+  defaultWeeklyForm,
+  type DayFormRow,
+} from '@/components/admin/StoreBusinessHoursFields';
 import {
   DAY_KEYS,
-  DAY_LABELS,
   type DayKey,
   parseClosedDatesJson,
   parseWeeklyHoursJson,
@@ -48,20 +51,6 @@ type ManageStore = {
   adminAccessToken: string | null;
   sortOrder: number;
 };
-
-type DayFormRow = { closed: boolean; start: string; end: string };
-
-function defaultWeeklyForm(): Record<DayKey, DayFormRow> {
-  return {
-    sun: { closed: false, start: '11', end: '20' },
-    mon: { closed: false, start: '11', end: '20' },
-    tue: { closed: false, start: '11', end: '20' },
-    wed: { closed: false, start: '11', end: '20' },
-    thu: { closed: false, start: '11', end: '20' },
-    fri: { closed: false, start: '11', end: '20' },
-    sat: { closed: false, start: '11', end: '20' },
-  };
-}
 
 type TierRow = { min: string; max: string; amount: string };
 
@@ -149,6 +138,9 @@ export default function ManagePageClient() {
   const [maxCapacity, setMaxCapacity] = useState('80');
   const [ownerName, setOwnerName] = useState('');
   const [ownerBankAccount, setOwnerBankAccount] = useState('');
+  const [slotStartHour, setSlotStartHour] = useState('11');
+  const [slotEndHour, setSlotEndHour] = useState('20');
+  const [useWeeklyHours, setUseWeeklyHours] = useState(false);
   const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(defaultWeeklyForm);
   const [closedDatesText, setClosedDatesText] = useState('');
   const resLimit = 50;
@@ -249,6 +241,9 @@ export default function ManagePageClient() {
       setMaxCapacity('80');
       setOwnerName('');
       setOwnerBankAccount('');
+      setSlotStartHour('11');
+      setSlotEndHour('20');
+      setUseWeeklyHours(false);
       setWeeklyForm(defaultWeeklyForm());
       setClosedDatesText('');
       setMenus([]);
@@ -262,7 +257,10 @@ export default function ManagePageClient() {
     setMaxCapacity(String(selected.maxCapacity ?? 80));
     setOwnerName(selected.ownerName ?? '');
     setOwnerBankAccount(selected.ownerBankAccount ?? '');
+    setSlotStartHour(String(selected.slotStartHour ?? 11));
+    setSlotEndHour(String(selected.slotEndHour ?? 20));
     const parsedWeekly = parseWeeklyHoursJson(selected.weeklyHoursJson);
+    setUseWeeklyHours(!!parsedWeekly);
     const wf = defaultWeeklyForm();
     if (parsedWeekly) {
       for (const key of DAY_KEYS) {
@@ -274,12 +272,6 @@ export default function ManagePageClient() {
             end: d.end != null ? String(d.end) : wf[key].end,
           };
         }
-      }
-    } else if (selected.slotStartHour != null && selected.slotEndHour != null) {
-      const start = String(selected.slotStartHour);
-      const end = String(selected.slotEndHour);
-      for (const key of DAY_KEYS) {
-        wf[key] = { closed: false, start, end };
       }
     }
     setWeeklyForm(wf);
@@ -349,18 +341,22 @@ export default function ManagePageClient() {
           depositTiers: depositUseTiers ? tiersPayload : null,
           ownerName: depositRequiresBankInfo ? ownerName.trim() || null : null,
           ownerBankAccount: depositRequiresBankInfo ? ownerBankAccount.trim() || null : null,
-          weeklyHoursJson: serializeWeeklyHoursForDb(
-            Object.fromEntries(
-              DAY_KEYS.map((k) => [
-                k,
-                {
-                  closed: weeklyPayload[k].closed,
-                  start: parseInt(weeklyPayload[k].start, 10),
-                  end: parseInt(weeklyPayload[k].end, 10),
-                },
-              ]),
-            ),
-          ),
+          slotStartHour: Math.min(23, Math.max(0, parseInt(slotStartHour, 10) || 11)),
+          slotEndHour: Math.min(23, Math.max(0, parseInt(slotEndHour, 10) || 20)),
+          weeklyHoursJson: useWeeklyHours
+            ? serializeWeeklyHoursForDb(
+                Object.fromEntries(
+                  DAY_KEYS.map((k) => [
+                    k,
+                    {
+                      closed: weeklyPayload[k].closed,
+                      start: parseInt(weeklyPayload[k].start, 10),
+                      end: parseInt(weeklyPayload[k].end, 10),
+                    },
+                  ]),
+                ),
+              )
+            : null,
           closedDatesJson: serializeClosedDatesForDb(closedList),
         }),
       });
@@ -1055,63 +1051,18 @@ export default function ManagePageClient() {
                             </span>
                           </label>
                         </div>
-                        <p className="sm:col-span-2 text-xs text-gray-500">
-                          영업 시간은 아래 요일별 설정만 사용합니다. 선택한 날짜의 요일에 맞춰 검색·가게 카드 타임슬롯이 바뀝니다.
-                        </p>
+                        <StoreBusinessHoursFields
+                          useWeeklyHours={useWeeklyHours}
+                          onUseWeeklyHoursChange={setUseWeeklyHours}
+                          slotStartHour={slotStartHour}
+                          slotEndHour={slotEndHour}
+                          onSlotStartHourChange={setSlotStartHour}
+                          onSlotEndHourChange={setSlotEndHour}
+                          weeklyForm={weeklyForm}
+                          onWeeklyFormChange={setWeeklyForm}
+                          variant="manage"
+                        />
 
-                        <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3">
-                          <p className="text-sm font-medium text-gray-800">요일별 영업시간</p>
-                          <div className="mt-3 space-y-2">
-                            {DAY_KEYS.map((key) => (
-                              <div key={key} className="flex flex-wrap items-center gap-2 text-sm">
-                                <span className="w-6 font-medium">{DAY_LABELS[key]}</span>
-                                <label className="flex items-center gap-1 text-xs">
-                                  <input
-                                    type="checkbox"
-                                    checked={weeklyForm[key].closed}
-                                    onChange={(e) =>
-                                      setWeeklyForm((w) => ({
-                                        ...w,
-                                        [key]: { ...w[key], closed: e.target.checked },
-                                      }))
-                                    }
-                                  />
-                                  휴무
-                                </label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={23}
-                                  disabled={weeklyForm[key].closed}
-                                  className="w-14 rounded border px-1 py-0.5 disabled:opacity-40"
-                                  value={weeklyForm[key].start}
-                                  onChange={(e) =>
-                                    setWeeklyForm((w) => ({
-                                      ...w,
-                                      [key]: { ...w[key], start: e.target.value },
-                                    }))
-                                  }
-                                />
-                                <span>~</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={23}
-                                  disabled={weeklyForm[key].closed}
-                                  className="w-14 rounded border px-1 py-0.5 disabled:opacity-40"
-                                  value={weeklyForm[key].end}
-                                  onChange={(e) =>
-                                    setWeeklyForm((w) => ({
-                                      ...w,
-                                      [key]: { ...w[key], end: e.target.value },
-                                    }))
-                                  }
-                                />
-                                <span className="text-xs text-gray-400">시 (종료=마감)</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
 
                         <label className="block sm:col-span-2">
                           <span className="text-xs text-gray-500">지정 휴무일 (YYYY-MM-DD, 줄바꿈)</span>
