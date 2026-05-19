@@ -10,13 +10,11 @@ import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types'
 export interface CachedStore {
   storeId: string;
   name: string;
-  category: string;
   locationLabel?: string | null;
   sortOrder?: number;
   maxCapacity: number;
   minGroupHeadcount?: number;
   imageUrl: string;
-  description: string;
   slotStartHour?: number;
   slotEndHour?: number;
   weeklyHoursJson?: string | null;
@@ -90,23 +88,40 @@ export async function prefetchAllDataIntoCache(): Promise<AllData> {
   return data;
 }
 
+/** 관리자 저장 후 고객 화면 캐시 즉시 갱신 */
+export async function invalidateAllDataCache(): Promise<AllData> {
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem(ALL_DATA_SNAPSHOT_KEY);
+      sessionStorage.removeItem('cachedStores');
+      sessionStorage.removeItem('cachedStoresRaw');
+      sessionStorage.removeItem('cachedReservations');
+    } catch {
+      /* ignore */
+    }
+  }
+  const data = await fetchAllData();
+  writeAllDataSnapshot(data);
+  await globalMutate(ALL_DATA_KEY, data, { revalidate: false });
+  return data;
+}
+
 // ── SWR 훅 ──────────────────────────────────────────────────────
 
 export function useAllData() {
   const [fallbackData] = useState(readAllDataSnapshot);
-  const hadBootstrap = fallbackData !== undefined;
 
   const { data, error, isLoading, mutate, isValidating } = useSWR<AllData>(
     ALL_DATA_KEY,
     fetchAllData,
     {
       fallbackData,
-      /** 랜딩/프리패치로 받아 둔 스냅샷이 있으면 첫 진입 시 재요청하지 않음 → 날짜 탭 시 로딩 깜빡임 방지 */
-      revalidateOnMount: !hadBootstrap,
-      revalidateIfStale: !hadBootstrap,
-      revalidateOnFocus: false,
-      refreshInterval: 30000,
-      dedupingInterval: 5000,
+      /** 스냅샷은 즉시 보여 주고, 마운트 시 백그라운드로 최신 데이터 동기화 */
+      revalidateOnMount: true,
+      revalidateIfStale: true,
+      revalidateOnFocus: true,
+      refreshInterval: 15000,
+      dedupingInterval: 2000,
       onSuccess: (d) => writeAllDataSnapshot(d),
     },
   );

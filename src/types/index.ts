@@ -34,7 +34,6 @@ export interface TimeSlot {
 export interface StoreCard {
   id: string;
   name: string;
-  category?: string;
   images: string[];
   /** @deprecated 하위 호환용 – timeline 사용 권장 */
   availableTimes: string[];

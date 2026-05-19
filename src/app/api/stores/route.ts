@@ -12,7 +12,6 @@ export async function GET(request: Request) {
     const stores = data.map((s: Record<string, unknown>) => ({
       id: s.storeId,
       name: s.name,
-      category: s.category || '',
       images: s.imageUrl ? [s.imageUrl] : [],
       maxCapacity: s.maxCapacity,
       timeline: s.timeline,

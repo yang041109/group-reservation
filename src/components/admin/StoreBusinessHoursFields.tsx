@@ -88,7 +88,24 @@ export default function StoreBusinessHoursFields({
         <input
           type="checkbox"
           checked={useWeeklyHours}
-          onChange={(e) => onUseWeeklyHoursChange(e.target.checked)}
+          onChange={(e) => {
+            const on = e.target.checked;
+            onUseWeeklyHoursChange(on);
+            if (on) {
+              onWeeklyFormChange((w) => {
+                const next = { ...w };
+                for (const key of DAY_KEYS) {
+                  next[key] = {
+                    ...next[key],
+                    closed: false,
+                    start: slotStartHour,
+                    end: slotEndHour,
+                  };
+                }
+                return next;
+              });
+            }
+          }}
           className={isOwner ? 'mt-0.5' : ''}
         />
         <span className={isOwner ? 'text-sm font-semibold text-gray-800' : 'font-medium text-gray-800'}>

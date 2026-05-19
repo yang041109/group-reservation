@@ -11,19 +11,6 @@ import {
   slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  한식: '🍚',
-  양식: '🍕',
-  일식: '🍣',
-  중식: '🥟',
-  호프: '🍺',
-  카페: '☕',
-  분식: '🍜',
-  고기: '🥩',
-  치킨: '🍗',
-  해산물: '🦐',
-};
-
 const TIMELINE_LEGEND = [
   { label: '여유', color: 'bg-[#2c9af5]' },
   { label: '보통', color: 'bg-[#23cdfc]' },
@@ -31,11 +18,6 @@ const TIMELINE_LEGEND = [
   { label: '거의 마감', color: 'bg-[#a7a7a8]' },
   { label: '마감', color: 'bg-[#f29da6]' },
 ] as const;
-
-function getCategoryEmoji(category?: string): string {
-  if (!category) return '🍽️';
-  return CATEGORY_EMOJI[category] ?? '🍽️';
-}
 
 function getOccupancyColor(ratio: number): string {
   if (ratio >= 1) return 'bg-[#f29da6]';
@@ -112,12 +94,6 @@ export default function StoreCard({
                 {store.name.slice(0, 1)}
               </div>
             )}
-            <span
-              className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-base shadow-sm"
-              aria-hidden
-            >
-              {getCategoryEmoji(store.category)}
-            </span>
           </div>
 
           <div className="min-w-0 flex-1">

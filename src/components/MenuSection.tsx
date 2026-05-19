@@ -13,16 +13,8 @@ export default function MenuSection({
   quantities,
   onChange,
 }: MenuSectionProps) {
-  // 필수 메뉴를 맨 위로, 나머지는 카테고리별 그룹핑
   const requiredMenus = menus.filter((m) => m.isRequired);
   const optionalMenus = menus.filter((m) => !m.isRequired);
-
-  const grouped = optionalMenus.reduce<Record<string, MenuItemData[]>>((acc, menu) => {
-    const category = menu.category || '기타';
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(menu);
-    return acc;
-  }, {});
 
   const handleQuantityChange = (menuId: string, delta: number) => {
     const current = quantities[menuId] ?? 0;
@@ -102,14 +94,11 @@ export default function MenuSection({
             </div>
           )}
 
-          {/* 선택 메뉴 (카테고리별) */}
-          {Object.entries(grouped).map(([category, items]) => (
-          <div key={category}>
-            <h3 className="mb-2 text-sm font-semibold text-gray-600">
-              {category}
-            </h3>
+          {optionalMenus.length > 0 ? (
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-gray-600">선택 메뉴</h3>
             <ul className="space-y-2">
-              {items.map((menu) => {
+              {optionalMenus.map((menu) => {
                 const qty = quantities[menu.id] ?? 0;
                 return (
                   <li
@@ -158,7 +147,7 @@ export default function MenuSection({
               })}
             </ul>
           </div>
-        ))}
+          ) : null}
         </>
       )}
     </div>

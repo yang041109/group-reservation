@@ -67,7 +67,6 @@ export default function SearchPage() {
         return {
           id: s.storeId,
           name: s.name,
-          category: s.category,
           locationLabel: s.locationLabel ?? null,
           sortOrder: s.sortOrder ?? 0,
           images: s.imageUrl ? [s.imageUrl] : [],
@@ -113,7 +112,11 @@ export default function SearchPage() {
       if (selectedHeadcount === 0) return true;
       const minGroup = store.minGroupHeadcount ?? 2;
       if (selectedHeadcount < minGroup) return false;
-      return store.maxCapacity >= selectedHeadcount;
+      if (store.maxCapacity > 0 && selectedHeadcount > store.maxCapacity) return false;
+      if (selectedDate && selectedHeadcount > 0) {
+        return isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);
+      }
+      return true;
     });
   }, [storeCards, selectedDate, selectedHeadcount]);
 
@@ -174,7 +177,7 @@ export default function SearchPage() {
           className="w-full"
         />
         <HeadcountSelector
-          maxCapacity={100}
+          maxCapacity={999}
           minCapacity={0}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}

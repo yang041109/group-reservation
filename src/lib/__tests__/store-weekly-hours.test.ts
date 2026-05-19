@@ -4,6 +4,7 @@ import {
   firstOpenDayHoursFromWeekly,
   getDefaultSlotHourRangeForStore,
   getSlotHourRangeForStoreOnDate,
+  isWeeklyHoursEnabled,
   parseWeeklyHoursJson,
 } from '../store-weekly-hours';
 
@@ -53,6 +54,28 @@ describe('getSlotHourRangeForStoreOnDate', () => {
     const r = getSlotHourRangeForStoreOnDate(off, '2026-05-20');
     expect(r.closed).toBe(false);
     expect(r.slotStartHour).toBe(11);
+  });
+
+  it('uses basic hours when weekly JSON matches slot hours on every day', () => {
+    const uniform = {
+      mon: { start: 11, end: 20 },
+      tue: { start: 11, end: 20 },
+      wed: { start: 11, end: 20 },
+      thu: { start: 11, end: 20 },
+      fri: { start: 11, end: 20 },
+      sat: { start: 11, end: 20 },
+      sun: { start: 11, end: 20 },
+    };
+    const store = {
+      slotStartHour: 11,
+      slotEndHour: 20,
+      weeklyHoursJson: JSON.stringify(uniform),
+    };
+    expect(isWeeklyHoursEnabled(store)).toBe(false);
+    const r = getSlotHourRangeForStoreOnDate(store, '2026-05-20');
+    expect(r.closed).toBe(false);
+    expect(r.slotStartHour).toBe(11);
+    expect(r.slotEndHour).toBe(20);
   });
 });
 

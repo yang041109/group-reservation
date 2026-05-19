@@ -13,11 +13,13 @@ import StoreBusinessHoursFields, {
 import {
   DAY_KEYS,
   type DayKey,
+  isWeeklyHoursEnabled,
   parseClosedDatesJson,
   parseWeeklyHoursJson,
   serializeClosedDatesForDb,
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
+import { invalidateAllDataCache } from '@/lib/use-store-data';
 import type { DepositTier } from '@/types';
 
 const STORAGE_KEY = 'urr_admin_manage_secret';
@@ -33,7 +35,6 @@ type DbHealthJson = {
 type ManageStore = {
   storeId: string;
   name: string;
-  category: string;
   locationLabel: string | null;
   maxCapacity: number;
   minGroupHeadcount: number;
@@ -47,7 +48,6 @@ type ManageStore = {
   ownerBankAccount: string | null;
   weeklyHoursJson: string | null;
   closedDatesJson: string | null;
-  description: string | null;
   adminAccessToken: string | null;
   sortOrder: number;
 };
@@ -106,7 +106,6 @@ export default function ManagePageClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
-  const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [depositFlat, setDepositFlat] = useState('0');
   const [depositUseTiers, setDepositUseTiers] = useState(false);
@@ -123,7 +122,6 @@ export default function ManagePageClient() {
     menuId: '',
     name: '',
     price: '',
-    category: '',
     isRequired: false,
     imageUrl: '',
   });
@@ -141,7 +139,7 @@ export default function ManagePageClient() {
   const [slotStartHour, setSlotStartHour] = useState('11');
   const [slotEndHour, setSlotEndHour] = useState('20');
   const [useWeeklyHours, setUseWeeklyHours] = useState(false);
-  const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(defaultWeeklyForm);
+  const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(() => defaultWeeklyForm());
   const [closedDatesText, setClosedDatesText] = useState('');
   const resLimit = 50;
   const [dbHealth, setDbHealth] = useState<DbHealthJson | null>(null);
@@ -232,7 +230,6 @@ export default function ManagePageClient() {
     if (!selected) {
       setName('');
       setLocationLabel('');
-      setDescription('');
       setImageUrl('');
       setDepositFlat('0');
       setDepositUseTiers(false);
@@ -251,7 +248,6 @@ export default function ManagePageClient() {
     }
     setName(selected.name);
     setLocationLabel(selected.locationLabel ?? '');
-    setDescription(selected.description ?? '');
     setImageUrl(selected.imageUrl ?? '');
     setMinGroupHeadcount(String(selected.minGroupHeadcount ?? 2));
     setMaxCapacity(String(selected.maxCapacity ?? 80));
@@ -260,7 +256,9 @@ export default function ManagePageClient() {
     setSlotStartHour(String(selected.slotStartHour ?? 11));
     setSlotEndHour(String(selected.slotEndHour ?? 20));
     const parsedWeekly = parseWeeklyHoursJson(selected.weeklyHoursJson);
-    setUseWeeklyHours(!!parsedWeekly);
+    setUseWeeklyHours(
+      isWeeklyHoursEnabled(selected as unknown as Record<string, unknown>),
+    );
     const wf = defaultWeeklyForm();
     if (parsedWeekly) {
       for (const key of DAY_KEYS) {
@@ -332,7 +330,6 @@ export default function ManagePageClient() {
         body: JSON.stringify({
           name,
           locationLabel: locationLabel.trim() === '' ? null : locationLabel.trim(),
-          description: description.trim() === '' ? null : description,
           imageUrl: imageUrl.trim() === '' ? null : imageUrl,
           minGroupHeadcount: minH,
           maxCapacity: maxH,
@@ -367,6 +364,7 @@ export default function ManagePageClient() {
       }
       setMsg('가게 정보를 저장했습니다.');
       await loadStores();
+      void invalidateAllDataCache();
     } catch {
       setErr('저장 중 오류');
     } finally {
@@ -524,7 +522,7 @@ export default function ManagePageClient() {
           menuId: newMenu.menuId.trim() || undefined,
           name: n,
           price: p,
-          category: newMenu.category.trim(),
+          category: '',
           isRequired: newMenu.isRequired,
           imageUrl: newMenu.imageUrl.trim() === '' ? null : newMenu.imageUrl.trim(),
         }),
@@ -534,7 +532,7 @@ export default function ManagePageClient() {
         setErr(data.message || '메뉴 추가 실패');
         return;
       }
-      setNewMenu({ menuId: '', name: '', price: '', category: '', isRequired: false, imageUrl: '' });
+      setNewMenu({ menuId: '', name: '', price: '', isRequired: false, imageUrl: '' });
       setMsg('메뉴를 추가했습니다.');
       await loadMenus();
       await loadStores();
@@ -558,7 +556,7 @@ export default function ManagePageClient() {
           body: JSON.stringify({
             name: m.name,
             price: m.price,
-            category: m.category ?? '',
+            category: '',
             isRequired: m.isRequired,
             imageUrl: m.imageUrl === null || m.imageUrl === '' ? null : m.imageUrl,
           }),
@@ -890,15 +888,6 @@ export default function ManagePageClient() {
                           />
                         </label>
                         <label className="block sm:col-span-2">
-                          <span className="text-xs text-gray-500">설명</span>
-                          <textarea
-                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
-                            rows={3}
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                          />
-                        </label>
-                        <label className="block sm:col-span-2">
                           <span className="text-xs text-gray-500">사진 URL (imageUrl)</span>
                           <input
                             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -1051,6 +1040,9 @@ export default function ManagePageClient() {
                             </span>
                           </label>
                         </div>
+                        <div className="sm:col-span-2">
+                          <h4 className="text-sm font-semibold text-gray-900">영업 시간</h4>
+                        </div>
                         <StoreBusinessHoursFields
                           useWeeklyHours={useWeeklyHours}
                           onUseWeeklyHoursChange={setUseWeeklyHours}
@@ -1143,7 +1135,6 @@ export default function ManagePageClient() {
                               <th className="py-2 pr-2">menuId</th>
                               <th className="py-2 pr-2">이름</th>
                               <th className="py-2 pr-2">가격</th>
-                              <th className="py-2 pr-2">카테고리</th>
                               <th className="py-2 pr-2">이미지 URL</th>
                               <th className="py-2 pr-2">필수</th>
                               <th className="py-2 pr-2" />
@@ -1177,12 +1168,6 @@ export default function ManagePageClient() {
                             className="rounded border border-gray-300 px-2 py-1.5 text-sm"
                             value={newMenu.price}
                             onChange={(e) => setNewMenu((n) => ({ ...n, price: e.target.value }))}
-                          />
-                          <input
-                            placeholder="카테고리"
-                            className="rounded border border-gray-300 px-2 py-1.5 text-sm"
-                            value={newMenu.category}
-                            onChange={(e) => setNewMenu((n) => ({ ...n, category: e.target.value }))}
                           />
                           <input
                             placeholder="이미지 URL"
@@ -1356,13 +1341,6 @@ function MenuEditRow({
           className="w-20 rounded border border-gray-200 px-1 py-0.5"
           value={m.price}
           onChange={(e) => setM((x) => ({ ...x, price: parseInt(e.target.value, 10) || 0 }))}
-        />
-      </td>
-      <td className="py-2 pr-2">
-        <input
-          className="w-full min-w-[72px] max-w-[140px] rounded border border-gray-200 px-1 py-0.5 text-xs"
-          value={m.category}
-          onChange={(e) => setM((x) => ({ ...x, category: e.target.value }))}
         />
       </td>
       <td className="py-2 pr-2">

@@ -6,24 +6,7 @@ import { Icon } from '@/components/landing/icons';
 import type { CachedStore } from '@/lib/use-store-data';
 import { useAllData } from '@/lib/use-store-data';
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  한식: '🍚',
-  양식: '🍕',
-  일식: '🍣',
-  중식: '🥟',
-  호프: '🍺',
-  카페: '☕',
-  분식: '🍜',
-  고기: '🥩',
-  치킨: '🍗',
-  해산물: '🦐',
-};
-
 const TINTS = ['#fde2ec', '#e3f0fd', '#fff7c8', '#ece5fa'] as const;
-
-function categoryEmoji(category: string): string {
-  return CATEGORY_EMOJI[category] ?? '🍽️';
-}
 
 function minPerPersonWon(store: CachedStore): number {
   if (store.menus.length > 0) {
@@ -119,10 +102,10 @@ function RestaurantCard({
 }) {
   const uid = useId().replace(/:/g, '');
   const tint = TINTS[idx % TINTS.length];
-  const dish = categoryEmoji(store.category);
+  const dish = store.name.slice(0, 1) || '🍽';
   const per = minPerPersonWon(store);
   const priceLabel = formatPriceFromWon(per);
-  const tags = [store.category].filter(Boolean);
+  const tags = store.locationLabel ? [store.locationLabel] : [];
 
   return (
     <Link
@@ -183,9 +166,6 @@ function RestaurantCard({
       </div>
 
       <div style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--ink-4)', fontWeight: 500 }}>{store.category}</span>
-        </div>
         <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 10px', letterSpacing: '-0.02em' }}>{store.name}</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
           <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>

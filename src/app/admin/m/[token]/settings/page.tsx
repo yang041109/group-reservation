@@ -8,15 +8,16 @@ import StoreBusinessHoursFields, {
 import { useAdminStore } from '../AdminStoreContext';
 import {
   DAY_KEYS,
+  isWeeklyHoursEnabled,
   parseWeeklyHoursJson,
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
+import { invalidateAllDataCache } from '@/lib/use-store-data';
 import type { DepositTier } from '@/types';
 
 interface ManageStore {
   storeId: string;
   name: string;
-  category: string;
   locationLabel: string | null;
   maxCapacity: number;
   minGroupHeadcount: number;
@@ -28,7 +29,6 @@ interface ManageStore {
   depositTiers: DepositTier[];
   ownerName: string | null;
   ownerBankAccount: string | null;
-  description: string | null;
   weeklyHoursJson: string | null;
 }
 
@@ -37,7 +37,6 @@ interface MenuItem {
   menuId: string;
   name: string;
   price: number;
-  category: string;
   isRequired: boolean;
   imageUrl: string | null;
 }
@@ -62,14 +61,13 @@ export default function AdminSettingsPage() {
   // 가게 정보 폼 state
   const [name, setName] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
-  const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [minGroupHeadcount, setMinGroupHeadcount] = useState('2');
   const [maxCapacity, setMaxCapacity] = useState('80');
   const [slotStartHour, setSlotStartHour] = useState('11');
   const [slotEndHour, setSlotEndHour] = useState('20');
   const [useWeeklyHours, setUseWeeklyHours] = useState(false);
-  const [weeklyForm, setWeeklyForm] = useState(defaultWeeklyForm);
+  const [weeklyForm, setWeeklyForm] = useState(() => defaultWeeklyForm());
   const [depositFlat, setDepositFlat] = useState('0');
   const [depositUseTiers, setDepositUseTiers] = useState(false);
   const [tierRows, setTierRows] = useState<TierRow[]>(defaultTierRows);
@@ -79,7 +77,6 @@ export default function AdminSettingsPage() {
   // 메뉴 추가 폼
   const [newMenuName, setNewMenuName] = useState('');
   const [newMenuPrice, setNewMenuPrice] = useState('');
-  const [newMenuCategory, setNewMenuCategory] = useState('');
   const [newMenuImageUrl, setNewMenuImageUrl] = useState('');
   const [newMenuRequired, setNewMenuRequired] = useState(false);
   const [menuActionLoading, setMenuActionLoading] = useState<string | null>(null);
@@ -89,7 +86,6 @@ export default function AdminSettingsPage() {
   const [editMenu, setEditMenu] = useState<{
     name: string;
     price: string;
-    category: string;
     imageUrl: string;
     isRequired: boolean;
   } | null>(null);
@@ -109,14 +105,13 @@ export default function AdminSettingsPage() {
         setStoreData(s);
         setName(s.name ?? '');
         setLocationLabel(s.locationLabel ?? '');
-        setDescription(s.description ?? '');
         setImageUrl(s.imageUrl ?? '');
         setMinGroupHeadcount(String(s.minGroupHeadcount ?? 2));
         setMaxCapacity(String(s.maxCapacity ?? 80));
         setSlotStartHour(String(s.slotStartHour ?? 11));
         setSlotEndHour(String(s.slotEndHour ?? 20));
         const parsedWeekly = parseWeeklyHoursJson(s.weeklyHoursJson);
-        setUseWeeklyHours(!!parsedWeekly);
+        setUseWeeklyHours(isWeeklyHoursEnabled(s as unknown as Record<string, unknown>));
         const wf = defaultWeeklyForm();
         if (parsedWeekly) {
           for (const key of DAY_KEYS) {
@@ -195,7 +190,6 @@ export default function AdminSettingsPage() {
         storeId: adminStore.id,
         name,
         locationLabel: locationLabel.trim() || null,
-        description: description.trim() || null,
         imageUrl: imageUrl.trim() || null,
         minGroupHeadcount: minH,
         maxCapacity: maxH,
@@ -231,6 +225,7 @@ export default function AdminSettingsPage() {
       if (data.success) {
         showMessage('가게 정보를 저장했습니다');
         await reload();
+        void invalidateAllDataCache();
       } else {
         setError(data.message || '저장에 실패했습니다.');
       }
@@ -258,7 +253,6 @@ export default function AdminSettingsPage() {
           storeId: adminStore.id,
           name: n,
           price: p,
-          category: newMenuCategory.trim() || undefined,
           imageUrl: newMenuImageUrl.trim() || null,
           isRequired: newMenuRequired,
         }),
@@ -267,7 +261,6 @@ export default function AdminSettingsPage() {
       if (data.success) {
         setNewMenuName('');
         setNewMenuPrice('');
-        setNewMenuCategory('');
         setNewMenuImageUrl('');
         setNewMenuRequired(false);
         await reload();
@@ -287,7 +280,6 @@ export default function AdminSettingsPage() {
     setEditMenu({
       name: m.name,
       price: String(m.price),
-      category: m.category ?? '',
       imageUrl: m.imageUrl ?? '',
       isRequired: m.isRequired,
     });
@@ -315,7 +307,7 @@ export default function AdminSettingsPage() {
           storeId: adminStore.id,
           name: editMenu.name.trim(),
           price: p,
-          category: editMenu.category.trim(),
+          category: '',
           imageUrl: editMenu.imageUrl.trim() || null,
           isRequired: editMenu.isRequired,
         }),
@@ -430,17 +422,6 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setLocationLabel(e.target.value)}
                 placeholder="예: 한양대 상권 · 동대문"
                 className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">설명</span>
-              <textarea
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="고객에게 보일 가게 소개"
-                className="mt-1.5 w-full resize-none rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </label>
 
@@ -678,24 +659,13 @@ export default function AdminSettingsPage() {
                           placeholder="메뉴명"
                           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                         />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="number"
-                            value={editMenu.price}
-                            onChange={(e) => setEditMenu({ ...editMenu, price: e.target.value })}
-                            placeholder="가격"
-                            className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                          />
-                          <input
-                            type="text"
-                            value={editMenu.category}
-                            onChange={(e) =>
-                              setEditMenu({ ...editMenu, category: e.target.value })
-                            }
-                            placeholder="카테고리"
-                            className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                          />
-                        </div>
+                        <input
+                          type="number"
+                          value={editMenu.price}
+                          onChange={(e) => setEditMenu({ ...editMenu, price: e.target.value })}
+                          placeholder="가격"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
                         <input
                           type="text"
                           value={editMenu.imageUrl}
@@ -762,10 +732,7 @@ export default function AdminSettingsPage() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {m.price.toLocaleString()}원
-                        {m.category ? ` · ${m.category}` : ''}
-                      </p>
+                      <p className="text-xs text-gray-500">{m.price.toLocaleString()}원</p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button
@@ -815,13 +782,6 @@ export default function AdminSettingsPage() {
                 className="rounded-lg border border-gray-300 px-3 py-2.5 text-base"
               />
             </div>
-            <input
-              type="text"
-              value={newMenuCategory}
-              onChange={(e) => setNewMenuCategory(e.target.value)}
-              placeholder="카테고리 (예: 부침류, 음료)"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
-            />
             <input
               type="text"
               value={newMenuImageUrl}

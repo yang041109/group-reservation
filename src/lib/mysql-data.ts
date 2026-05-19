@@ -137,10 +137,8 @@ export async function getStoresFromMysql(date: string, headcount: number) {
     return {
       storeId: sid,
       name: store.name,
-      category: store.category || '',
       maxCapacity: cap,
       imageUrl: store.imageUrl || '',
-      description: store.description || '',
       slotStartHour,
       slotEndHour,
       depositAmount: resolvedDeposit,
@@ -534,7 +532,6 @@ export async function getAllDataFromMysql() {
     return {
       storeId: sid,
       name: store.name,
-      category: store.category || '',
       locationLabel:
         rec.locationLabel != null && String(rec.locationLabel).trim()
           ? String(rec.locationLabel).trim()
@@ -543,7 +540,6 @@ export async function getAllDataFromMysql() {
       maxCapacity: cap,
       minGroupHeadcount: readMinGroupHeadcount(rec),
       imageUrl: store.imageUrl || '',
-      description: store.description || '',
       slotStartHour: range.slotStartHour,
       slotEndHour: range.slotEndHour,
       weeklyHoursJson:

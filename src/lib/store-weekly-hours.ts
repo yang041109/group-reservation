@@ -26,9 +26,28 @@ export interface DaySchedule {
 
 export type WeeklyHours = Partial<Record<DayKey, DaySchedule>>;
 
-/** weeklyHoursJson 이 저장되어 있으면 요일별 모드 */
+/** 요일별 JSON이 기본 slot 시와 실질적으로 다를 때만 요일별 모드 */
+export function hasMeaningfulWeeklyHours(
+  weekly: WeeklyHours,
+  slotStartHour: number,
+  slotEndHour: number,
+): boolean {
+  for (const key of DAY_KEYS) {
+    const d = weekly[key];
+    if (d?.closed) return true;
+    const start = d?.start ?? slotStartHour;
+    const end = d?.end ?? slotEndHour;
+    if (start !== slotStartHour || end !== slotEndHour) return true;
+  }
+  return false;
+}
+
+/** weeklyHoursJson 이 있고 기본 영업시와 다른 요일별 설정이 있을 때만 요일별 모드 */
 export function isWeeklyHoursEnabled(store: Record<string, unknown>): boolean {
-  return parseWeeklyHoursJson(store.weeklyHoursJson) != null;
+  const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
+  if (!weekly) return false;
+  const { slotStartHour, slotEndHour } = getSlotHourRangeFromStoreRow(store);
+  return hasMeaningfulWeeklyHours(weekly, slotStartHour, slotEndHour);
 }
 
 export function dayKeyFromYmd(dateYmd: string): DayKey {
