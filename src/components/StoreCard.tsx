@@ -12,21 +12,7 @@ import {
   slotHourRangeFromSheet,
 } from '@/lib/slot-hour-range';
 
-const TIMELINE_LEGEND = [
-  { label: '여유', color: 'bg-[#2c9af5]' },
-  { label: '보통', color: 'bg-[#23cdfc]' },
-  { label: '혼잡', color: 'bg-[#23f7ed]' },
-  { label: '거의 마감', color: 'bg-[#a7a7a8]' },
-  { label: '마감', color: 'bg-[#f29da6]' },
-] as const;
-
-function getOccupancyColor(ratio: number): string {
-  if (ratio >= 1) return 'bg-[#f29da6]';
-  if (ratio >= 0.8) return 'bg-[#a7a7a8]';
-  if (ratio >= 0.5) return 'bg-[#23f7ed]';
-  if (ratio > 0) return 'bg-[#23cdfc]';
-  return 'bg-[#2c9af5]';
-}
+import { getOccupancyColorClass, SLOT_CLOSED_CLASS, TIMELINE_LEGEND } from '@/lib/store-timeline-colors';
 
 export interface StoreCardDisplayProps {
   store: StoreCardType;
@@ -155,23 +141,23 @@ export default function StoreCard({
                 const remaining = slot.maxPeople - slot.currentHeadcount;
                 const ratio = slot.maxPeople > 0 ? slot.currentHeadcount / slot.maxPeople : 1;
                 if (!slot.isAvailable) {
-                  bg = 'bg-[#f29da6]';
+                  bg = SLOT_CLOSED_CLASS;
                   title = `${time} (마감)`;
                 } else {
-                  bg = getOccupancyColor(ratio);
+                  bg = getOccupancyColorClass(ratio);
                   title = `${time} — 잔여 ${remaining}명`;
                 }
               } else {
                 const isReserved = reservedSet.has(time);
                 const isAvailable = availableSet.has(time);
                 if (isReserved) {
-                  bg = 'bg-[#f29da6]';
+                  bg = SLOT_CLOSED_CLASS;
                   title = `${time} (마감)`;
                 } else if (isAvailable) {
                   bg = 'bg-[#2c9af5]';
                   title = time;
                 } else {
-                  bg = 'bg-[#f29da6]';
+                  bg = SLOT_CLOSED_CLASS;
                   title = `${time} (마감)`;
                 }
               }

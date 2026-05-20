@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import OwnerTodayTimelinePanel from '@/components/admin/OwnerTodayTimelinePanel';
 import { useAdminStore } from './AdminStoreContext';
 
 interface Reservation {
@@ -106,6 +107,8 @@ export default function AdminDashboardByToken() {
       </header>
 
       <main className="mx-auto max-w-md px-5 py-6">
+        <OwnerTodayTimelinePanel token={store.token} storeId={store.id} />
+
         {/* 오늘의 현황 카드 컨테이너 */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">

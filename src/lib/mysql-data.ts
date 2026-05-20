@@ -5,6 +5,7 @@ import {
   getSlotHourRangeFromStoreRow,
   slotOverlapsReservation,
 } from '@/lib/booking-slots';
+import { applyOwnerClosedBlocksToSlots, isSlotBlockedForBooking } from '@/lib/owner-closed-slots';
 import {
   getDefaultSlotHourRangeForStore,
   getSlotHourRangeForStoreOnDate,
@@ -123,16 +124,20 @@ export async function getStoresFromMysql(date: string, headcount: number) {
 
     const timeline = closed
       ? []
-      : buildSlots(
-          cap,
-          confirmedRes.map((r) => ({
-            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-            startTime: String(r.startTime ?? '').trim(),
-            endTime: String(r.endTime ?? '').trim(),
-          })),
-          slotStartHour,
-          slotEndHour,
-          crossesMidnight,
+      : applyOwnerClosedBlocksToSlots(
+          buildSlots(
+            cap,
+            confirmedRes.map((r) => ({
+              headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+              startTime: String(r.startTime ?? '').trim(),
+              endTime: String(r.endTime ?? '').trim(),
+            })),
+            slotStartHour,
+            slotEndHour,
+            crossesMidnight,
+          ),
+          date,
+          (store as Record<string, unknown>).ownerClosedSlotsJson,
         );
 
     const depOpts = readStoreDepositOpts(store);
@@ -195,17 +200,21 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
 
   const slots = closed
     ? []
-    : buildSlots(
-    cap,
-    confirmed.map((r) => ({
-      headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-      startTime: String(r.startTime ?? '').trim(),
-      endTime: String(r.endTime ?? '').trim(),
-    })),
-    slotStartHour,
-    slotEndHour,
-    crossesMidnight,
-  );
+    : applyOwnerClosedBlocksToSlots(
+        buildSlots(
+          cap,
+          confirmed.map((r) => ({
+            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+            startTime: String(r.startTime ?? '').trim(),
+            endTime: String(r.endTime ?? '').trim(),
+          })),
+          slotStartHour,
+          slotEndHour,
+          crossesMidnight,
+        ),
+        date,
+        rec.ownerClosedSlotsJson,
+      );
 
   const menusPayload: MenuItemData[] = storeMenus.map((m) => ({
     id: String(m.menuId ?? '').trim(),
@@ -314,16 +323,21 @@ export async function insertReservationValidated(
       [storeId, date],
     );
 
-    const slots = buildSlots(
-      cap,
-      existingRows.map((r) => ({
-        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-        startTime: String(r.startTime ?? '').trim(),
-        endTime: String(r.endTime ?? '').trim(),
-      })),
-      slotStartHour,
-      slotEndHour,
-      crossesMidnight,
+    const ownerJson = (store as Record<string, unknown>).ownerClosedSlotsJson;
+    const slots = applyOwnerClosedBlocksToSlots(
+      buildSlots(
+        cap,
+        existingRows.map((r) => ({
+          headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+          startTime: String(r.startTime ?? '').trim(),
+          endTime: String(r.endTime ?? '').trim(),
+        })),
+        slotStartHour,
+        slotEndHour,
+        crossesMidnight,
+      ),
+      date,
+      ownerJson,
     );
 
     const targetSlots = slots.filter((s) =>
@@ -332,6 +346,15 @@ export async function insertReservationValidated(
     if (!targetSlots.length) {
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 시간이 예약 가능한 슬롯에 없습니다.');
+    }
+    const blocked = targetSlots.some(
+      (s) =>
+        !s.isAvailable ||
+        isSlotBlockedForBooking(s.timeBlock, date, ownerJson),
+    );
+    if (blocked) {
+      await conn.rollback();
+      throw new ReservationDbError(400, '선택한 시간은 예약을 받지 않습니다.');
     }
     const minRemaining = Math.min(...targetSlots.map((s) => cap - s.currentHeadcount));
     if (headcount > minRemaining) {
@@ -579,6 +602,10 @@ export async function getAllDataFromMysql() {
       ownerBankAccount:
         rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
           ? String(rec.ownerBankAccount).trim()
+          : null,
+      ownerClosedSlotsJson:
+        rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
+          ? String(rec.ownerClosedSlotsJson).trim()
           : null,
     };
   });

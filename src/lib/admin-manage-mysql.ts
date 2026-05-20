@@ -9,9 +9,16 @@ import {
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
 import { anyMenuIdsNeedReindex, reindexAllMenuIds } from '@/lib/menu-id-reindex';
-import { readMinGroupHeadcount } from '@/lib/store-weekly-hours';
+import { buildSlots } from '@/lib/booking-slots';
+import {
+  applyOwnerClosedBlocksToSlots,
+  ownerClosedBlockSet,
+  serializeOwnerClosedSlotsForDb,
+} from '@/lib/owner-closed-slots';
+import { koreaTodayYmd } from '@/lib/korea-time';
+import { readMinGroupHeadcount, getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
-import type { DepositTier } from '@/types';
+import type { DepositTier, TimeSlot } from '@/types';
 
 type StoreRow = RowDataPacket & Record<string, unknown>;
 type MenuRow = RowDataPacket & Record<string, unknown>;
@@ -50,6 +57,7 @@ export interface ManageStoreRow {
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
   sortOrder: number;
+  ownerClosedSlotsJson: string | null;
 }
 
 function mapStoreRow(r: StoreRow): ManageStoreRow {
@@ -92,6 +100,10 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
         ? String(r.adminAccessToken).trim()
         : null,
     sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
+    ownerClosedSlotsJson:
+      rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
+        ? String(rec.ownerClosedSlotsJson).trim()
+        : null,
   };
 }
 
@@ -148,6 +160,7 @@ export async function manageUpdateStore(
     closedDatesJson?: string | null;
     slotStartHour?: number | null;
     slotEndHour?: number | null;
+    ownerClosedSlotsJson?: string | null;
   },
 ): Promise<{ success: true } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
@@ -239,6 +252,10 @@ export async function manageUpdateStore(
     params.push(
       patch.slotEndHour == null ? null : Math.min(23, Math.max(0, Math.floor(patch.slotEndHour))),
     );
+  }
+  if (patch.ownerClosedSlotsJson !== undefined) {
+    sets.push('ownerClosedSlotsJson = ?');
+    params.push(patch.ownerClosedSlotsJson);
   }
   if (!sets.length) {
     return { success: false, message: '수정할 필드가 없습니다.' };
@@ -725,6 +742,145 @@ export async function manageListReservations(options: {
   }
 }
 
+
+/** 오늘 타임슬롯 (검색 카드와 동일 계산 + 사장님 마감 반영) */
+export async function manageGetOwnerTodayTimeline(
+  storeId: string,
+  dateYmd?: string,
+): Promise<
+  | {
+      success: true;
+      date: string;
+      closedOnDate: boolean;
+      slotStartHour: number;
+      slotEndHour: number;
+      crossesMidnight: boolean;
+      slots: TimeSlot[];
+      ownerClosedBlocks: string[];
+    }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  const date = (dateYmd ?? koreaTodayYmd()).trim().slice(0, 10);
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+
+  try {
+    const pool = getPool();
+    const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store WHERE storeId = ? LIMIT 1', [
+      sid,
+    ]);
+    const store = storeRows[0];
+    if (!store) return { success: false, message: '가게를 찾을 수 없습니다.' };
+
+    const rec = store as Record<string, unknown>;
+    const range = getSlotHourRangeForStoreOnDate(rec, date);
+    if (range.closed) {
+      return {
+        success: true,
+        date,
+        closedOnDate: true,
+        slotStartHour: range.slotStartHour,
+        slotEndHour: range.slotEndHour,
+        crossesMidnight: range.crossesMidnight,
+        slots: [],
+        ownerClosedBlocks: [],
+      };
+    }
+
+    const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
+    const [resRows] = await pool.query<ReservationRow[]>(
+      `SELECT headcount, startTime, endTime FROM reservation
+       WHERE storeId = ? AND date = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
+      [sid, date],
+    );
+
+    const base = buildSlots(
+      cap,
+      resRows.map((r) => ({
+        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+        startTime: String(r.startTime ?? '').trim(),
+        endTime: String(r.endTime ?? '').trim(),
+      })),
+      range.slotStartHour,
+      range.slotEndHour,
+      range.crossesMidnight,
+    );
+
+    const ownerJson = rec.ownerClosedSlotsJson;
+    const slots = applyOwnerClosedBlocksToSlots(base, date, ownerJson);
+    const ownerClosedBlocks = [...ownerClosedBlockSet(ownerJson, date)];
+
+    return {
+      success: true,
+      date,
+      closedOnDate: false,
+      slotStartHour: range.slotStartHour,
+      slotEndHour: range.slotEndHour,
+      crossesMidnight: range.crossesMidnight,
+      slots,
+      ownerClosedBlocks,
+    };
+  } catch (e) {
+    const err = e as { errno?: number; message?: string };
+    if (
+      err.errno === 1054 &&
+      typeof err.message === 'string' &&
+      err.message.includes('ownerClosedSlotsJson')
+    ) {
+      return {
+        success: false,
+        message:
+          'DB에 ownerClosedSlotsJson 컬럼이 없습니다. docs/store-owner-closed-slots.sql 을 실행하세요.',
+      };
+    }
+    console.error('[manageGetOwnerTodayTimeline]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+export async function manageSetOwnerClosedSlots(
+  storeId: string,
+  dateYmd: string,
+  blocks: string[],
+): Promise<{ success: true; ownerClosedSlotsJson: string } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  const date = dateYmd.trim().slice(0, 10);
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+
+  const json = serializeOwnerClosedSlotsForDb(date, blocks);
+  try {
+    const pool = getPool();
+    const [h] = await pool.execute<ResultSetHeader>(
+      'UPDATE store SET ownerClosedSlotsJson = ? WHERE storeId = ?',
+      [json, sid],
+    );
+    if (!h.affectedRows) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    return { success: true, ownerClosedSlotsJson: json };
+  } catch (e) {
+    const err = e as { errno?: number; message?: string };
+    if (
+      err.errno === 1054 &&
+      typeof err.message === 'string' &&
+      err.message.includes('ownerClosedSlotsJson')
+    ) {
+      return {
+        success: false,
+        message:
+          'DB에 ownerClosedSlotsJson 컬럼이 없습니다. docs/store-owner-closed-slots.sql 을 실행하세요.',
+      };
+    }
+    console.error('[manageSetOwnerClosedSlots]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
 
 /** 단일 가게 정보 (사장님 설정 페이지용) */
 export async function manageGetStoreById(
