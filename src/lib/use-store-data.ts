@@ -123,7 +123,7 @@ export function useAllData() {
       revalidateOnMount: true,
       revalidateIfStale: true,
       revalidateOnFocus: true,
-      refreshInterval: 15000,
+      refreshInterval: 60000,
       dedupingInterval: 2000,
       onSuccess: (d) => writeAllDataSnapshot(d),
     },

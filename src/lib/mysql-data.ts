@@ -100,16 +100,16 @@ function readStoreDepositOpts(store: StoreRow): {
   };
 }
 
-async function fetchAllStoresMenusRulesReservations(): Promise<{
-  stores: StoreRow[];
-  menus: MenuRow[];
-  rules: RuleRow[];
-  reservations: ReservationRow[];
-}> {
-  assertConfigured();
-  const pool = getPool();
-  const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store');
-  const stores = [...storeRows].sort((a, b) => {
+function todayYmdLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function sortStoreRows(storeRows: StoreRow[]): StoreRow[] {
+  return [...storeRows].sort((a, b) => {
     const ao = parseInt(String((a as Record<string, unknown>).sortOrder ?? '0'), 10);
     const bo = parseInt(String((b as Record<string, unknown>).sortOrder ?? '0'), 10);
     const oa = Number.isFinite(ao) ? ao : 0;
@@ -117,8 +117,46 @@ async function fetchAllStoresMenusRulesReservations(): Promise<{
     if (oa !== ob) return oa - ob;
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'ko');
   });
+}
+
+async function fetchStoresMenusRules(): Promise<{
+  stores: StoreRow[];
+  menus: MenuRow[];
+  rules: RuleRow[];
+}> {
+  assertConfigured();
+  const pool = getPool();
+  const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store');
+  const stores = sortStoreRows(storeRows);
   const [menus] = await pool.query<MenuRow[]>('SELECT * FROM menu');
   const [rules] = await pool.query<RuleRow[]>('SELECT * FROM rule');
+  return { stores, menus, rules };
+}
+
+/** /api/data/all — 오늘(포함) 이후 확정 예약만 */
+async function fetchActiveReservationsFromToday(): Promise<ReservationRow[]> {
+  assertConfigured();
+  const pool = getPool();
+  const today = todayYmdLocal();
+  const [reservations] = await pool.query<ReservationRow[]>(
+    `SELECT reservationId, storeId, headcount, \`date\`, startTime, endTime, status
+     FROM reservation
+     WHERE DATE(\`date\`) >= ?
+       AND status IN ('CONFIRMED', 'DEPOSIT_CONFIRMED')`,
+    [today],
+  );
+  return reservations;
+}
+
+async function fetchAllStoresMenusRulesReservations(): Promise<{
+  stores: StoreRow[];
+  menus: MenuRow[];
+  rules: RuleRow[];
+  reservations: ReservationRow[];
+}> {
+  const { stores, menus, rules } = await fetchStoresMenusRules();
+  assertConfigured();
+  const pool = getPool();
   const [reservations] = await pool.query<ReservationRow[]>('SELECT * FROM reservation');
   return { stores, menus, rules, reservations };
 }
@@ -190,26 +228,35 @@ export async function getStoresFromMysql(date: string, headcount: number) {
   });
 }
 
-/** GET /api/stores/[id] 용 */
+/** GET /api/stores/[id] 용 — 해당 가게·날짜만 조회 */
 export async function getStoreDetailFromMysql(storeId: string, date: string) {
   assertConfigured();
   const id = storeId.trim();
-  const { stores, menus, rules, reservations } = await fetchAllStoresMenusRulesReservations();
+  const dateYmd = date.trim().slice(0, 10);
+  const pool = getPool();
 
-  const store = stores.find((s) => String(s.storeId ?? '').trim() === id);
+  const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store WHERE storeId = ? LIMIT 1', [
+    id,
+  ]);
+  const store = storeRows[0];
   if (!store) {
     throw new ReservationDbError(404, '가게를 찾을 수 없습니다.');
   }
 
-  const storeMenus = menus.filter((m) => String(m.storeId ?? '').trim() === id);
-  const storeRules = rules.filter((r) => String(r.storeId ?? '').trim() === id);
-  const confirmed = reservations.filter(
-    (r) =>
-      String(r.storeId ?? '').trim() === id &&
-      rowDateToYmd(r.date) === date &&
-      (String(r.status ?? '').trim() === 'CONFIRMED' ||
-        String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED'),
-  );
+  const [storeMenus] = await pool.query<MenuRow[]>('SELECT * FROM menu WHERE storeId = ?', [id]);
+
+  const confirmed: ReservationRow[] = dateYmd
+    ? (
+        await pool.query<ReservationRow[]>(
+          `SELECT reservationId, storeId, headcount, \`date\`, startTime, endTime, status
+           FROM reservation
+           WHERE storeId = ?
+             AND DATE(\`date\`) = ?
+             AND status IN ('CONFIRMED', 'DEPOSIT_CONFIRMED')`,
+          [id, dateYmd],
+        )
+      )[0]
+    : [];
 
   const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
   const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
@@ -242,7 +289,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         { slotStartHour, slotEndHour, crossesMidnight },
       );
 
-  const menusPayload = menusForStoreId(menus, id);
+  const menusPayload = sortMenusForDisplay(storeMenus.map(menuRowToItem));
 
   const depOpts = readStoreDepositOpts(store);
 
@@ -578,7 +625,10 @@ export async function cancelReservationInMysql(reservationId: string) {
 /** 클라이언트 SWR 캐시용 — Apps Script `handleGetAllData` */
 export async function getAllDataFromMysql() {
   assertConfigured();
-  const { stores, menus, rules, reservations } = await fetchAllStoresMenusRulesReservations();
+  const [{ stores, menus }, reservations] = await Promise.all([
+    fetchStoresMenusRules(),
+    fetchActiveReservationsFromToday(),
+  ]);
 
   const storeList = stores.map((store) => {
     const sid = String(store.storeId ?? '').trim();
@@ -626,13 +676,7 @@ export async function getAllDataFromMysql() {
     };
   });
 
-  const confirmedReservations = reservations
-    .filter(
-      (r) =>
-        String(r.status ?? '').trim() === 'CONFIRMED' ||
-        String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED',
-    )
-    .map((r) => ({
+  const confirmedReservations = reservations.map((r) => ({
       reservationId: r.reservationId,
       storeId: String(r.storeId ?? '').trim(),
       headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
