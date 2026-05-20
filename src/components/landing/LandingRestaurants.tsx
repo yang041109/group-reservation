@@ -3,27 +3,57 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { Icon } from '@/components/landing/icons';
+import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import type { CachedStore } from '@/lib/use-store-data';
 import { useAllData } from '@/lib/use-store-data';
 
 const TINTS = ['#fde2ec', '#e3f0fd', '#fff7c8', '#ece5fa'] as const;
 
-function minPerPersonWon(store: CachedStore): number {
-  if (store.menus.length > 0) {
-    return Math.min(...store.menus.map((m) => m.price));
-  }
-  return 0;
+function depositModeForStore(store: CachedStore) {
+  return store.depositMode ?? (store.depositUseTiers ? 'tiered' : 'flat');
 }
 
-function formatPriceFromWon(won: number): string {
-  if (won <= 0) return '가격 문의';
-  const man = won / 10000;
-  if (man >= 1) {
+function formatWonAmount(won: number): string {
+  if (won >= 10000) {
+    const man = won / 10000;
     const rounded = Math.round(man * 10) / 10;
     const s = Number.isInteger(rounded) ? String(rounded) : String(rounded);
-    return `${s}만원~`;
+    return `${s}만원`;
   }
-  return `${won.toLocaleString('ko-KR')}원~`;
+  return `${won.toLocaleString('ko-KR')}원`;
+}
+
+function formatWonDeposit(won: number): string {
+  return `예약금 ${formatWonAmount(won)}`;
+}
+
+/** 랜딩 카드용 예약금 안내 (최소 인원 기준으로 구간·인당 계산) */
+function formatDepositForLanding(store: CachedStore): string {
+  const mode = depositModeForStore(store);
+  const flat = store.depositAmount ?? 0;
+  const tiers = store.depositTiers ?? [];
+  const minH = Math.max(1, store.minGroupHeadcount ?? 2);
+  const tierOpts = { depositMode: 'tiered' as const, depositTiers: tiers, flatDepositAmount: 0 };
+
+  if (mode === 'per_person') {
+    if (flat < 1) return '예약금 없음';
+    return `인당 ${flat.toLocaleString('ko-KR')}원`;
+  }
+
+  if (mode === 'tiered') {
+    if (!tiers.length) return '예약금 없음';
+    const amounts = tiers
+      .map((t) => resolveDepositForHeadcount(Math.max(t.minHeadcount, minH), tierOpts))
+      .filter((n) => n > 0);
+    if (!amounts.length) return '예약금 없음';
+    const low = Math.min(...amounts);
+    const high = Math.max(...amounts);
+    if (low === high) return formatWonDeposit(low);
+    return `예약금 ${formatWonAmount(low)}~`;
+  }
+
+  if (flat < 1) return '예약금 없음';
+  return formatWonDeposit(flat);
 }
 
 function capacityLabel(store: CachedStore): string {
@@ -64,9 +94,6 @@ export default function LandingRestaurants() {
             >
               지금 단체석이 비어있는 곳
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--ink-3)', margin: 0 }}>
-              DB에 등록된 매장을 모두 보여 드려요. 자리 찾기 후에는 날짜·인원에 맞게 다시 필터돼요.
-            </p>
           </div>
           <Link href="/search" style={{ fontSize: 14, fontWeight: 600, color: 'var(--urr-blue-1)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             전체 보기 <Icon name="arrow" size={14} color="var(--urr-blue-1)" />
@@ -102,10 +129,9 @@ function RestaurantCard({
 }) {
   const uid = useId().replace(/:/g, '');
   const tint = TINTS[idx % TINTS.length];
-  const dish = store.name.slice(0, 1) || '🍽';
-  const per = minPerPersonWon(store);
-  const priceLabel = formatPriceFromWon(per);
+  const depositLabel = formatDepositForLanding(store);
   const tags = store.locationLabel ? [store.locationLabel] : [];
+  const imageUrl = store.imageUrl?.trim() || '';
 
   return (
     <Link
@@ -134,16 +160,26 @@ function RestaurantCard({
           background: `linear-gradient(135deg, ${tint} 0%, white 100%)`,
         }}
       >
-        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.4 }}>
-          <defs>
-            <pattern id={`stripe-${uid}-${idx}`} patternUnits="userSpaceOnUse" width="14" height="14" patternTransform="rotate(45)">
-              <rect width="14" height="14" fill="transparent" />
-              <line x1="0" y1="0" x2="0" y2="14" stroke="white" strokeWidth="6" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill={`url(#stripe-${uid}-${idx})`} />
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>{dish}</div>
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt=""
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <>
+            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.4 }}>
+              <defs>
+                <pattern id={`stripe-${uid}-${idx}`} patternUnits="userSpaceOnUse" width="14" height="14" patternTransform="rotate(45)">
+                  <rect width="14" height="14" fill="transparent" />
+                  <line x1="0" y1="0" x2="0" y2="14" stroke="white" strokeWidth="6" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill={`url(#stripe-${uid}-${idx})`} />
+            </svg>
+          </>
+        )}
         <div
           style={{
             position: 'absolute',
@@ -186,7 +222,7 @@ function RestaurantCard({
             ))}
           </div>
           <div style={{ fontSize: 14, color: 'var(--ink)', fontWeight: 700 }} className="num">
-            {priceLabel} <span style={{ fontSize: 11, color: 'var(--ink-4)', fontWeight: 500 }}>/ 1인 기준</span>
+            {depositLabel}
           </div>
         </div>
       </div>
