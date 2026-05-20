@@ -127,6 +127,7 @@ export default function StoreDetailPageClient() {
                     dayRange.slotStartHour,
                     dayRange.slotEndHour,
                     false,
+                    found,
                   )
                 : [];
             const cacheData: GetStoreDetailResponse = {

@@ -12,6 +12,11 @@ import {
   readMinGroupHeadcount,
 } from '@/lib/store-weekly-hours';
 import {
+  applyOwnerBookingToggleToSlots,
+  isSlotOpenForOwnerToggle,
+  readOwnerBookingToggle,
+} from '@/lib/owner-booking-toggle';
+import {
   depositModeFromDb,
   parseDepositTiersJson,
   resolveDepositForHeadcount,
@@ -123,16 +128,20 @@ export async function getStoresFromMysql(date: string, headcount: number) {
 
     const timeline = closed
       ? []
-      : buildSlots(
-          cap,
-          confirmedRes.map((r) => ({
-            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-            startTime: String(r.startTime ?? '').trim(),
-            endTime: String(r.endTime ?? '').trim(),
-          })),
-          slotStartHour,
-          slotEndHour,
-          crossesMidnight,
+      : applyOwnerBookingToggleToSlots(
+          buildSlots(
+            cap,
+            confirmedRes.map((r) => ({
+              headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+              startTime: String(r.startTime ?? '').trim(),
+              endTime: String(r.endTime ?? '').trim(),
+            })),
+            slotStartHour,
+            slotEndHour,
+            crossesMidnight,
+          ),
+          date,
+          readOwnerBookingToggle(store as Record<string, unknown>),
         );
 
     const depOpts = readStoreDepositOpts(store);
@@ -195,17 +204,21 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
 
   const slots = closed
     ? []
-    : buildSlots(
-    cap,
-    confirmed.map((r) => ({
-      headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-      startTime: String(r.startTime ?? '').trim(),
-      endTime: String(r.endTime ?? '').trim(),
-    })),
-    slotStartHour,
-    slotEndHour,
-    crossesMidnight,
-  );
+    : applyOwnerBookingToggleToSlots(
+        buildSlots(
+          cap,
+          confirmed.map((r) => ({
+            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+            startTime: String(r.startTime ?? '').trim(),
+            endTime: String(r.endTime ?? '').trim(),
+          })),
+          slotStartHour,
+          slotEndHour,
+          crossesMidnight,
+        ),
+        date,
+        readOwnerBookingToggle(store as Record<string, unknown>),
+      );
 
   const menusPayload: MenuItemData[] = storeMenus.map((m) => ({
     id: String(m.menuId ?? '').trim(),
@@ -314,16 +327,21 @@ export async function insertReservationValidated(
       [storeId, date],
     );
 
-    const slots = buildSlots(
-      cap,
-      existingRows.map((r) => ({
-        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-        startTime: String(r.startTime ?? '').trim(),
-        endTime: String(r.endTime ?? '').trim(),
-      })),
-      slotStartHour,
-      slotEndHour,
-      crossesMidnight,
+    const toggle = readOwnerBookingToggle(store as Record<string, unknown>);
+    const slots = applyOwnerBookingToggleToSlots(
+      buildSlots(
+        cap,
+        existingRows.map((r) => ({
+          headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+          startTime: String(r.startTime ?? '').trim(),
+          endTime: String(r.endTime ?? '').trim(),
+        })),
+        slotStartHour,
+        slotEndHour,
+        crossesMidnight,
+      ),
+      date,
+      toggle,
     );
 
     const targetSlots = slots.filter((s) =>
@@ -333,7 +351,14 @@ export async function insertReservationValidated(
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 시간이 예약 가능한 슬롯에 없습니다.');
     }
-    const minRemaining = Math.min(...targetSlots.map((s) => cap - s.currentHeadcount));
+    const openSlots = targetSlots.filter((s) =>
+      isSlotOpenForOwnerToggle(s.timeBlock, date, toggle),
+    );
+    if (!openSlots.length || !openSlots.some((s) => s.isAvailable)) {
+      await conn.rollback();
+      throw new ReservationDbError(400, '선택한 시간은 현재 예약을 받지 않습니다.');
+    }
+    const minRemaining = Math.min(...openSlots.map((s) => cap - s.currentHeadcount));
     if (headcount > minRemaining) {
       await conn.rollback();
       throw new ReservationDbError(
@@ -579,6 +604,14 @@ export async function getAllDataFromMysql() {
       ownerBankAccount:
         rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
           ? String(rec.ownerBankAccount).trim()
+          : null,
+      acceptingReservations:
+        rec.acceptingReservations === undefined || rec.acceptingReservations === null
+          ? true
+          : Number(rec.acceptingReservations) === 1,
+      acceptingReservationsAt:
+        rec.acceptingReservationsAt != null && String(rec.acceptingReservationsAt).trim()
+          ? String(rec.acceptingReservationsAt).trim()
           : null,
     };
   });

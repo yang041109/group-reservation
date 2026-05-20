@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { generateSlotTimeBlocks, slotOverlapsReservation } from '@/lib/slot-hour-range';
+import { applyOwnerBookingToggleToSlots, readOwnerBookingToggle } from '@/lib/owner-booking-toggle';
 import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
@@ -25,6 +26,8 @@ export interface CachedStore {
   depositTiers?: DepositTier[];
   ownerName?: string | null;
   ownerBankAccount?: string | null;
+  acceptingReservations?: boolean;
+  acceptingReservationsAt?: string | null;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
 }
@@ -153,6 +156,7 @@ export function buildSlotsForDate(
   slotStartHour?: number,
   slotEndHour?: number,
   closed?: boolean,
+  storeMeta?: Pick<CachedStore, 'acceptingReservations' | 'acceptingReservationsAt'> | Record<string, unknown>,
 ): TimeSlot[] {
   if (closed) return [];
   const startH = slotStartHour ?? 11;
@@ -185,5 +189,8 @@ export function buildSlotsForDate(
     });
   }
 
+  if (storeMeta) {
+    return applyOwnerBookingToggleToSlots(slots, date, readOwnerBookingToggle(storeMeta));
+  }
   return slots;
 }

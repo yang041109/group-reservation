@@ -9,6 +9,7 @@ import {
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
 import { anyMenuIdsNeedReindex, reindexAllMenuIds } from '@/lib/menu-id-reindex';
+import { formatKoreaMysqlDatetime } from '@/lib/owner-booking-toggle';
 import { readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import type { DepositTier } from '@/types';
@@ -50,6 +51,8 @@ export interface ManageStoreRow {
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
   sortOrder: number;
+  acceptingReservations: boolean;
+  acceptingReservationsAt: string | null;
 }
 
 function mapStoreRow(r: StoreRow): ManageStoreRow {
@@ -92,7 +95,50 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
         ? String(r.adminAccessToken).trim()
         : null,
     sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
+    acceptingReservations:
+      rec.acceptingReservations === undefined || rec.acceptingReservations === null
+        ? true
+        : Number(rec.acceptingReservations) === 1,
+    acceptingReservationsAt:
+      rec.acceptingReservationsAt != null && String(rec.acceptingReservationsAt).trim()
+        ? String(rec.acceptingReservationsAt).trim()
+        : null,
   };
+}
+
+/** 사장님 예약받기 on/off — 오늘(KST) 기준 슬롯 마감 시각 갱신 */
+export async function manageSetAcceptingReservations(
+  storeId: string,
+  accepting: boolean,
+): Promise<{ success: true; acceptingReservations: boolean; acceptingReservationsAt: string } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  const at = formatKoreaMysqlDatetime();
+  try {
+    const pool = getPool();
+    const [h] = await pool.execute<ResultSetHeader>(
+      'UPDATE store SET acceptingReservations = ?, acceptingReservationsAt = ? WHERE storeId = ?',
+      [accepting ? 1 : 0, at, sid],
+    );
+    if (!h.affectedRows) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    return { success: true, acceptingReservations: accepting, acceptingReservationsAt: at };
+  } catch (e) {
+    const err = e as { errno?: number; message?: string };
+    if (err.errno === 1054 && typeof err.message === 'string' && err.message.includes('acceptingReservations')) {
+      return {
+        success: false,
+        message:
+          'DB에 예약받기 컬럼이 없습니다. docs/store-accepting-reservations.sql 을 실행한 뒤 다시 시도하세요.',
+      };
+    }
+    console.error('[manageSetAcceptingReservations]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
 }
 
 export async function manageListStores(): Promise<
