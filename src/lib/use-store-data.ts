@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
-import { generateSlotTimeBlocks, slotOverlapsReservation } from '@/lib/slot-hour-range';
+import { buildSlots } from '@/lib/booking-slots';
 import { applyOwnerClosedBlocksToSlots } from '@/lib/owner-closed-slots';
 import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types';
 
@@ -162,34 +162,25 @@ export function buildSlotsForDate(
   const endH = slotEndHour ?? 20;
   const crossesMidnight = endH < startH;
 
-  // 해당 가게 + 날짜의 확정 예약 필터
   const matching = reservations.filter(
     (r) => r.storeId === storeId && r.date === date,
   );
 
-  const slotTimes = generateSlotTimeBlocks(startH, endH, crossesMidnight);
-  const slots: TimeSlot[] = [];
+  const base = buildSlots(
+    maxPeople,
+    matching.map((r) => ({
+      headcount: r.headcount,
+      startTime: r.startTime,
+      endTime: r.endTime,
+    })),
+    startH,
+    endH,
+    crossesMidnight,
+  );
 
-  for (const time of slotTimes) {
-    let booked = 0;
-    matching.forEach((r) => {
-      const overlaps = crossesMidnight
-        ? slotOverlapsReservation(time, r.startTime, r.endTime, true, startH, endH)
-        : time >= r.startTime && time <= r.endTime;
-      if (overlaps) booked += r.headcount;
-    });
-    const remaining = Math.max(0, maxPeople - booked);
-    slots.push({
-      slotId: `slot-${time.replace(':', '')}`,
-      timeBlock: time,
-      isAvailable: remaining > 0,
-      maxPeople,
-      currentHeadcount: booked,
-    });
-  }
-
-  if (storeMeta?.ownerClosedSlotsJson) {
-    return applyOwnerClosedBlocksToSlots(slots, date, storeMeta.ownerClosedSlotsJson);
-  }
-  return slots;
+  return applyOwnerClosedBlocksToSlots(
+    base,
+    date,
+    storeMeta?.ownerClosedSlotsJson ?? null,
+  );
 }

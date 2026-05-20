@@ -73,10 +73,12 @@ export default function TimeSelector({
     return map;
   }, [slots]);
 
-  const allSlots = useMemo(
-    () => generateSlotTimeBlocks(startHour, endHour, crossesMidnight),
-    [startHour, endHour, crossesMidnight],
-  );
+  const allSlots = useMemo(() => {
+    if (slots && slots.length > 0) {
+      return slots.map((s) => s.timeBlock);
+    }
+    return generateSlotTimeBlocks(startHour, endHour, crossesMidnight);
+  }, [slots, startHour, endHour, crossesMidnight]);
 
   const getSlotInfo = (time: string): { status: SlotStatus; remaining: number; maxPeople: number; currentHeadcount: number; ratio: number } => {
     const slot = slotMap.get(time);
