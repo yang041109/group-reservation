@@ -696,6 +696,56 @@ export default function ManagePageClient() {
     if (tab === 'reservations') void loadReservations();
   }, [tab, loadReservations]);
 
+  const updateReservationStatus = async (reservationId: string, newStatus: string) => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await manageFetch(
+        storedSecret,
+        `/api/admin/manage/reservations/${encodeURIComponent(reservationId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.message || '상태 변경 실패');
+        return;
+      }
+      setMsg('예약 상태를 변경했습니다.');
+      await loadReservations();
+    } catch {
+      setErr('상태 변경 중 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteReservation = async (reservationId: string) => {
+    if (!confirm(`예약 ${reservationId}을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await manageFetch(
+        storedSecret,
+        `/api/admin/manage/reservations/${encodeURIComponent(reservationId)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.message || '예약 삭제 실패');
+        return;
+      }
+      setMsg('예약을 삭제했습니다.');
+      await loadReservations();
+    } catch {
+      setErr('예약 삭제 중 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const ownerLink = (token: string | null) => {
     if (!token || typeof window === 'undefined') return '';
     return `${window.location.origin}/admin/m/${encodeURIComponent(token)}`;
@@ -1229,6 +1279,7 @@ export default function ManagePageClient() {
                       <th className="py-2 pr-2">상태</th>
                       <th className="py-2 pr-2 text-right">주문금액</th>
                       <th className="py-2 pr-2 text-right">예약금</th>
+                      <th className="py-2 pr-2">관리</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1237,15 +1288,49 @@ export default function ManagePageClient() {
                         <td className="py-2 pr-2 font-mono text-[11px] text-gray-600">{r.reservationId}</td>
                         <td className="py-2 pr-2">{r.storeName}</td>
                         <td className="py-2 pr-2">
-                          {r.groupName || r.userName}
+                          {r.userName}
+                          {r.groupName ? <span className="text-gray-400"> / {r.groupName}</span> : null}
                           <div className="text-gray-400">{r.userPhone}</div>
                         </td>
                         <td className="py-2 pr-2 whitespace-nowrap">
                           {r.date} {r.startTime}
                         </td>
-                        <td className="py-2 pr-2">{formatReservationStatus(r.status)}</td>
+                        <td className="py-2 pr-2">
+                          <select
+                            value={r.status}
+                            disabled={loading}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (next !== r.status) {
+                                void updateReservationStatus(r.reservationId, next);
+                              }
+                            }}
+                            className="rounded border border-gray-300 bg-white px-1.5 py-1 text-xs"
+                          >
+                            <option value="PENDING">예약 확인중</option>
+                            <option value="CONFIRMED">예약 확정</option>
+                            <option value="DEPOSIT_PENDING">예약금 입금 대기</option>
+                            <option value="DEPOSIT_CONFIRMED">예약 완료</option>
+                            <option value="CHECKED_IN">방문 완료</option>
+                            <option value="NO_SHOW">노쇼</option>
+                            <option value="CANCELED">취소됨</option>
+                          </select>
+                          <div className="mt-0.5 text-[10px] text-gray-400">
+                            {formatReservationStatus(r.status)}
+                          </div>
+                        </td>
                         <td className="py-2 pr-2 text-right">{r.totalAmount.toLocaleString()}원</td>
                         <td className="py-2 pr-2 text-right">{r.depositAmount.toLocaleString()}원</td>
+                        <td className="py-2 pr-2">
+                          <button
+                            type="button"
+                            onClick={() => void deleteReservation(r.reservationId)}
+                            disabled={loading}
+                            className="rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                          >
+                            삭제
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

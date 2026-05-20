@@ -908,3 +908,75 @@ export async function manageGetStoreById(
     return { success: false, message: formatMysqlUserError(e) };
   }
 }
+
+
+const VALID_RESERVATION_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'DEPOSIT_PENDING',
+  'DEPOSIT_CONFIRMED',
+  'CHECKED_IN',
+  'NO_SHOW',
+  'CANCELED',
+] as const;
+
+/** 운영자: 예약 상태 변경 */
+export async function manageUpdateReservationStatus(
+  reservationId: string,
+  status: string,
+): Promise<
+  | { success: true; data: { reservationId: string; status: string } }
+  | { success: false; message: string }
+> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  const st = status.trim().toUpperCase();
+  if (!id) return { success: false, message: '예약 ID가 필요합니다.' };
+  if (!(VALID_RESERVATION_STATUSES as readonly string[]).includes(st)) {
+    return {
+      success: false,
+      message: `유효하지 않은 상태입니다. 허용: ${VALID_RESERVATION_STATUSES.join(', ')}`,
+    };
+  }
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      'UPDATE reservation SET status = ? WHERE reservationId = ?',
+      [st, id],
+    );
+    if (!header.affectedRows) {
+      return { success: false, message: '예약을 찾을 수 없습니다.' };
+    }
+    return { success: true, data: { reservationId: id, status: st } };
+  } catch (e) {
+    console.error('[manageUpdateReservationStatus]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 운영자: 예약 영구 삭제 */
+export async function manageDeleteReservation(
+  reservationId: string,
+): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const id = reservationId.trim();
+  if (!id) return { success: false, message: '예약 ID가 필요합니다.' };
+  try {
+    const pool = getPool();
+    const [header] = await pool.execute<ResultSetHeader>(
+      'DELETE FROM reservation WHERE reservationId = ?',
+      [id],
+    );
+    if (!header.affectedRows) {
+      return { success: false, message: '예약을 찾을 수 없습니다.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error('[manageDeleteReservation]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
