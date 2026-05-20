@@ -7,9 +7,12 @@ import { useAdminStore } from './AdminStoreContext';
 
 interface Reservation {
   reservationId: string;
+  userName: string;
+  groupName?: string;
   date: string;
   startTime: string;
   endTime: string;
+  headcount: number;
   status: string;
 }
 
@@ -33,13 +36,30 @@ function todayYmd(): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+function todayStatusLabel(status: string): string {
+  const s = status.toUpperCase();
+  if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return '예약확정';
+  if (s === 'DEPOSIT_PENDING') return '입금대기';
+  if (s === 'PENDING') return '승인대기';
+  if (s === 'CANCELED') return '취소';
+  return status;
+}
+
+function todayStatusClass(status: string): string {
+  const s = status.toUpperCase();
+  if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return 'bg-green-100 text-green-800';
+  if (s === 'DEPOSIT_PENDING') return 'bg-amber-100 text-amber-800';
+  if (s === 'PENDING') return 'bg-blue-100 text-blue-800';
+  return 'bg-gray-100 text-gray-600';
+}
+
 export default function AdminDashboardByToken() {
   const store = useAdminStore();
   const base = `/admin/m/${encodeURIComponent(store.token)}`;
 
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [depositPendingCount, setDepositPendingCount] = useState<number>(0);
-  const [todayReservationsCount, setTodayReservationsCount] = useState<number>(0);
+  const [todayReservations, setTodayReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [todayLabel, setTodayLabel] = useState<string>('');
 
@@ -59,9 +79,10 @@ export default function AdminDashboardByToken() {
       if (dJson.success) setDepositPendingCount((dJson.data || []).length);
       if (tJson.success) {
         const list = (tJson.data || []) as Reservation[];
-        // 캘린더에 표시되는 (취소 외) 모든 예약을 카운트
-        const visible = list.filter((r) => r.status !== 'CANCELED');
-        setTodayReservationsCount(visible.length);
+        const visible = list
+          .filter((r) => r.status !== 'CANCELED')
+          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        setTodayReservations(visible);
       }
     } catch (e) {
       console.error(e);
@@ -79,10 +100,12 @@ export default function AdminDashboardByToken() {
   }, [reload]);
 
   const totalPending = pendingCount + depositPendingCount;
+  const todayCount = todayReservations.length;
+  const previewReservations = todayReservations.slice(0, 5);
+  const moreCount = Math.max(0, todayCount - previewReservations.length);
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-gray-50">
-      {/* 헤더 */}
       <header className="bg-blue-600 text-white">
         <div className="mx-auto flex max-w-md items-center justify-between px-5 py-5">
           <div className="flex items-center gap-2">
@@ -106,203 +129,191 @@ export default function AdminDashboardByToken() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md px-5 py-6">
-        <OwnerTodayClosePanel token={store.token} storeId={store.id} />
-
-        {/* 오늘의 현황 카드 컨테이너 */}
+      <main className="mx-auto max-w-md space-y-5 px-5 py-6">
+        {/* 1. 오늘의 예약 현황 */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="block h-4 w-1 rounded-full bg-blue-600" />
-              <h2 className="text-base font-bold text-gray-900">오늘의 현황</h2>
+              <span className="block h-4 w-1 rounded-full bg-orange-500" />
+              <h2 className="text-base font-bold text-gray-900">오늘의 예약 현황</h2>
             </div>
             <p className="text-xs text-gray-400">{todayLabel}</p>
           </div>
 
-          {/* 그리드: 상단 2칸 통합 카드 (대기 중인 예약) + 하단 4개 카드 */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* 대기 중인 예약 (col-span-2 = 2칸) */}
-            <Link
-              href={`${base}/pending`}
-              className="col-span-2 rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5 transition hover:border-blue-200 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                    <svg
-                      className="h-6 w-6 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
+          <div className="mb-4 flex items-baseline gap-1">
+            <span className="text-4xl font-extrabold text-gray-900">{loading ? '—' : todayCount}</span>
+            <span className="text-lg font-bold text-gray-600">건</span>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-gray-400">불러오는 중…</p>
+          ) : todayCount === 0 ? (
+            <p className="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+              오늘 확정된 단체 예약이 없습니다.
+              <br />
+              전화 예약은 캘린더에서 일정을 등록하세요.
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100">
+              {previewReservations.map((r) => (
+                <li key={r.reservationId} className="flex items-start justify-between gap-2 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {r.startTime}
+                      {r.endTime ? ` – ${r.endTime}` : ''}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-gray-700">
+                      {r.userName}
+                      {r.groupName ? (
+                        <span className="font-normal text-gray-500"> / {r.groupName}</span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">{r.headcount}명</p>
                   </div>
-                  <span className="text-sm font-semibold text-gray-700">대기 중인 예약</span>
-                </div>
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${todayStatusClass(r.status)}`}
+                  >
+                    {todayStatusLabel(r.status)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {!loading && moreCount > 0 ? (
+            <p className="mt-2 text-center text-xs text-gray-500">외 {moreCount}건</p>
+          ) : null}
+
+          <Link
+            href={`${base}/calendar`}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
+          >
+            캘린더에서 자세히 보기
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </section>
+
+        {/* 2. 오늘 예약 마감 설정 */}
+        <OwnerTodayClosePanel token={store.token} storeId={store.id} />
+
+        {/* 3. 대기 중인 예약 */}
+        <Link
+          href={`${base}/pending`}
+          className="block rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
-              <div className="mt-4">
-                <span className="text-4xl font-extrabold text-gray-900">
-                  {loading ? '—' : totalPending}
-                </span>
-                <span className="ml-1 text-xl font-bold text-gray-700">건</span>
-                {depositPendingCount > 0 ? (
-                  <p className="mt-1 text-xs text-gray-500">
-                    예약 대기 {pendingCount}건 · 입금 대기 {depositPendingCount}건
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-gray-500">탭하여 수락/거절을 진행하세요</p>
-                )}
-              </div>
-            </Link>
+              <span className="text-base font-bold text-gray-900">대기 중인 예약</span>
+            </div>
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div className="mt-4">
+            <span className="text-4xl font-extrabold text-gray-900">{loading ? '—' : totalPending}</span>
+            <span className="ml-1 text-xl font-bold text-gray-700">건</span>
+            {depositPendingCount > 0 ? (
+              <p className="mt-1 text-xs text-gray-500">
+                예약 대기 {pendingCount}건 · 입금 대기 {depositPendingCount}건
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-500">탭하여 수락/거절을 진행하세요</p>
+            )}
+          </div>
+        </Link>
 
-            {/* 오늘의 단체 예약 · 캘린더 */}
+        {/* 4. 설정 · 기타 */}
+        <section>
+          <p className="mb-3 text-xs font-medium text-gray-500">설정 · 기타</p>
+          <div className="grid grid-cols-1 gap-3">
             <Link
               href={`${base}/calendar`}
-              className="col-span-2 rounded-xl border border-gray-100 bg-white p-4 transition hover:border-orange-200 hover:shadow-md"
+              className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                  <svg
-                    className="h-6 w-6 text-orange-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 20h5v-2a3 3 0 00-3-3h-2m-3-7a4 4 0 11-8 0 4 4 0 018 0zm6 8a4 4 0 10-8 0 4 4 0 008 0z"
-                    />
-                  </svg>
-                </div>
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
               </div>
-              <p className="mt-3 text-sm font-bold text-gray-900">오늘 예약 · 캘린더</p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {loading
-                  ? '오늘 단체 예약 확인 · 전화 예약은 캘린더에서 + 일정 등록'
-                  : `오늘 ${todayReservationsCount}건 · 전화로 받은 예약도 캘린더에서 등록`}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-900">캘린더로 보기</p>
+                <p className="mt-0.5 text-xs text-gray-500">월별 일정 · 전화 예약 등록</p>
+              </div>
+              <svg className="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </Link>
 
-            {/* 지정 휴무일 설정 */}
             <Link
               href={`${base}/closed-dates`}
-              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-emerald-200 hover:shadow-md"
+              className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 transition hover:border-emerald-200 hover:shadow-md"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-                  <svg
-                    className="h-6 w-6 text-emerald-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
-                </div>
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+                <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
                 </svg>
               </div>
-              <p className="mt-3 text-sm font-bold text-gray-900">지정 휴무일 설정</p>
-              <p className="mt-0.5 text-xs text-gray-500">휴무일 관리 및 설정</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-900">지정 휴무일</p>
+                <p className="mt-0.5 text-xs text-gray-500">휴무일 관리 및 설정</p>
+              </div>
+              <svg className="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </Link>
 
-            {/* 가게 설정 변경 */}
             <Link
               href={`${base}/settings`}
-              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
+              className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                  <svg
-                    className="h-6 w-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </div>
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+                <svg className="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
               </div>
-              <p className="mt-3 text-sm font-bold text-gray-900">가게 설정 변경</p>
-              <p className="mt-0.5 text-xs text-gray-500">가게 정보 및 설정 관리</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-900">가게 설정 변경</p>
+                <p className="mt-0.5 text-xs text-gray-500">가게 정보 및 설정 관리</p>
+              </div>
+              <svg className="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </Link>
           </div>
         </section>
-
-        {/* 캘린더 보기 큰 버튼 */}
-        <Link
-          href={`${base}/calendar`}
-          className="mt-5 flex w-full items-center justify-between rounded-2xl bg-blue-600 px-6 py-5 text-white shadow-lg transition hover:bg-blue-700"
-        >
-          <div className="flex items-center gap-3">
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <span className="text-lg font-bold">캘린더 열기</span>
-          </div>
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
       </main>
     </div>
   );

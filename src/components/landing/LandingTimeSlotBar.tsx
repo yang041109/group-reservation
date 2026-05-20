@@ -1,6 +1,7 @@
 'use client';
 
 import { generateSlotTimeBlocks, getHourLabels } from '@/lib/slot-hour-range';
+import { SLOT_ALMOST_FULL_HEX, SLOT_CLOSED_HEX } from '@/lib/store-timeline-colors';
 
 /** 메인 검색 카드와 동일한 30분 슬롯 막대 (랜딩 데모용) */
 export default function LandingTimeSlotBar({
@@ -16,14 +17,14 @@ export default function LandingTimeSlotBar({
   const hours = getHourLabels(startHour, endHour, crossesMidnight);
   const slots = generateSlotTimeBlocks(startHour, endHour, crossesMidnight);
   const defaultColors = [
-    '#f29da6',
-    '#f29da6',
+    SLOT_CLOSED_HEX,
+    SLOT_CLOSED_HEX,
     '#2c9af5',
     '#23cdfc',
     '#23f7ed',
     '#2c9af5',
-    '#a7a7a8',
-    '#f29da6',
+    SLOT_ALMOST_FULL_HEX,
+    SLOT_CLOSED_HEX,
     '#2c9af5',
     '#23cdfc',
   ];
@@ -66,11 +67,14 @@ export default function LandingTimeSlotBar({
           혼잡
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded bg-[#a7a7a8]" />
+          <span className="inline-block h-2.5 w-2.5 rounded bg-[#f29da6]" />
           거의마감
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded bg-[#f29da6]" />
+          <span
+            className="inline-block h-2.5 w-2.5 rounded"
+            style={{ background: SLOT_CLOSED_HEX }}
+          />
           마감
         </span>
       </div>

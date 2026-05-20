@@ -9,6 +9,7 @@ import {
 import {
   getOccupancyColorClass,
   SLOT_CLOSED_CLASS,
+  SLOT_CLOSED_HEX,
   TIMELINE_LEGEND,
 } from '@/lib/store-timeline-colors';
 
@@ -158,7 +159,10 @@ export default function StoreTimelineBar({
           ))}
           {onBlockClick ? (
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-orange-400 bg-[#f29da6]" />
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-orange-400"
+                style={{ background: SLOT_CLOSED_HEX }}
+              />
               사장님 마감
             </span>
           ) : null}
