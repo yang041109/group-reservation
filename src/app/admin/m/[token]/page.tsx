@@ -81,7 +81,7 @@ export default function AdminDashboardByToken() {
   const totalPending = pendingCount + depositPendingCount;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-gray-50">
       {/* 헤더 */}
       <header className="bg-blue-600 text-white">
         <div className="mx-auto flex max-w-md items-center justify-between px-5 py-5">

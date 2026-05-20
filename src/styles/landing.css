@@ -1,5 +1,8 @@
 /* URR 랜딩 — Downloads/src 기준 토큰·유틸 */
 .landing-root {
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
   --ink: #0f1623;
   --ink-2: #3d4a5c;
   --ink-3: #5b6477;
@@ -147,6 +150,7 @@
 
 /* 스크롤 등장 (IntersectionObserver로 .landing-reveal--visible 부여) */
 .landing-root .landing-reveal {
+  overflow-x: clip;
   opacity: 0;
   transform: translate3d(0, 52px, 0);
   transition:

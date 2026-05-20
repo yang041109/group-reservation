@@ -197,7 +197,7 @@ export default function StoreDetailPageClient() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
         <div className="flex items-center justify-center py-16">
           <div className="text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent" />
@@ -210,7 +210,7 @@ export default function StoreDetailPageClient() {
 
   if (error || !data) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
         <p className="text-center text-gray-500">{error ?? '알 수 없는 오류'}</p>
         <button
           type="button"
@@ -254,7 +254,7 @@ export default function StoreDetailPageClient() {
   const minGroup = store.minGroupHeadcount ?? 2;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
+    <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
       <BackLink fallbackHref="/search" />
       {store.closedOnDate && (
         <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">

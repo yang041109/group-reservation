@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
+/* 모바일 좌우 흔들림(가로 스크롤) 방지 */
+html {
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
+}
+
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
 /* 전역 배경색 - 오프화이트 */
 body {
   background-color: #F8F9FA;
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
 }
 
 /* 졸라맨 달리기 애니메이션 */

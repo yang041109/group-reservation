@@ -161,7 +161,7 @@ export default function SearchPage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl overflow-x-clip px-4 py-8">
       <p className="text-sm text-gray-500">날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다</p>
 
       {showStores && !isLoading && (

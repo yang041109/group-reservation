@@ -1,5 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
+import { ensureReservationOwnerColumns } from '@/lib/reservation-schema-migrate';
 
 type StoreRow = RowDataPacket & Record<string, unknown>;
 type MenuRow = RowDataPacket & Record<string, unknown>;
@@ -246,6 +247,7 @@ export async function adminRejectReservation(
   }
   try {
     const pool = getPool();
+    await ensureReservationOwnerColumns(pool);
     const [header] = await pool.execute<ResultSetHeader>(
       `UPDATE reservation SET status = 'CANCELED', ownerRejectReason = ? WHERE reservationId = ? AND status = 'PENDING'`,
       [msg, id],
@@ -455,6 +457,7 @@ export async function adminUpdateReservation(
 
   try {
     const pool = getPool();
+    await ensureReservationOwnerColumns(pool);
     values.push(id);
     const [header] = await pool.execute<ResultSetHeader>(
       `UPDATE reservation SET ${sets.join(', ')} WHERE reservationId = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED','DEPOSIT_PENDING','PENDING')`,
@@ -528,6 +531,7 @@ export async function adminCancelConfirmedReservation(
   }
   try {
     const pool = getPool();
+    await ensureReservationOwnerColumns(pool);
     const [header] = await pool.execute<ResultSetHeader>(
       `UPDATE reservation
         SET status = 'CANCELED', ownerRejectReason = ?

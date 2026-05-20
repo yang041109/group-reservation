@@ -46,7 +46,7 @@ export default function LandingReveal({
   return (
     <div
       ref={ref}
-      className={`landing-reveal ${variantClass} ${visible ? 'landing-reveal--visible' : ''} ${className}`}
+      className={`landing-reveal overflow-x-clip ${variantClass} ${visible ? 'landing-reveal--visible' : ''} ${className}`}
       style={{ ['--reveal-delay' as string]: `${delay}ms` }}
     >
       {children}

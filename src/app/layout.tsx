@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className="antialiased">
+    <html lang="ko" className="overflow-x-clip">
+      <body className="antialiased w-full max-w-full overflow-x-clip">
         <ConditionalHeader />
         {children}
       </body>

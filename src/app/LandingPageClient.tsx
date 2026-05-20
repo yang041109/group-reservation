@@ -23,7 +23,7 @@ export default function LandingPageClient() {
   }, [router]);
 
   return (
-    <div className="landing-root min-h-screen">
+    <div className="landing-root min-h-screen w-full max-w-full overflow-x-clip">
       <LandingNav />
       <main>
         <LandingHero />
