@@ -1,5 +1,13 @@
 import type { TimeSlot } from '@/types';
 import { getKoreaDateParts, koreaTodayYmd } from '@/lib/korea-time';
+import { timeBlockToExtendedMinutes } from '@/lib/slot-hour-range';
+
+/** 자정 넘김 영업 시 “지난 슬롯” 판별용 */
+export type SlotBusinessHours = {
+  crossesMidnight: boolean;
+  slotStartHour: number;
+  slotEndHour: number;
+};
 
 export type OwnerClosedSlotsPayload = {
   date: string;
@@ -45,12 +53,34 @@ function minutesFromTimeBlock(tb: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-/** 오늘(KST) 지난 30분 슬롯 */
-export function isSlotPastForToday(slotTime: string, now = new Date()): boolean {
+/** 오늘(KST) 지난 30분 슬롯. 자정 넘김 영업은 00:00~종료시를 “다음날 새벽”으로 확장해 비교 */
+export function isSlotPastForToday(
+  slotTime: string,
+  now = new Date(),
+  hours?: SlotBusinessHours,
+): boolean {
   if (koreaTodayYmd(now) === '') return false;
-  const slotMin = minutesFromTimeBlock(slotTime);
   const { hour, minute } = getKoreaDateParts(now);
-  return slotMin < hour * 60 + minute;
+  const nowMin = hour * 60 + minute;
+
+  if (hours?.crossesMidnight) {
+    const nowLabel = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const slotExt = timeBlockToExtendedMinutes(
+      slotTime,
+      true,
+      hours.slotStartHour,
+      hours.slotEndHour,
+    );
+    const nowExt = timeBlockToExtendedMinutes(
+      nowLabel,
+      true,
+      hours.slotStartHour,
+      hours.slotEndHour,
+    );
+    return slotExt < nowExt;
+  }
+
+  return minutesFromTimeBlock(slotTime) < nowMin;
 }
 
 function closeSlot(slot: TimeSlot): TimeSlot {
@@ -67,13 +97,14 @@ export function applyOwnerClosedBlocksToSlots(
   dateYmd: string,
   ownerClosedJson: unknown,
   now = new Date(),
+  hours?: SlotBusinessHours,
 ): TimeSlot[] {
   const closedSet = ownerClosedBlockSet(ownerClosedJson, dateYmd);
   const today = koreaTodayYmd(now);
   const isToday = dateYmd === today;
 
   return slots.map((slot) => {
-    if (isToday && isSlotPastForToday(slot.timeBlock, now)) {
+    if (isToday && isSlotPastForToday(slot.timeBlock, now, hours)) {
       return closeSlot(slot);
     }
     if (closedSet.has(slot.timeBlock)) {
@@ -88,10 +119,11 @@ export function isSlotBlockedForBooking(
   dateYmd: string,
   ownerClosedJson: unknown,
   now = new Date(),
+  hours?: SlotBusinessHours,
 ): boolean {
   const closedSet = ownerClosedBlockSet(ownerClosedJson, dateYmd);
   if (closedSet.has(slotTime)) return true;
-  if (dateYmd === koreaTodayYmd(now) && isSlotPastForToday(slotTime, now)) return true;
+  if (dateYmd === koreaTodayYmd(now) && isSlotPastForToday(slotTime, now, hours)) return true;
   return false;
 }
 

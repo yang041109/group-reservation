@@ -138,6 +138,8 @@ export async function getStoresFromMysql(date: string, headcount: number) {
           ),
           date,
           (store as Record<string, unknown>).ownerClosedSlotsJson,
+          undefined,
+          { slotStartHour, slotEndHour, crossesMidnight },
         );
 
     const depOpts = readStoreDepositOpts(store);
@@ -214,6 +216,8 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         ),
         date,
         rec.ownerClosedSlotsJson,
+        undefined,
+        { slotStartHour, slotEndHour, crossesMidnight },
       );
 
   const menusPayload: MenuItemData[] = storeMenus.map((m) => ({
@@ -338,6 +342,8 @@ export async function insertReservationValidated(
       ),
       date,
       ownerJson,
+      undefined,
+      { slotStartHour, slotEndHour, crossesMidnight },
     );
 
     const targetSlots = slots.filter((s) =>
@@ -350,7 +356,11 @@ export async function insertReservationValidated(
     const blocked = targetSlots.some(
       (s) =>
         !s.isAvailable ||
-        isSlotBlockedForBooking(s.timeBlock, date, ownerJson),
+        isSlotBlockedForBooking(s.timeBlock, date, ownerJson, undefined, {
+          slotStartHour,
+          slotEndHour,
+          crossesMidnight,
+        }),
     );
     if (blocked) {
       await conn.rollback();

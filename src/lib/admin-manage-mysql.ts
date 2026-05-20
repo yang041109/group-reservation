@@ -810,7 +810,11 @@ export async function manageGetOwnerTodayTimeline(
     );
 
     const ownerJson = rec.ownerClosedSlotsJson;
-    const slots = applyOwnerClosedBlocksToSlots(base, date, ownerJson);
+    const slots = applyOwnerClosedBlocksToSlots(base, date, ownerJson, undefined, {
+      slotStartHour: range.slotStartHour,
+      slotEndHour: range.slotEndHour,
+      crossesMidnight: range.crossesMidnight,
+    });
     const ownerClosedBlocks = [...ownerClosedBlockSet(ownerJson, date)];
 
     return {

@@ -182,5 +182,7 @@ export function buildSlotsForDate(
     base,
     date,
     storeMeta?.ownerClosedSlotsJson ?? null,
+    undefined,
+    { slotStartHour: startH, slotEndHour: endH, crossesMidnight },
   );
 }
