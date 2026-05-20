@@ -1,4 +1,4 @@
-import type { Pool, RowDataPacket } from 'mysql2';
+import type { Pool, RowDataPacket } from 'mysql2/promise';
 import {
   formatAutoMenuId,
   parseAutoMenuIdNumber,
