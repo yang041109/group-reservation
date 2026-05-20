@@ -14,7 +14,12 @@ export async function GET(request: Request) {
     const code = result.message.includes('MySQL') || result.message.includes('DB') ? 503 : 400;
     return NextResponse.json(result, { status: code });
   }
-  return NextResponse.json({ success: true, data: result.data });
+  return NextResponse.json({
+    success: true,
+    data: result.data,
+    suggestedStoreId: result.suggestedStoreId,
+    menuReindex: result.menuReindex,
+  });
 }
 
 /** POST /api/admin/manage/stores — 가게 추가 */
@@ -39,5 +44,5 @@ export async function POST(request: Request) {
     const code = result.message.includes('MySQL') || result.message.includes('DB') ? 503 : 400;
     return NextResponse.json(result, { status: code });
   }
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, storeId: result.storeId });
 }

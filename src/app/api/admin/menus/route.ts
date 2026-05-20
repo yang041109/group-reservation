@@ -22,7 +22,11 @@ export async function GET(request: Request) {
   if (!result.success) {
     return NextResponse.json(result, { status: pickStatus(result.message) });
   }
-  return NextResponse.json(result);
+  return NextResponse.json({
+    success: true,
+    data: result.data,
+    suggestedMenuId: result.suggestedMenuId,
+  });
 }
 
 /**

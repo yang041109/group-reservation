@@ -15,7 +15,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ stor
     const code = result.message.includes('MySQL') || result.message.includes('DB') ? 503 : 400;
     return NextResponse.json(result, { status: code });
   }
-  return NextResponse.json({ success: true, data: result.data });
+  return NextResponse.json({
+    success: true,
+    data: result.data,
+    suggestedMenuId: result.suggestedMenuId,
+  });
 }
 
 /** POST /api/admin/manage/stores/[storeId]/menus */

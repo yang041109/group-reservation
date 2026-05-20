@@ -6,6 +6,9 @@ import {
   serializeDepositTiersForDb,
   type DepositMode,
 } from '@/lib/deposit-tiers';
+import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
+import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
+import { anyMenuIdsNeedReindex, reindexAllMenuIds } from '@/lib/menu-id-reindex';
 import { readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import type { DepositTier } from '@/types';
@@ -93,7 +96,13 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
 }
 
 export async function manageListStores(): Promise<
-  { success: true; data: ManageStoreRow[] } | { success: false; message: string }
+  | {
+      success: true;
+      data: ManageStoreRow[];
+      suggestedStoreId: string;
+      menuReindex?: { stores: number; menus: number; reservations: number };
+    }
+  | { success: false; message: string }
 > {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -101,8 +110,19 @@ export async function manageListStores(): Promise<
   try {
     const pool = getPool();
     /** SELECT * — 예약금 구간 컬럼이 아직 없는 DB에서도 목록 조회가 되도록 명시 컬럼 나열을 쓰지 않음 */
+    let menuReindex: { stores: number; menus: number; reservations: number } | undefined;
+    if (await anyMenuIdsNeedReindex(pool)) {
+      try {
+        menuReindex = await reindexAllMenuIds(pool);
+      } catch (e) {
+        console.error('[manageListStores] menu reindex', e);
+      }
+    }
+
     const [rows] = await pool.query<StoreRow[]>('SELECT * FROM store ORDER BY sortOrder ASC, name ASC');
-    return { success: true, data: rows.map(mapStoreRow) };
+    const data = rows.map(mapStoreRow);
+    const suggestedStoreId = suggestNextAutoStoreId(data.map((s) => s.storeId));
+    return { success: true, data, suggestedStoreId, menuReindex };
   } catch (e) {
     console.error('[manageListStores]', e);
     return { success: false, message: formatMysqlUserError(e) };
@@ -267,13 +287,12 @@ export async function manageCreateStore(input: {
   name: string;
   category?: string;
   maxCapacity?: number;
-}): Promise<{ success: true } | { success: false; message: string }> {
+}): Promise<{ success: true; storeId: string } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
   }
-  const storeId = String(input.storeId ?? '').trim();
+  let storeId = String(input.storeId ?? '').trim();
   const name = String(input.name ?? '').trim();
-  if (!storeId) return { success: false, message: '가게 ID(storeId)를 입력하세요.' };
   if (!name) return { success: false, message: '가게 이름을 입력하세요.' };
   const category = String(input.category ?? '').trim();
   const rawCap = Math.floor(Number(input.maxCapacity));
@@ -281,20 +300,35 @@ export async function manageCreateStore(input: {
 
   try {
     const pool = getPool();
-    const [dup] = await pool.query<RowDataPacket[]>('SELECT 1 FROM store WHERE storeId = ? LIMIT 1', [storeId]);
-    if (dup.length) {
-      return { success: false, message: '이미 사용 중인 가게 ID입니다.' };
-    }
-    const [sr] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sortOrder), 0) AS m FROM store');
-    const nextSort = (parseInt(String(sr[0]?.m ?? '0'), 10) || 0) + 10;
-    await pool.execute(
-      `INSERT INTO store (
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!storeId) {
+        const [idRows] = await pool.query<RowDataPacket[]>('SELECT storeId FROM store');
+        storeId = suggestNextAutoStoreId(idRows.map((r) => String(r.storeId ?? '')));
+      }
+
+      const [dup] = await pool.query<RowDataPacket[]>('SELECT 1 FROM store WHERE storeId = ? LIMIT 1', [storeId]);
+      if (dup.length) {
+        if (attempt < 4 && !String(input.storeId ?? '').trim()) {
+          storeId = '';
+          continue;
+        }
+        return { success: false, message: '이미 사용 중인 가게 ID입니다.' };
+      }
+
+      const [sr] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sortOrder), 0) AS m FROM store');
+      const nextSort = (parseInt(String(sr[0]?.m ?? '0'), 10) || 0) + 10;
+      await pool.execute(
+        `INSERT INTO store (
         storeId, name, category, maxCapacity, imageUrl, slotStartHour, slotEndHour,
         depositAmount, description, adminAccessToken, sortOrder
       ) VALUES (?, ?, ?, ?, NULL, 11, 20, 0, NULL, NULL, ?)`,
-      [storeId, name, category || '', maxCap, nextSort],
-    );
-    return { success: true };
+        [storeId, name, category || '', maxCap, nextSort],
+      );
+      return { success: true, storeId };
+    }
+
+    return { success: false, message: '가게 ID를 자동으로 정하지 못했습니다. 잠시 후 다시 시도하세요.' };
   } catch (e) {
     console.error('[manageCreateStore]', e);
     return { success: false, message: formatMysqlUserError(e) };
@@ -351,7 +385,10 @@ function mapMenuRow(r: MenuRow): ManageMenuRow {
 
 export async function manageListMenus(
   storeId: string,
-): Promise<{ success: true; data: ManageMenuRow[] } | { success: false; message: string }> {
+): Promise<
+  | { success: true; data: ManageMenuRow[]; suggestedMenuId: string }
+  | { success: false; message: string }
+> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
   }
@@ -359,11 +396,23 @@ export async function manageListMenus(
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
   try {
     const pool = getPool();
+    if (await anyMenuIdsNeedReindex(pool)) {
+      try {
+        await reindexAllMenuIds(pool);
+      } catch (e) {
+        console.error('[manageListMenus] menu reindex', e);
+      }
+    }
     const [rows] = await pool.query<MenuRow[]>(
       'SELECT storeId, menuId, name, price, category, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY menuId',
       [sid],
     );
-    return { success: true, data: rows.map(mapMenuRow) };
+    const data = rows.map(mapMenuRow);
+    const suggestedMenuId = suggestNextAutoMenuId(
+      sid,
+      data.map((m) => m.menuId),
+    );
+    return { success: true, data, suggestedMenuId };
   } catch (e) {
     console.error('[manageListMenus]', e);
     return { success: false, message: formatMysqlUserError(e) };
@@ -389,9 +438,7 @@ export async function manageInsertMenu(
   const name = String(body.name ?? '').trim();
   if (!name) return { success: false, message: '메뉴 이름이 필요합니다.' };
   const price = Math.max(0, parseInt(String(body.price ?? '0'), 10) || 0);
-  const menuId =
-    String(body.menuId ?? '').trim() ||
-    `menu-${sid}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+  let menuId = String(body.menuId ?? '').trim();
   const category = String(body.category ?? '').trim();
   const isReq = body.isRequired ? 1 : 0;
   const imageUrl =
@@ -399,11 +446,39 @@ export async function manageInsertMenu(
 
   try {
     const pool = getPool();
-    await pool.execute(
-      `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sid, menuId, name, price, category, isReq, imageUrl],
-    );
-    return { success: true, data: { menuId } };
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!menuId) {
+        const [idRows] = await pool.query<RowDataPacket[]>(
+          'SELECT menuId FROM menu WHERE storeId = ?',
+          [sid],
+        );
+        menuId = suggestNextAutoMenuId(
+          sid,
+          idRows.map((r) => String(r.menuId ?? '')),
+        );
+      }
+
+      const [dup] = await pool.query<RowDataPacket[]>(
+        'SELECT 1 FROM menu WHERE storeId = ? AND menuId = ? LIMIT 1',
+        [sid, menuId],
+      );
+      if (dup.length) {
+        if (attempt < 4 && !String(body.menuId ?? '').trim()) {
+          menuId = '';
+          continue;
+        }
+        return { success: false, message: '이미 존재하는 menuId입니다. 다른 ID를 지정하세요.' };
+      }
+
+      await pool.execute(
+        `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [sid, menuId, name, price, category, isReq, imageUrl],
+      );
+      return { success: true, data: { menuId } };
+    }
+
+    return { success: false, message: '메뉴 ID를 자동으로 정하지 못했습니다. 잠시 후 다시 시도하세요.' };
   } catch (e) {
     const err = e as { code?: string };
     if (err.code === 'ER_DUP_ENTRY') {

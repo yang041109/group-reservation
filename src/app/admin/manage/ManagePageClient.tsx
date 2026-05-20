@@ -19,6 +19,8 @@ import {
   serializeClosedDatesForDb,
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
+import { parseAutoMenuIdNumber } from '@/lib/auto-menu-id';
+import { parseAutoStoreIdNumber } from '@/lib/auto-store-id';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
 import DepositSettingsFields, {
   defaultDepositTierRows,
@@ -231,6 +233,21 @@ export default function ManagePageClient() {
         return;
       }
       setStores(data.data || []);
+      const reindex = data.menuReindex as { menus?: number } | undefined;
+      if (reindex?.menus && reindex.menus > 0) {
+        setMsg(
+          `기존 메뉴 ID를 menu-가게ID-숫자 형식으로 정리했습니다. (${reindex.menus}개 메뉴)`,
+        );
+        void invalidateAllDataCache();
+      }
+      const suggested = typeof data.suggestedStoreId === 'string' ? data.suggestedStoreId : '';
+      if (suggested) {
+        setNewStoreId((prev) => {
+          const t = prev.trim();
+          if (!t || parseAutoStoreIdNumber(t) != null) return suggested;
+          return prev;
+        });
+      }
       setShowAuthHint(false);
     } catch {
       setErr('네트워크 오류');
@@ -311,7 +328,19 @@ export default function ManagePageClient() {
     if (!selectedId) return;
     const res = await manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(selectedId)}/menus`);
     const data = await res.json();
-    if (res.ok) setMenus(data.data || []);
+    if (!res.ok) return;
+    setMenus(data.data || []);
+    const suggested =
+      typeof data.suggestedMenuId === 'string' ? data.suggestedMenuId : '';
+    if (suggested) {
+      setNewMenu((prev) => {
+        const t = prev.menuId.trim();
+        if (!t || (selectedId && parseAutoMenuIdNumber(t, selectedId) != null)) {
+          return { ...prev, menuId: suggested };
+        }
+        return prev;
+      });
+    }
   }, [storedSecret, selectedId]);
 
   useEffect(() => {
@@ -398,8 +427,8 @@ export default function ManagePageClient() {
     const id = newStoreId.trim();
     const nm = newStoreName.trim();
     const cap = parseInt(newStoreMaxCap, 10);
-    if (!id || !nm) {
-      setErr('새 가게: 가게 ID와 이름을 입력하세요.');
+    if (!nm) {
+      setErr('새 가게: 이름을 입력하세요.');
       return;
     }
     setLoading(true);
@@ -418,11 +447,11 @@ export default function ManagePageClient() {
         setErr(data.message || '가게 추가 실패');
         return;
       }
-      setMsg('가게를 추가했습니다.');
-      setNewStoreId('');
+      const createdId = typeof data.storeId === 'string' ? data.storeId : id;
+      setMsg(`가게를 추가했습니다. (ID: ${createdId})`);
       setNewStoreName('');
       setNewStoreMaxCap('80');
-      setSelectedId(id);
+      setSelectedId(createdId);
       await loadStores();
     } catch {
       setErr('가게 추가 중 오류');
@@ -554,7 +583,13 @@ export default function ManagePageClient() {
         setErr(data.message || '메뉴 추가 실패');
         return;
       }
-      setNewMenu({ menuId: '', name: '', price: '', isRequired: false, imageUrl: '' });
+      setNewMenu((prev) => ({
+        menuId: '',
+        name: '',
+        price: '',
+        isRequired: false,
+        imageUrl: '',
+      }));
       setMsg('메뉴를 추가했습니다.');
       await loadMenus();
       await loadStores();
@@ -852,13 +887,16 @@ export default function ManagePageClient() {
 
                 <div className="mt-4 border-t border-gray-100 pt-4">
                   <h3 className="text-sm font-semibold text-gray-800">가게 추가</h3>
-                  <input
-                    placeholder="가게 ID (예: store-new)"
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
-                    value={newStoreId}
-                    onChange={(e) => setNewStoreId(e.target.value)}
-                    autoComplete="off"
-                  />
+                  <label className="mt-2 block">
+                    <span className="text-xs text-gray-500">가게 ID (비우면 store-숫자 자동)</span>
+                    <input
+                      placeholder="store-4"
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-mono"
+                      value={newStoreId}
+                      onChange={(e) => setNewStoreId(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </label>
                   <input
                     placeholder="이름"
                     className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
@@ -1028,12 +1066,16 @@ export default function ManagePageClient() {
                       <div className="mt-6 border-t border-gray-100 pt-4">
                         <h4 className="text-sm font-medium text-gray-800">메뉴 추가</h4>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          <input
-                            placeholder="menuId (선택)"
-                            className="rounded border border-gray-300 px-2 py-1.5 text-sm"
-                            value={newMenu.menuId}
-                            onChange={(e) => setNewMenu((n) => ({ ...n, menuId: e.target.value }))}
-                          />
+                          <label className="block sm:col-span-2 lg:col-span-3">
+                            <span className="text-xs text-gray-500">메뉴 ID (비우면 자동)</span>
+                            <input
+                              placeholder={selectedId ? `menu-${selectedId}-1` : 'menu-store-1-1'}
+                              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-sm"
+                              value={newMenu.menuId}
+                              onChange={(e) => setNewMenu((n) => ({ ...n, menuId: e.target.value }))}
+                              autoComplete="off"
+                            />
+                          </label>
                           <input
                             placeholder="이름 *"
                             className="rounded border border-gray-300 px-2 py-1.5 text-sm"
