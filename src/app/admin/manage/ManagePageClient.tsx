@@ -134,6 +134,7 @@ export default function ManagePageClient() {
     menuId: '',
     name: '',
     price: '',
+    category: '',
     isRequired: false,
     imageUrl: '',
   });
@@ -573,7 +574,7 @@ export default function ManagePageClient() {
           menuId: newMenu.menuId.trim() || undefined,
           name: n,
           price: p,
-          category: '',
+          category: newMenu.category.trim(),
           isRequired: newMenu.isRequired,
           imageUrl: newMenu.imageUrl.trim() === '' ? null : newMenu.imageUrl.trim(),
         }),
@@ -587,6 +588,7 @@ export default function ManagePageClient() {
         menuId: '',
         name: '',
         price: '',
+        category: '',
         isRequired: false,
         imageUrl: '',
       }));
@@ -613,7 +615,7 @@ export default function ManagePageClient() {
           body: JSON.stringify({
             name: m.name,
             price: m.price,
-            category: '',
+            category: m.category,
             isRequired: m.isRequired,
             imageUrl: m.imageUrl === null || m.imageUrl === '' ? null : m.imageUrl,
           }),
@@ -626,6 +628,7 @@ export default function ManagePageClient() {
       }
       setMsg('메뉴를 수정했습니다.');
       await loadMenus();
+      void invalidateAllDataCache();
     } catch {
       setErr('메뉴 수정 오류');
     } finally {
@@ -956,6 +959,41 @@ export default function ManagePageClient() {
                           />
                         </label>
 
+                        <StoreBusinessHoursFields
+                          useWeeklyHours={useWeeklyHours}
+                          onUseWeeklyHoursChange={setUseWeeklyHours}
+                          slotStartHour={slotStartHour}
+                          slotEndHour={slotEndHour}
+                          onSlotStartHourChange={setSlotStartHour}
+                          onSlotEndHourChange={setSlotEndHour}
+                          weeklyForm={weeklyForm}
+                          onWeeklyFormChange={setWeeklyForm}
+                          variant="manage"
+                        />
+
+                        <label className="block">
+                          <span className="text-xs text-gray-500">단체 예약 최소 인원</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={999}
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                            value={minGroupHeadcount}
+                            onChange={(e) => setMinGroupHeadcount(e.target.value)}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-500">단체 예약 최대 인원</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={999}
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                            value={maxCapacity}
+                            onChange={(e) => setMaxCapacity(e.target.value)}
+                          />
+                        </label>
+
                         <DepositSettingsFields
                           depositMode={depositMode}
                           onDepositModeChange={setDepositMode}
@@ -1048,6 +1086,7 @@ export default function ManagePageClient() {
                           <thead>
                             <tr className="border-b border-gray-200 text-gray-500">
                               <th className="py-2 pr-2">menuId</th>
+                              <th className="py-2 pr-2">카테고리</th>
                               <th className="py-2 pr-2">이름</th>
                               <th className="py-2 pr-2">가격</th>
                               <th className="py-2 pr-2">이미지 URL</th>
@@ -1057,7 +1096,7 @@ export default function ManagePageClient() {
                           </thead>
                           <tbody>
                             {menus.map((m) => (
-                              <MenuEditRow key={m.menuId} initial={m} onSave={updateMenu} onDelete={deleteMenu} />
+                              <MenuEditRow key={m.menuId} initial={m} onPersist={updateMenu} onDelete={deleteMenu} />
                             ))}
                           </tbody>
                         </table>
@@ -1076,6 +1115,12 @@ export default function ManagePageClient() {
                               autoComplete="off"
                             />
                           </label>
+                          <input
+                            placeholder="카테고리 (예: 메인)"
+                            className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+                            value={newMenu.category}
+                            onChange={(e) => setNewMenu((n) => ({ ...n, category: e.target.value }))}
+                          />
                           <input
                             placeholder="이름 *"
                             className="rounded border border-gray-300 px-2 py-1.5 text-sm"
@@ -1232,11 +1277,11 @@ export default function ManagePageClient() {
 
 function MenuEditRow({
   initial,
-  onSave,
+  onPersist,
   onDelete,
 }: {
   initial: ManageMenu;
-  onSave: (m: ManageMenu) => void | Promise<void>;
+  onPersist: (m: ManageMenu) => void | Promise<void>;
   onDelete: (menuId: string) => void | Promise<void>;
 }) {
   const [m, setM] = useState(initial);
@@ -1244,14 +1289,40 @@ function MenuEditRow({
     setM(initial);
   }, [initial]);
 
+  const flush = () => {
+    setM((cur) => {
+      if (
+        cur.name === initial.name &&
+        cur.price === initial.price &&
+        cur.category === initial.category &&
+        (cur.imageUrl ?? '') === (initial.imageUrl ?? '') &&
+        cur.isRequired === initial.isRequired
+      ) {
+        return cur;
+      }
+      void onPersist(cur);
+      return cur;
+    });
+  };
+
   return (
     <tr className="border-b border-gray-50">
       <td className="py-2 pr-2 font-mono text-[11px] text-gray-600">{m.menuId}</td>
       <td className="py-2 pr-2">
         <input
+          className="w-full min-w-[72px] rounded border border-gray-200 px-1 py-0.5"
+          value={m.category}
+          onChange={(e) => setM((x) => ({ ...x, category: e.target.value }))}
+          onBlur={() => flush()}
+          placeholder="카테고리"
+        />
+      </td>
+      <td className="py-2 pr-2">
+        <input
           className="w-full min-w-[100px] rounded border border-gray-200 px-1 py-0.5"
           value={m.name}
           onChange={(e) => setM((x) => ({ ...x, name: e.target.value }))}
+          onBlur={() => flush()}
         />
       </td>
       <td className="py-2 pr-2">
@@ -1260,6 +1331,7 @@ function MenuEditRow({
           className="w-20 rounded border border-gray-200 px-1 py-0.5"
           value={m.price}
           onChange={(e) => setM((x) => ({ ...x, price: parseInt(e.target.value, 10) || 0 }))}
+          onBlur={() => flush()}
         />
       </td>
       <td className="py-2 pr-2">
@@ -1267,6 +1339,7 @@ function MenuEditRow({
           className="w-full min-w-[120px] max-w-[220px] rounded border border-gray-200 px-1 py-0.5 text-xs"
           value={m.imageUrl ?? ''}
           onChange={(e) => setM((x) => ({ ...x, imageUrl: e.target.value }))}
+          onBlur={() => flush()}
           placeholder="URL"
         />
       </td>
@@ -1274,14 +1347,15 @@ function MenuEditRow({
         <input
           type="checkbox"
           checked={m.isRequired}
-          onChange={(e) => setM((x) => ({ ...x, isRequired: e.target.checked }))}
+          onChange={(e) => {
+            const next = { ...m, isRequired: e.target.checked };
+            setM(next);
+            void onPersist(next);
+          }}
         />
       </td>
-      <td className="py-2 pr-2 whitespace-nowrap">
-        <button type="button" className="text-blue-600 hover:underline" onClick={() => void onSave(m)}>
-          저장
-        </button>
-        <button type="button" className="ml-2 text-red-600 hover:underline" onClick={() => void onDelete(m.menuId)}>
+      <td className="py-2 pr-2 whitespace-nowrap text-right">
+        <button type="button" className="text-red-600 hover:underline" onClick={() => void onDelete(m.menuId)}>
           삭제
         </button>
       </td>
