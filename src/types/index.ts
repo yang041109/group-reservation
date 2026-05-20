@@ -101,6 +101,8 @@ export interface MenuItemData {
   category?: string;
   /** 메뉴 이미지 URL */
   imageUrl?: string;
+  /** 표시 순서(작을수록 앞) */
+  sortOrder?: number;
 }
 
 // --- 예약 상태 ---

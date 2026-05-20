@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS menu (
   name VARCHAR(255) NOT NULL,
   price INT NOT NULL DEFAULT 0,
   category VARCHAR(128) NOT NULL DEFAULT '',
+  sortOrder INT NOT NULL DEFAULT 0 COMMENT '메뉴 표시 순서(작을수록 앞)',
   isRequired TINYINT(1) NOT NULL DEFAULT 0,
   imageUrl TEXT NULL,
   PRIMARY KEY (storeId, menuId),

@@ -19,6 +19,7 @@ import {
   type DepositMode,
   type DepositTier,
 } from '@/lib/deposit-tiers';
+import { sortMenusForDisplay } from '@/lib/menu-order';
 import type { MenuItemData, MinOrderRule } from '@/types';
 
 export class ReservationDbError extends Error {
@@ -59,6 +60,27 @@ type StoreRow = RowDataPacket & Record<string, unknown>;
 type MenuRow = RowDataPacket & Record<string, unknown>;
 type RuleRow = RowDataPacket & Record<string, unknown>;
 type ReservationRow = RowDataPacket & Record<string, unknown>;
+
+function menuRowToItem(m: MenuRow): MenuItemData {
+  const rec = m as Record<string, unknown>;
+  return {
+    id: String(m.menuId ?? '').trim(),
+    name: String(m.name ?? ''),
+    price: parseInt(String(m.price ?? '0'), 10) || 0,
+    category: String(m.category ?? ''),
+    sortOrder: parseInt(String(rec.sortOrder ?? '0'), 10) || 0,
+    isRequired: String(m.isRequired ?? '').toLowerCase() === 'true' || Number(m.isRequired) === 1,
+    imageUrl: String(m.imageUrl ?? ''),
+  };
+}
+
+function menusForStoreId(allMenus: MenuRow[], storeId: string): MenuItemData[] {
+  return sortMenusForDisplay(
+    allMenus
+      .filter((m) => String(m.storeId ?? '').trim() === storeId)
+      .map(menuRowToItem),
+  );
+}
 
 function readStoreDepositOpts(store: StoreRow): {
   depositMode: DepositMode;
@@ -220,14 +242,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         { slotStartHour, slotEndHour, crossesMidnight },
       );
 
-  const menusPayload: MenuItemData[] = storeMenus.map((m) => ({
-    id: String(m.menuId ?? '').trim(),
-    name: String(m.name ?? ''),
-    price: parseInt(String(m.price ?? '0'), 10) || 0,
-    category: String(m.category ?? ''),
-    isRequired: String(m.isRequired ?? '').toLowerCase() === 'true' || Number(m.isRequired) === 1,
-    imageUrl: String(m.imageUrl ?? ''),
-  }));
+  const menusPayload = menusForStoreId(menus, id);
 
   const depOpts = readStoreDepositOpts(store);
 
@@ -596,16 +611,7 @@ export async function getAllDataFromMysql() {
       depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
-      menus: menus
-        .filter((m) => String(m.storeId ?? '').trim() === sid)
-        .map((m) => ({
-          id: String(m.menuId ?? '').trim(),
-          name: m.name,
-          price: parseInt(String(m.price ?? '0'), 10) || 0,
-          category: m.category || '',
-          isRequired: String(m.isRequired ?? '').toLowerCase() === 'true' || Number(m.isRequired) === 1,
-          imageUrl: m.imageUrl || '',
-        })),
+      menus: menusForStoreId(menus, sid),
       minOrderRules: [],
       ownerName:
         rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null,

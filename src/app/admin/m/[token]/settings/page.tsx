@@ -12,6 +12,7 @@ import {
   parseWeeklyHoursJson,
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
+import { swapMenuOrderIds } from '@/lib/menu-order';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
 import DepositSettingsFields, {
   defaultDepositTierRows,
@@ -47,6 +48,7 @@ interface MenuItem {
   menuId: string;
   name: string;
   price: number;
+  category: string;
   isRequired: boolean;
   imageUrl: string | null;
 }
@@ -87,6 +89,7 @@ export default function AdminSettingsPage() {
   // 메뉴 추가 폼
   const [newMenuName, setNewMenuName] = useState('');
   const [newMenuPrice, setNewMenuPrice] = useState('');
+  const [newMenuCategory, setNewMenuCategory] = useState('');
   const [newMenuImageUrl, setNewMenuImageUrl] = useState('');
   const [newMenuRequired, setNewMenuRequired] = useState(false);
   const [menuActionLoading, setMenuActionLoading] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export default function AdminSettingsPage() {
   const [editMenu, setEditMenu] = useState<{
     name: string;
     price: string;
+    category: string;
     imageUrl: string;
     isRequired: boolean;
   } | null>(null);
@@ -273,6 +277,7 @@ export default function AdminSettingsPage() {
           storeId: adminStore.id,
           name: n,
           price: p,
+          category: newMenuCategory.trim() || undefined,
           imageUrl: newMenuImageUrl.trim() || null,
           isRequired: newMenuRequired,
         }),
@@ -281,8 +286,10 @@ export default function AdminSettingsPage() {
       if (data.success) {
         setNewMenuName('');
         setNewMenuPrice('');
+        setNewMenuCategory('');
         setNewMenuImageUrl('');
         setNewMenuRequired(false);
+        void invalidateAllDataCache();
         await reload();
         showMessage('메뉴를 추가했습니다');
       } else {
@@ -300,6 +307,7 @@ export default function AdminSettingsPage() {
     setEditMenu({
       name: m.name,
       price: String(m.price),
+      category: m.category ?? '',
       imageUrl: m.imageUrl ?? '',
       isRequired: m.isRequired,
     });
@@ -327,7 +335,7 @@ export default function AdminSettingsPage() {
           storeId: adminStore.id,
           name: editMenu.name.trim(),
           price: p,
-          category: '',
+          category: editMenu.category.trim(),
           imageUrl: editMenu.imageUrl.trim() || null,
           isRequired: editMenu.isRequired,
         }),
@@ -336,9 +344,41 @@ export default function AdminSettingsPage() {
       if (data.success) {
         await reload();
         cancelEditMenu();
+        void invalidateAllDataCache();
         showMessage('메뉴를 수정했습니다');
       } else {
         alert(data.message || '메뉴 수정 실패');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setMenuActionLoading(null);
+    }
+  };
+
+  const moveMenu = async (menuId: string, dir: -1 | 1) => {
+    const ids = menus.map((m) => m.menuId);
+    const i = ids.indexOf(menuId);
+    const nextIds = swapMenuOrderIds(ids, i, dir);
+    if (nextIds === ids) return;
+    setMenuActionLoading(menuId);
+    try {
+      const res = await fetch('/api/admin/menus/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: adminStore.token,
+          storeId: adminStore.id,
+          menuIds: nextIds,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await reload();
+        void invalidateAllDataCache();
+        showMessage('메뉴 순서를 저장했습니다');
+      } else {
+        alert(data.message || '순서 저장 실패');
       }
     } catch {
       alert('서버 오류가 발생했습니다.');
@@ -573,6 +613,13 @@ export default function AdminSettingsPage() {
                       <div className="space-y-2">
                         <input
                           type="text"
+                          value={editMenu.category}
+                          onChange={(e) => setEditMenu({ ...editMenu, category: e.target.value })}
+                          placeholder="카테고리 (예: 국물류)"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="text"
                           value={editMenu.name}
                           onChange={(e) => setEditMenu({ ...editMenu, name: e.target.value })}
                           placeholder="메뉴명"
@@ -631,9 +678,26 @@ export default function AdminSettingsPage() {
                     key={m.menuId}
                     className="flex items-center gap-3 rounded-xl border border-gray-200 p-3"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700">
-                      {idx + 1}
-                    </span>
+                    <div className="flex shrink-0 flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={isLoading || idx === 0}
+                        onClick={() => void moveMenu(m.menuId, -1)}
+                        className="rounded border border-gray-200 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-30"
+                        aria-label="위로"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isLoading || idx >= menus.length - 1}
+                        onClick={() => void moveMenu(m.menuId, 1)}
+                        className="rounded border border-gray-200 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-30"
+                        aria-label="아래로"
+                      >
+                        ▼
+                      </button>
+                    </div>
                     {m.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -651,7 +715,10 @@ export default function AdminSettingsPage() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-xs text-gray-500">{m.price.toLocaleString()}원</p>
+                      <p className="text-xs text-gray-500">
+                        {m.category ? `${m.category} · ` : ''}
+                        {m.price.toLocaleString()}원
+                      </p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button
@@ -686,6 +753,13 @@ export default function AdminSettingsPage() {
 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
+              <input
+                type="text"
+                value={newMenuCategory}
+                onChange={(e) => setNewMenuCategory(e.target.value)}
+                placeholder="카테고리 (예: 국물류)"
+                className="col-span-2 rounded-lg border border-gray-300 px-3 py-2.5 text-base"
+              />
               <input
                 type="text"
                 value={newMenuName}

@@ -21,6 +21,7 @@ import {
 } from '@/lib/store-weekly-hours';
 import { parseAutoMenuIdNumber } from '@/lib/auto-menu-id';
 import { parseAutoStoreIdNumber } from '@/lib/auto-store-id';
+import { swapMenuOrderIds } from '@/lib/menu-order';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
 import DepositSettingsFields, {
   defaultDepositTierRows,
@@ -654,8 +655,41 @@ export default function ManagePageClient() {
       }
       setMsg('메뉴를 삭제했습니다.');
       await loadMenus();
+      void invalidateAllDataCache();
     } catch {
       setErr('삭제 오류');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const moveMenu = async (menuId: string, dir: -1 | 1) => {
+    if (!selectedId) return;
+    const ids = menus.map((m) => m.menuId);
+    const i = ids.indexOf(menuId);
+    const nextIds = swapMenuOrderIds(ids, i, dir);
+    if (nextIds === ids) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await manageFetch(
+        storedSecret,
+        `/api/admin/manage/stores/${encodeURIComponent(selectedId)}/menus/reorder`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ menuIds: nextIds }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.message || '순서 저장 실패');
+        return;
+      }
+      setMsg('메뉴 순서를 저장했습니다.');
+      await loadMenus();
+      void invalidateAllDataCache();
+    } catch {
+      setErr('순서 저장 오류');
     } finally {
       setLoading(false);
     }
@@ -1135,6 +1169,7 @@ export default function ManagePageClient() {
                         <table className="min-w-full text-left text-sm">
                           <thead>
                             <tr className="border-b border-gray-200 text-gray-500">
+                              <th className="py-2 pr-2">순서</th>
                               <th className="py-2 pr-2">menuId</th>
                               <th className="py-2 pr-2">카테고리</th>
                               <th className="py-2 pr-2">이름</th>
@@ -1145,8 +1180,16 @@ export default function ManagePageClient() {
                             </tr>
                           </thead>
                           <tbody>
-                            {menus.map((m) => (
-                              <MenuEditRow key={m.menuId} initial={m} onPersist={updateMenu} onDelete={deleteMenu} />
+                            {menus.map((m, idx) => (
+                              <MenuEditRow
+                                key={m.menuId}
+                                initial={m}
+                                index={idx}
+                                total={menus.length}
+                                onPersist={updateMenu}
+                                onDelete={deleteMenu}
+                                onMove={(dir) => void moveMenu(m.menuId, dir)}
+                              />
                             ))}
                           </tbody>
                         </table>
@@ -1362,12 +1405,18 @@ export default function ManagePageClient() {
 
 function MenuEditRow({
   initial,
+  index,
+  total,
   onPersist,
   onDelete,
+  onMove,
 }: {
   initial: ManageMenu;
+  index: number;
+  total: number;
   onPersist: (m: ManageMenu) => void | Promise<void>;
   onDelete: (menuId: string) => void | Promise<void>;
+  onMove: (dir: -1 | 1) => void;
 }) {
   const [m, setM] = useState(initial);
   useEffect(() => {
@@ -1392,6 +1441,28 @@ function MenuEditRow({
 
   return (
     <tr className="border-b border-gray-50">
+      <td className="py-2 pr-2 whitespace-nowrap">
+        <div className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+            className="rounded border border-gray-200 px-1.5 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-30"
+            title="위로"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            disabled={index >= total - 1}
+            onClick={() => onMove(1)}
+            className="rounded border border-gray-200 px-1.5 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-30"
+            title="아래로"
+          >
+            ▼
+          </button>
+        </div>
+      </td>
       <td className="py-2 pr-2 font-mono text-[11px] text-gray-600">{m.menuId}</td>
       <td className="py-2 pr-2">
         <input

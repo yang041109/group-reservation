@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import type { MenuItemData } from '@/types';
-import { groupMenusByCategory } from '@/lib/menu-by-category';
+import { menuCategoryLabel } from '@/lib/menu-by-category';
+import { menuCategoriesInDisplayOrder, sortMenusForDisplay } from '@/lib/menu-order';
 
 interface MenuSectionProps {
   menus: MenuItemData[];
@@ -71,6 +73,24 @@ export default function MenuSection({
   quantities,
   onChange,
 }: MenuSectionProps) {
+  const sortedMenus = useMemo(() => sortMenusForDisplay(menus), [menus]);
+  const categories = useMemo(() => menuCategoriesInDisplayOrder(sortedMenus), [sortedMenus]);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  useEffect(() => {
+    if (categories.length === 0) {
+      setSelectedCategory('');
+      return;
+    }
+    setSelectedCategory((prev) => (prev && categories.includes(prev) ? prev : categories[0]));
+  }, [categories]);
+
+  const visibleMenus = useMemo(() => {
+    if (!selectedCategory) return sortedMenus;
+    return sortedMenus.filter((m) => menuCategoryLabel(m.category) === selectedCategory);
+  }, [sortedMenus, selectedCategory]);
+
   const handleQuantityChange = (menuId: string, delta: number) => {
     const current = quantities[menuId] ?? 0;
     const next = Math.max(0, current + delta);
@@ -79,35 +99,52 @@ export default function MenuSection({
     onChange(updated);
   };
 
-  const groups = groupMenusByCategory(menus);
-
   return (
-    <div className="mt-6 space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-gray-900">🍽️ 메뉴 선택</h2>
 
       {menus.length === 0 ? (
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
       ) : (
-        <div className="space-y-6">
-          {groups.map(({ category, items }) => (
-            <div key={category}>
-              <h3 className="mb-2 text-sm font-semibold text-gray-800">{category}</h3>
-              <ul className="space-y-2">
-                {items.map((menu) => {
-                  const qty = quantities[menu.id] ?? 0;
-                  return (
-                    <MenuQuantityRow
-                      key={menu.id}
-                      menu={menu}
-                      qty={qty}
-                      onDelta={(delta) => handleQuantityChange(menu.id, delta)}
-                    />
-                  );
-                })}
-              </ul>
+        <>
+          {categories.length > 1 ? (
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => {
+                const active = cat === selectedCategory;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-gray-900 bg-white text-gray-900 shadow-sm'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          ) : categories.length === 1 ? (
+            <p className="text-sm font-medium text-gray-600">{categories[0]}</p>
+          ) : null}
+
+          <ul className="space-y-2">
+            {visibleMenus.map((menu) => {
+              const qty = quantities[menu.id] ?? 0;
+              return (
+                <MenuQuantityRow
+                  key={menu.id}
+                  menu={menu}
+                  qty={qty}
+                  onDelta={(delta) => handleQuantityChange(menu.id, delta)}
+                />
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );

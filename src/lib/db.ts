@@ -61,6 +61,9 @@ export function formatMysqlUserError(err: unknown): string {
     if (msg.includes('ownerEditNotice') || msg.includes('ownerRejectReason')) {
       return 'DB에 예약 안내 컬럼이 없습니다. docs/mysql-alter-owner-edit-notice.sql 을 실행하거나, 잠시 후 다시 시도해 주세요. (자동 추가가 실패한 경우)';
     }
+    if (msg.includes('sortOrder') && msg.includes('menu')) {
+      return 'DB에 menu.sortOrder 컬럼이 없습니다. docs/menu-sort-order.sql 을 실행하거나 잠시 후 다시 시도해 주세요.';
+    }
     return `DB 스키마와 맞지 않습니다: ${msg || '알 수 없는 컬럼'}`;
   }
   if (typeof e?.message === 'string' && e.message.includes('MYSQL_HOST')) {

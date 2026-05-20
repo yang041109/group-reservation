@@ -169,44 +169,10 @@ export default function AdminDashboardByToken() {
               </div>
             </Link>
 
-            {/* 일정 추가 */}
+            {/* 오늘의 단체 예약 · 캘린더 */}
             <Link
               href={`${base}/calendar`}
-              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                  <svg
-                    className="h-6 w-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              <p className="mt-3 text-sm font-bold text-gray-900">일정 추가</p>
-              <p className="mt-0.5 text-xs text-gray-500">새로운 일정 등록</p>
-            </Link>
-
-            {/* 오늘의 단체 예약 */}
-            <Link
-              href={`${base}/calendar`}
-              className="rounded-xl border border-gray-100 bg-white p-4 transition hover:border-orange-200 hover:shadow-md"
+              className="col-span-2 rounded-xl border border-gray-100 bg-white p-4 transition hover:border-orange-200 hover:shadow-md"
             >
               <div className="flex items-start justify-between">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
@@ -233,9 +199,11 @@ export default function AdminDashboardByToken() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-              <p className="mt-3 text-sm font-bold text-gray-900">오늘의 단체 예약</p>
+              <p className="mt-3 text-sm font-bold text-gray-900">오늘 예약 · 캘린더</p>
               <p className="mt-0.5 text-xs text-gray-500">
-                {loading ? '단체 예약 현황 확인' : `${todayReservationsCount}건 · 현황 확인`}
+                {loading
+                  ? '오늘 단체 예약 확인 · 전화 예약은 캘린더에서 + 일정 등록'
+                  : `오늘 ${todayReservationsCount}건 · 전화로 받은 예약도 캘린더에서 등록`}
               </p>
             </Link>
 
@@ -329,7 +297,7 @@ export default function AdminDashboardByToken() {
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
-            <span className="text-lg font-bold">캘린더 보기</span>
+            <span className="text-lg font-bold">캘린더 열기</span>
           </div>
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

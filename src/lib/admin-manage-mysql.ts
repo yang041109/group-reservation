@@ -9,6 +9,7 @@ import {
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
 import { anyMenuIdsNeedReindex, reindexAllMenuIds } from '@/lib/menu-id-reindex';
+import { ensureMenuSortOrderColumn } from '@/lib/menu-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
@@ -379,6 +380,7 @@ export interface ManageMenuRow {
   name: string;
   price: number;
   category: string;
+  sortOrder: number;
   isRequired: boolean;
   imageUrl: string | null;
 }
@@ -395,6 +397,7 @@ function mapMenuRow(r: MenuRow): ManageMenuRow {
     name: String(r.name ?? '').trim(),
     price: parseInt(String(r.price ?? '0'), 10) || 0,
     category: String(r.category ?? '').trim(),
+    sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
     isRequired: req,
     imageUrl: r.imageUrl != null && String(r.imageUrl).trim() ? String(r.imageUrl) : null,
   };
@@ -413,6 +416,7 @@ export async function manageListMenus(
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
   try {
     const pool = getPool();
+    await ensureMenuSortOrderColumn(pool);
     if (await anyMenuIdsNeedReindex(pool)) {
       try {
         await reindexAllMenuIds(pool);
@@ -421,7 +425,7 @@ export async function manageListMenus(
       }
     }
     const [rows] = await pool.query<MenuRow[]>(
-      'SELECT storeId, menuId, name, price, category, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY menuId',
+      'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC',
       [sid],
     );
     const data = rows.map(mapMenuRow);
@@ -488,9 +492,15 @@ export async function manageInsertMenu(
         return { success: false, message: '이미 존재하는 menuId입니다. 다른 ID를 지정하세요.' };
       }
 
+      const [maxRows] = await pool.query<RowDataPacket[]>(
+        'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM menu WHERE storeId = ?',
+        [sid],
+      );
+      const nextSort = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
+
       await pool.execute(
-        `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [sid, menuId, name, price, category, isReq, imageUrl],
+        `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sid, menuId, name, price, category, nextSort, isReq, imageUrl],
       );
       return { success: true, data: { menuId } };
     }
@@ -589,6 +599,46 @@ export async function manageDeleteMenu(
     return { success: true };
   } catch (e) {
     console.error('[manageDeleteMenu]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 메뉴 표시 순서 일괄 저장 (menuIds 순서대로 10, 20, 30…) */
+export async function manageReorderMenus(
+  storeId: string,
+  orderedMenuIds: string[],
+): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  const ids = orderedMenuIds.map((id) => String(id).trim()).filter(Boolean);
+  if (!ids.length) return { success: false, message: '메뉴 ID 목록이 비어 있습니다.' };
+
+  try {
+    const pool = getPool();
+    await ensureMenuSortOrderColumn(pool);
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (let i = 0; i < ids.length; i++) {
+        await conn.execute('UPDATE menu SET sortOrder = ? WHERE storeId = ? AND menuId = ?', [
+          (i + 1) * 10,
+          sid,
+          ids[i],
+        ]);
+      }
+      await conn.commit();
+      return { success: true };
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('[manageReorderMenus]', e);
     return { success: false, message: formatMysqlUserError(e) };
   }
 }
