@@ -62,7 +62,6 @@ export default function SearchPage() {
                 slotStart,
                 slotEnd,
                 false,
-                s,
               )
             : [];
         return {
