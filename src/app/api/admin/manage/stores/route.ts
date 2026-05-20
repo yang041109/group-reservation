@@ -18,7 +18,6 @@ export async function GET(request: Request) {
     success: true,
     data: result.data,
     suggestedStoreId: result.suggestedStoreId,
-    menuReindex: result.menuReindex,
   });
 }
 

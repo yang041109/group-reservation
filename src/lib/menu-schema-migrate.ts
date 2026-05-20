@@ -2,7 +2,7 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 
 let ensurePromise: Promise<void> | null = null;
 
-async function menuColumnExists(pool: Pool, column: string): Promise<boolean> {
+export async function menuColumnExists(pool: Pool, column: string): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu' AND COLUMN_NAME = ?
@@ -12,9 +12,13 @@ async function menuColumnExists(pool: Pool, column: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** menu.sortOrder 컬럼이 없으면 추가 */
-export async function ensureMenuSortOrderColumn(pool: Pool): Promise<void> {
-  if (ensurePromise) return ensurePromise;
+/** menu.sortOrder 컬럼이 없으면 추가. 성공 시 true, 실패(권한 등) 시 false */
+export async function ensureMenuSortOrderColumn(pool: Pool): Promise<boolean> {
+  if (await menuColumnExists(pool, 'sortOrder')) return true;
+  if (ensurePromise) {
+    await ensurePromise;
+    return menuColumnExists(pool, 'sortOrder');
+  }
 
   ensurePromise = (async () => {
     if (await menuColumnExists(pool, 'sortOrder')) return;
@@ -44,10 +48,19 @@ export async function ensureMenuSortOrderColumn(pool: Pool): Promise<void> {
         String(r.menuId ?? ''),
       ]);
     }
-  })().catch((e) => {
-    ensurePromise = null;
-    throw e;
-  });
+  })()
+    .catch((e) => {
+      console.warn('[ensureMenuSortOrderColumn]', e);
+    })
+    .finally(() => {
+      ensurePromise = null;
+    });
 
-  return ensurePromise;
+  await ensurePromise;
+  return menuColumnExists(pool, 'sortOrder');
+}
+
+export async function menuHasSortOrderColumn(pool: Pool): Promise<boolean> {
+  if (await menuColumnExists(pool, 'sortOrder')) return true;
+  return ensureMenuSortOrderColumn(pool);
 }

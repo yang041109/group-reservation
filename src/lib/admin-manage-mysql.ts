@@ -8,8 +8,7 @@ import {
 } from '@/lib/deposit-tiers';
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
-import { anyMenuIdsNeedReindex, reindexAllMenuIds } from '@/lib/menu-id-reindex';
-import { ensureMenuSortOrderColumn } from '@/lib/menu-schema-migrate';
+import { menuHasSortOrderColumn } from '@/lib/menu-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
@@ -113,7 +112,6 @@ export async function manageListStores(): Promise<
       success: true;
       data: ManageStoreRow[];
       suggestedStoreId: string;
-      menuReindex?: { stores: number; menus: number; reservations: number };
     }
   | { success: false; message: string }
 > {
@@ -123,19 +121,10 @@ export async function manageListStores(): Promise<
   try {
     const pool = getPool();
     /** SELECT * — 예약금 구간 컬럼이 아직 없는 DB에서도 목록 조회가 되도록 명시 컬럼 나열을 쓰지 않음 */
-    let menuReindex: { stores: number; menus: number; reservations: number } | undefined;
-    if (await anyMenuIdsNeedReindex(pool)) {
-      try {
-        menuReindex = await reindexAllMenuIds(pool);
-      } catch (e) {
-        console.error('[manageListStores] menu reindex', e);
-      }
-    }
-
     const [rows] = await pool.query<StoreRow[]>('SELECT * FROM store ORDER BY sortOrder ASC, name ASC');
     const data = rows.map(mapStoreRow);
     const suggestedStoreId = suggestNextAutoStoreId(data.map((s) => s.storeId));
-    return { success: true, data, suggestedStoreId, menuReindex };
+    return { success: true, data, suggestedStoreId };
   } catch (e) {
     console.error('[manageListStores]', e);
     return { success: false, message: formatMysqlUserError(e) };
@@ -416,16 +405,11 @@ export async function manageListMenus(
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
   try {
     const pool = getPool();
-    await ensureMenuSortOrderColumn(pool);
-    if (await anyMenuIdsNeedReindex(pool)) {
-      try {
-        await reindexAllMenuIds(pool);
-      } catch (e) {
-        console.error('[manageListMenus] menu reindex', e);
-      }
-    }
+    const hasSort = await menuHasSortOrderColumn(pool);
     const [rows] = await pool.query<MenuRow[]>(
-      'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC',
+      hasSort
+        ? 'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC'
+        : 'SELECT storeId, menuId, name, price, category, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY menuId ASC',
       [sid],
     );
     const data = rows.map(mapMenuRow);
@@ -492,16 +476,23 @@ export async function manageInsertMenu(
         return { success: false, message: '이미 존재하는 menuId입니다. 다른 ID를 지정하세요.' };
       }
 
-      const [maxRows] = await pool.query<RowDataPacket[]>(
-        'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM menu WHERE storeId = ?',
-        [sid],
-      );
-      const nextSort = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
-
-      await pool.execute(
-        `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [sid, menuId, name, price, category, nextSort, isReq, imageUrl],
-      );
+      const hasSort = await menuHasSortOrderColumn(pool);
+      if (hasSort) {
+        const [maxRows] = await pool.query<RowDataPacket[]>(
+          'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM menu WHERE storeId = ?',
+          [sid],
+        );
+        const nextSort = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
+        await pool.execute(
+          `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [sid, menuId, name, price, category, nextSort, isReq, imageUrl],
+        );
+      } else {
+        await pool.execute(
+          `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [sid, menuId, name, price, category, isReq, imageUrl],
+        );
+      }
       return { success: true, data: { menuId } };
     }
 
@@ -618,7 +609,10 @@ export async function manageReorderMenus(
 
   try {
     const pool = getPool();
-    await ensureMenuSortOrderColumn(pool);
+    const hasSort = await menuHasSortOrderColumn(pool);
+    if (!hasSort) {
+      return { success: true };
+    }
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();

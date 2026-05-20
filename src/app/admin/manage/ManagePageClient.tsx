@@ -235,13 +235,6 @@ export default function ManagePageClient() {
         return;
       }
       setStores(data.data || []);
-      const reindex = data.menuReindex as { menus?: number } | undefined;
-      if (reindex?.menus && reindex.menus > 0) {
-        setMsg(
-          `기존 메뉴 ID를 menu-가게ID-숫자 형식으로 정리했습니다. (${reindex.menus}개 메뉴)`,
-        );
-        void invalidateAllDataCache();
-      }
       const suggested = typeof data.suggestedStoreId === 'string' ? data.suggestedStoreId : '';
       if (suggested) {
         setNewStoreId((prev) => {
@@ -330,8 +323,12 @@ export default function ManagePageClient() {
     if (!selectedId) return;
     const res = await manageFetch(storedSecret, `/api/admin/manage/stores/${encodeURIComponent(selectedId)}/menus`);
     const data = await res.json();
-    if (!res.ok) return;
-    setMenus(data.data || []);
+    if (!res.ok || data.success === false) {
+      setErr(data.message || '메뉴 목록을 불러오지 못했습니다.');
+      setMenus([]);
+      return;
+    }
+    setMenus(Array.isArray(data.data) ? data.data : []);
     const suggested =
       typeof data.suggestedMenuId === 'string' ? data.suggestedMenuId : '';
     if (suggested) {
@@ -1164,7 +1161,17 @@ export default function ManagePageClient() {
                     </section>
 
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                      <h3 className="mb-3 font-semibold text-gray-900">메뉴</h3>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="font-semibold text-gray-900">메뉴</h3>
+                        <span className="text-xs text-gray-500">{menus.length}개</span>
+                      </div>
+                      {menus.length === 0 ? (
+                        <p className="mb-3 text-sm text-gray-500">
+                          등록된 메뉴가 없습니다. 아래에서 추가하거나, 오류 메시지가 있으면 DB에{' '}
+                          <code className="rounded bg-gray-100 px-1">docs/menu-sort-order.sql</code> 실행을
+                          확인하세요.
+                        </p>
+                      ) : null}
                       <div className="overflow-x-auto">
                         <table className="min-w-full text-left text-sm">
                           <thead>

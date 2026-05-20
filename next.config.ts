@@ -10,8 +10,12 @@ function readBuildId(): string {
 }
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   env: {
     NEXT_PUBLIC_BUILD_ID: readBuildId(),
+  },
+  experimental: {
+    optimizePackageImports: ['swr'],
   },
   async redirects() {
     return [

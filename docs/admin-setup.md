@@ -106,10 +106,14 @@ cd /path/to/group-reservation
 git pull origin main
 npm ci
 npm run build
+npm prune --omit=dev
 # pm2 사용 시 예:
 # pm2 restart urr
-# systemd 사용 시 해당 서비스 restart
 ```
+
+`npm prune --omit=dev` 는 빌드가 끝난 뒤에 실행하세요. (Tailwind·TypeScript는 빌드 시에만 필요)
+
+로컬 개발: `npm ci` 후 `npm run dev` (Turbopack 사용)
 
 Vercel 등 **서버리스**에서 네이버 클라우드 MySQL로 붙을 때는 아래를 맞춰야 합니다.
 

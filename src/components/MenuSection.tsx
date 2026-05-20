@@ -76,19 +76,19 @@ export default function MenuSection({
   const sortedMenus = useMemo(() => sortMenusForDisplay(menus), [menus]);
   const categories = useMemo(() => menuCategoriesInDisplayOrder(sortedMenus), [sortedMenus]);
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  /** null = 전체 보기 */
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    if (categories.length === 0) {
-      setSelectedCategory('');
-      return;
-    }
-    setSelectedCategory((prev) => (prev && categories.includes(prev) ? prev : categories[0]));
-  }, [categories]);
+    setSelectedCategory(null);
+  }, [menus]);
 
   const visibleMenus = useMemo(() => {
     if (!selectedCategory) return sortedMenus;
-    return sortedMenus.filter((m) => menuCategoryLabel(m.category) === selectedCategory);
+    const filtered = sortedMenus.filter(
+      (m) => menuCategoryLabel(m.category) === selectedCategory,
+    );
+    return filtered.length > 0 ? filtered : sortedMenus;
   }, [sortedMenus, selectedCategory]);
 
   const handleQuantityChange = (menuId: string, delta: number) => {
@@ -109,6 +109,17 @@ export default function MenuSection({
         <>
           {categories.length > 1 ? (
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory(null)}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  selectedCategory === null
+                    ? 'border-gray-900 bg-white text-gray-900 shadow-sm'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                }`}
+              >
+                전체
+              </button>
               {categories.map((cat) => {
                 const active = cat === selectedCategory;
                 return (
