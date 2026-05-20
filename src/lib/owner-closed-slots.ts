@@ -140,3 +140,52 @@ export function timeBlocksInRange(
   const hi = Math.max(a, b);
   return allBlocks.slice(lo, hi + 1);
 }
+
+/** 마지막 30분 슬롯의 종료 시각 (표시용) */
+export function timeBlockRangeEndLabel(lastBlock: string): string {
+  const mins = minutesFromTimeBlock(lastBlock) + 30;
+  const h = Math.floor(mins / 60) % 24;
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function formatOwnerClosedRangeLabel(startBlock: string, endBlock: string): string {
+  return `${startBlock}~${timeBlockRangeEndLabel(endBlock)}`;
+}
+
+export type OwnerClosedDisplayRange = {
+  start: string;
+  endBlock: string;
+  blocks: string[];
+};
+
+/** 영업 슬롯 순서대로 연속된 마감 블록을 구간으로 묶음 */
+export function groupOwnerClosedBlocks(
+  closedBlocks: string[],
+  allBlocks: string[],
+): OwnerClosedDisplayRange[] {
+  const closed = new Set(closedBlocks);
+  const ranges: OwnerClosedDisplayRange[] = [];
+  let current: string[] = [];
+
+  const flush = () => {
+    if (current.length) {
+      ranges.push({
+        start: current[0],
+        endBlock: current[current.length - 1],
+        blocks: [...current],
+      });
+      current = [];
+    }
+  };
+
+  for (const b of allBlocks) {
+    if (closed.has(b)) {
+      current.push(b);
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return ranges;
+}

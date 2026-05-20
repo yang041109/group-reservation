@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyOwnerClosedBlocksToSlots,
+  formatOwnerClosedRangeLabel,
+  groupOwnerClosedBlocks,
   isSlotPastForToday,
   timeBlocksInRange,
 } from '@/lib/owner-closed-slots';
@@ -57,6 +59,15 @@ describe('owner-closed-slots', () => {
       ['00:00', true],
       ['01:00', true],
     ]);
+  });
+
+  it('groups consecutive closed blocks into display ranges', () => {
+    const all = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
+    const closed = ['17:00', '17:30', '19:00', '19:30', '20:00'];
+    const ranges = groupOwnerClosedBlocks(closed, all);
+    expect(ranges).toHaveLength(2);
+    expect(formatOwnerClosedRangeLabel(ranges[0].start, ranges[0].endBlock)).toBe('17:00~18:00');
+    expect(formatOwnerClosedRangeLabel(ranges[1].start, ranges[1].endBlock)).toBe('19:00~20:30');
   });
 
   it('timeBlocksInRange includes endpoints', () => {
