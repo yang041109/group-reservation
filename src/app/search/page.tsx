@@ -110,9 +110,8 @@ export default function SearchPage() {
   const filteredStores = useMemo(() => {
     return storeCards.filter((store) => {
       if (selectedDate && store.closedOnDate) return false;
-      if (selectedHeadcount === 0) return true;
       const minGroup = store.minGroupHeadcount ?? 2;
-      if (selectedHeadcount < minGroup) return false;
+      if (selectedHeadcount > 0 && selectedHeadcount < minGroup) return false;
       if (store.maxCapacity > 0 && selectedHeadcount > store.maxCapacity) return false;
       if (selectedDate && selectedHeadcount > 0) {
         return isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);
@@ -179,7 +178,7 @@ export default function SearchPage() {
         />
         <HeadcountSelector
           maxCapacity={999}
-          minCapacity={0}
+          minCapacity={1}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
           className="w-full"

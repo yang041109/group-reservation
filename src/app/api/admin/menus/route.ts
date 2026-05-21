@@ -76,6 +76,12 @@ export async function POST(request: Request) {
         : body.imageUrl !== undefined
           ? String(body.imageUrl)
           : undefined,
+    description:
+      body.description === null
+        ? null
+        : body.description !== undefined
+          ? String(body.description)
+          : undefined,
   });
   if (!result.success) {
     return NextResponse.json(result, { status: pickStatus(result.message) });

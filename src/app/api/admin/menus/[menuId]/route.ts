@@ -59,6 +59,9 @@ export async function PATCH(
   if (body.imageUrl !== undefined) {
     patch.imageUrl = body.imageUrl === null ? null : String(body.imageUrl);
   }
+  if (body.description !== undefined) {
+    patch.description = body.description === null ? null : String(body.description);
+  }
 
   const result = await manageUpdateMenu(sid, menuId, patch);
   if (!result.success) {

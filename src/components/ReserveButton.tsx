@@ -2,6 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 
+interface MenuItemInput {
+  id: string;
+  name: string;
+  price: number;
+  isRequired?: boolean;
+}
+
 interface ReserveButtonProps {
   selectedHeadcount: number;
   selectedDate: string | null;
@@ -10,7 +17,7 @@ interface ReserveButtonProps {
   storeId: string;
   storeName: string;
   menuQuantities: Record<string, number>;
-  menus: { id: string; name: string; price: number }[];
+  menus: MenuItemInput[];
   /** 예약 확정 시 저장되는 예약금(인원 구간 반영) */
   expectedDeposit: number;
   ownerName?: string | null;
@@ -37,7 +44,14 @@ export default function ReserveButton({
   const dateNotSelected = selectedDate === null;
   const timeNotSelected = selectedTime === null;
   const belowGroupMin = selectedHeadcount < minGroupHeadcount;
-  const isDisabled = dateNotSelected || timeNotSelected || belowGroupMin;
+
+  // 필수 메뉴 미선택 여부 확인
+  const requiredMenus = menus.filter((m) => m.isRequired);
+  const missingRequired = requiredMenus.filter((m) => (menuQuantities[m.id] ?? 0) < 1);
+  const requiredMenuNotSelected = missingRequired.length > 0;
+
+  const isDisabled =
+    dateNotSelected || timeNotSelected || belowGroupMin || requiredMenuNotSelected;
 
   let validationMessage: string | null = null;
   if (dateNotSelected) {
@@ -46,6 +60,9 @@ export default function ReserveButton({
     validationMessage = '시간을 선택해주세요';
   } else if (belowGroupMin) {
     validationMessage = `단체예약은 ${minGroupHeadcount}명 이상부터 가능합니다`;
+  } else if (requiredMenuNotSelected) {
+    const names = missingRequired.map((m) => m.name).join(', ');
+    validationMessage = `필수 메뉴를 선택해주세요: ${names}`;
   }
 
   const handleClick = () => {

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS menu (
   sortOrder INT NOT NULL DEFAULT 0 COMMENT '메뉴 표시 순서(작을수록 앞)',
   isRequired TINYINT(1) NOT NULL DEFAULT 0,
   imageUrl TEXT NULL,
+  description TEXT NULL COMMENT '메뉴 설명 (재료, 특징 등)',
   PRIMARY KEY (storeId, menuId),
   CONSTRAINT fk_menu_store FOREIGN KEY (storeId) REFERENCES store (storeId) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
