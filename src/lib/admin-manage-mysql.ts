@@ -433,6 +433,7 @@ export async function manageInsertMenu(
     category?: string;
     isRequired?: boolean;
     imageUrl?: string | null;
+    description?: string | null;
   },
 ): Promise<{ success: true; data: { menuId: string } } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
@@ -448,6 +449,8 @@ export async function manageInsertMenu(
   const isReq = body.isRequired ? 1 : 0;
   const imageUrl =
     body.imageUrl == null || String(body.imageUrl).trim() === '' ? null : String(body.imageUrl).trim();
+  const description =
+    body.description == null || String(body.description).trim() === '' ? null : String(body.description).trim();
 
   try {
     const pool = getPool();
@@ -484,13 +487,13 @@ export async function manageInsertMenu(
         );
         const nextSort = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
         await pool.execute(
-          `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [sid, menuId, name, price, category, nextSort, isReq, imageUrl],
+          `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [sid, menuId, name, price, category, nextSort, isReq, imageUrl, description],
         );
       } else {
         await pool.execute(
-          `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [sid, menuId, name, price, category, isReq, imageUrl],
+          `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [sid, menuId, name, price, category, isReq, imageUrl, description],
         );
       }
       return { success: true, data: { menuId } };
