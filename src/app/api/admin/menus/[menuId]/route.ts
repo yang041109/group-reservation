@@ -42,6 +42,7 @@ export async function PATCH(
     category?: string;
     isRequired?: boolean;
     imageUrl?: string | null;
+    description?: string | null;
   } = {};
   if (body.name !== undefined) patch.name = String(body.name);
   if (body.price !== undefined) {
