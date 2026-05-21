@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { MenuReceiptLine } from '@/components/TotalPrice';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   formatTierDepositLabel,
@@ -238,10 +239,26 @@ export default function StoreDetailPageClient() {
     flatDepositAmount: store.depositAmount ?? 0,
   });
 
-  const totalAmount = Object.entries(menuQuantities).reduce((sum, [menuId, qty]) => {
-    const menu = menus.find((m) => m.id === menuId);
-    return sum + (menu ? menu.price * qty : 0);
-  }, 0);
+  const menuReceiptLines = useMemo((): MenuReceiptLine[] => {
+    const order = new Map(menus.map((m, i) => [m.id, i]));
+    return Object.entries(menuQuantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([menuId, quantity]) => {
+        const menu = menus.find((m) => m.id === menuId);
+        if (!menu) return null;
+        return {
+          menuId,
+          name: menu.name,
+          quantity,
+          unitPrice: menu.price,
+          lineTotal: menu.price * quantity,
+        };
+      })
+      .filter((line): line is MenuReceiptLine => line !== null)
+      .sort((a, b) => (order.get(a.menuId) ?? 0) - (order.get(b.menuId) ?? 0));
+  }, [menuQuantities, menus]);
+
+  const totalAmount = menuReceiptLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
   const dateDisplay = selectedDate
     ? (() => {
@@ -351,7 +368,11 @@ export default function StoreDetailPageClient() {
 
       <MenuSection menus={menus} quantities={menuQuantities} onChange={setMenuQuantities} />
 
-      <TotalPrice totalAmount={totalAmount} minOrderAmount={0} />
+      <TotalPrice
+        totalAmount={totalAmount}
+        minOrderAmount={0}
+        receiptLines={menuReceiptLines}
+      />
 
       <div className="h-28" />
 
