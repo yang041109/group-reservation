@@ -196,6 +196,29 @@ export default function StoreDetailPageClient() {
     };
   }, [storeId, searchParams]);
 
+  const menusForReceipt = data?.menus ?? [];
+
+  const menuReceiptLines = useMemo((): MenuReceiptLine[] => {
+    const order = new Map(menusForReceipt.map((m, i) => [m.id, i]));
+    return Object.entries(menuQuantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([menuId, quantity]) => {
+        const menu = menusForReceipt.find((m) => m.id === menuId);
+        if (!menu) return null;
+        return {
+          menuId,
+          name: menu.name,
+          quantity,
+          unitPrice: menu.price,
+          lineTotal: menu.price * quantity,
+        };
+      })
+      .filter((line): line is MenuReceiptLine => line !== null)
+      .sort((a, b) => (order.get(a.menuId) ?? 0) - (order.get(b.menuId) ?? 0));
+  }, [menuQuantities, menusForReceipt]);
+
+  const totalAmount = menuReceiptLines.reduce((sum, line) => sum + line.lineTotal, 0);
+
   if (loading) {
     return (
       <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
@@ -238,27 +261,6 @@ export default function StoreDetailPageClient() {
     depositTiers: store.depositTiers ?? [],
     flatDepositAmount: store.depositAmount ?? 0,
   });
-
-  const menuReceiptLines = useMemo((): MenuReceiptLine[] => {
-    const order = new Map(menus.map((m, i) => [m.id, i]));
-    return Object.entries(menuQuantities)
-      .filter(([, qty]) => qty > 0)
-      .map(([menuId, quantity]) => {
-        const menu = menus.find((m) => m.id === menuId);
-        if (!menu) return null;
-        return {
-          menuId,
-          name: menu.name,
-          quantity,
-          unitPrice: menu.price,
-          lineTotal: menu.price * quantity,
-        };
-      })
-      .filter((line): line is MenuReceiptLine => line !== null)
-      .sort((a, b) => (order.get(a.menuId) ?? 0) - (order.get(b.menuId) ?? 0));
-  }, [menuQuantities, menus]);
-
-  const totalAmount = menuReceiptLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
   const dateDisplay = selectedDate
     ? (() => {
