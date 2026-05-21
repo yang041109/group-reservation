@@ -104,9 +104,9 @@ export default function LandingHero() {
           className="landing-hero-enter landing-hero-enter--3 mx-auto mb-10 max-w-[580px] font-normal leading-relaxed text-[var(--ink-3)]"
           style={{ fontSize: 'clamp(16px, 1.6vw, 19px)' }}
         >
-          10명 이상 단체 회식, 동아리 모임까지.
+          오늘 회식 인원과 날짜만 선택하세요.
           <br />
-          매장에 전화 돌릴 필요 없이, 우르르에서 한 번에 자리 잡으세요.
+          지금 단체석 비어있는 매장만 우르르 찾아드립니다.
         </p>
 
         <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto w-full max-w-[720px] text-left">
@@ -126,19 +126,19 @@ export default function LandingHero() {
             />
             <button
               type="button"
-              className="btn btn-primary w-full"
+              className="btn btn-primary landing-cta-bounce w-full"
               style={{ minHeight: 56, padding: '0 24px', borderRadius: 18, fontSize: 15 }}
               onClick={() => void goSearch()}
               disabled={going || !selectedDate}
             >
               <Icon name="search" size={18} color="white" />
-              {going ? '이동 중…' : '자리 찾기'}
+              {going ? '이동 중…' : '3초만에 자리 찾기'}
             </button>
           </div>
         </div>
 
         <div className="mt-[18px] text-[13.5px] text-[var(--ink-4)]">
-          날짜와 인원을 정한 뒤 자리 찾기를 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel}{people > 0 ? ` · ${people}명` : ' · 인원 미선택'}
+          날짜와 인원을 정한 뒤 버튼을 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel}{people > 0 ? ` · ${people}명` : ' · 인원 미선택'}
         </div>
       </div>
     </section>
