@@ -314,6 +314,45 @@
   width: 100%;
 }
 
+/* 모바일: 섹션·블록 간 여백 축소 */
+@media (max-width: 640px) {
+  .landing-root main section:not(.landing-hero-section) {
+    padding-top: 48px !important;
+    padding-bottom: 48px !important;
+  }
+
+  .landing-root .landing-hero-booking .hero-widget {
+    gap: 10px;
+  }
+
+  .landing-root .problem-grid {
+    gap: 28px !important;
+  }
+
+  .landing-root .how-grid {
+    gap: 22px !important;
+  }
+
+  .landing-root main section [style*='marginBottom: 64'],
+  .landing-root main section [style*='marginBottom: 56'] {
+    margin-bottom: 28px !important;
+  }
+
+  .landing-root main section [style*='marginBottom: 36'],
+  .landing-root main section [style*='marginBottom: 32'] {
+    margin-bottom: 18px !important;
+  }
+
+  .landing-root main section [style*='marginBottom: 24'],
+  .landing-root main section [style*='marginBottom: 18'] {
+    margin-bottom: 12px !important;
+  }
+
+  .landing-root main section .pill[style*='marginBottom'] {
+    margin-bottom: 10px !important;
+  }
+}
+
 .landing-root .landing-hero-booking .hero-widget > * {
   width: 100%;
   min-width: 0;

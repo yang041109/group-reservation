@@ -49,7 +49,7 @@ export default function LandingHero() {
   };
 
   return (
-    <section className="relative overflow-hidden pb-20 pt-[132px] sm:pb-[80px]">
+    <section className="landing-hero-section relative overflow-hidden pb-10 pt-[100px] sm:pb-[80px] sm:pt-[132px]">
       <div className="deco-dot" style={{ width: 60, height: 60, background: 'var(--pastel-blue)', top: 140, left: '6%' }} />
       <div className="deco-dot" style={{ width: 14, height: 14, background: 'var(--urr-yellow)', top: 220, left: '14%' }} />
       <div className="deco-dot" style={{ width: 28, height: 28, background: 'var(--pastel-yellow)', top: 380, right: '8%' }} />
@@ -58,13 +58,13 @@ export default function LandingHero() {
       <div className="deco-dot" style={{ width: 10, height: 10, background: '#43a0ff', top: 320, left: '46%', opacity: 0.5 }} />
 
       <div className="container relative z-[1] text-center">
-        <div className="landing-hero-enter landing-hero-enter--1 pill mb-6">
+        <div className="landing-hero-enter landing-hero-enter--1 pill mb-3 sm:mb-6">
           <span className="dot" />
           전화 통화 없이, 단체예약 한 번에
         </div>
 
         <h1
-          className="landing-hero-enter landing-hero-enter--2 mx-auto mb-[18px] font-extrabold tracking-tight text-[var(--ink)]"
+          className="landing-hero-enter landing-hero-enter--2 mx-auto mb-3 font-extrabold tracking-tight text-[var(--ink)] sm:mb-[18px]"
           style={{ fontSize: 'clamp(48px, 8vw, 96px)', lineHeight: 1.02, letterSpacing: '-0.045em' }}
         >
           <span className="flex flex-wrap items-baseline justify-center gap-2">
@@ -101,7 +101,7 @@ export default function LandingHero() {
         </h1>
 
         <p
-          className="landing-hero-enter landing-hero-enter--3 mx-auto mb-10 max-w-[580px] font-normal leading-relaxed text-[var(--ink-3)]"
+          className="landing-hero-enter landing-hero-enter--3 mx-auto mb-5 max-w-[580px] font-normal leading-relaxed text-[var(--ink-3)] sm:mb-10"
           style={{ fontSize: 'clamp(16px, 1.6vw, 19px)' }}
         >
           오늘 회식 인원과 날짜만 선택하세요.
@@ -110,7 +110,7 @@ export default function LandingHero() {
         </p>
 
         <div id="hero-booking" className="landing-hero-enter landing-hero-enter--4 landing-hero-booking mx-auto w-full max-w-[720px] text-left">
-          <div className="hero-widget !flex !w-full !max-w-none !flex-col !gap-4 !p-0 !shadow-none !bg-transparent">
+          <div className="hero-widget !flex !w-full !max-w-none !flex-col !gap-2.5 !p-0 !shadow-none !bg-transparent sm:!gap-4">
             <DateSelector
               selectedDate={selectedDate}
               onChange={(d) => setSelectedDate(d)}
@@ -118,7 +118,7 @@ export default function LandingHero() {
               className="w-full"
             />
             <HeadcountSelector
-              maxCapacity={60}
+              maxCapacity={999}
               minCapacity={0}
               selectedHeadcount={people}
               onChange={setPeople}
@@ -137,7 +137,7 @@ export default function LandingHero() {
           </div>
         </div>
 
-        <div className="mt-[18px] text-[13.5px] text-[var(--ink-4)]">
+        <div className="mt-2.5 text-[13px] text-[var(--ink-4)] sm:mt-[18px] sm:text-[13.5px]">
           날짜와 인원을 정한 뒤 버튼을 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel}{people > 0 ? ` · ${people}명` : ' · 인원 미선택'}
         </div>
       </div>
