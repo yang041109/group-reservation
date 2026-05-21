@@ -516,6 +516,7 @@ export async function manageUpdateMenu(
     category?: string;
     isRequired?: boolean;
     imageUrl?: string | null;
+    description?: string | null;
   },
 ): Promise<{ success: true } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
@@ -546,6 +547,10 @@ export async function manageUpdateMenu(
   if (patch.imageUrl !== undefined) {
     sets.push('imageUrl = ?');
     params.push(patch.imageUrl == null || String(patch.imageUrl).trim() === '' ? null : String(patch.imageUrl));
+  }
+  if (patch.description !== undefined) {
+    sets.push('description = ?');
+    params.push(patch.description == null || String(patch.description).trim() === '' ? null : String(patch.description).trim());
   }
   if (!sets.length) {
     return { success: false, message: '수정할 필드가 없습니다.' };
