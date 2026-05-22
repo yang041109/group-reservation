@@ -119,8 +119,14 @@ export default function StoreDetailPageClient() {
             const dayRange = dateVal
               ? getSlotHourRangeForStoreOnDate(found, dateVal)
               : null;
-            const slots =
-              dateVal && dayRange && !dayRange.closed
+
+            type CachedZone = { zoneId: string; name: string; maxCapacity: number; sortOrder?: number };
+            const cachedZones: CachedZone[] = Array.isArray(found.zones) ? found.zones : [];
+            const hasCachedZones = cachedZones.length > 0;
+
+            // store 전체 슬롯(zone 미운영 가게용, 또는 zone 운영 가게의 호환 필드용)
+            const storeSlots =
+              dateVal && dayRange && !dayRange.closed && !hasCachedZones
                 ? buildSlotsForDate(
                     storeId,
                     dateVal,
@@ -132,12 +138,53 @@ export default function StoreDetailPageClient() {
                     { ownerClosedSlotsJson: found.ownerClosedSlotsJson },
                   )
                 : [];
+
+            // zone 운영 가게: 동마다 슬롯을 별도로 계산
+            const zonesPayload = hasCachedZones
+              ? cachedZones.map((z) => {
+                  const zSlots =
+                    dateVal && dayRange && !dayRange.closed
+                      ? buildSlotsForDate(
+                          storeId,
+                          dateVal,
+                          z.maxCapacity,
+                          resData,
+                          dayRange.slotStartHour,
+                          dayRange.slotEndHour,
+                          false,
+                          {
+                            ownerClosedSlotsJson: found.ownerClosedSlotsJson,
+                            zoneId: z.zoneId,
+                          },
+                        )
+                      : [];
+                  return {
+                    zoneId: z.zoneId,
+                    name: z.name,
+                    maxCapacity: z.maxCapacity,
+                    sortOrder: z.sortOrder ?? 0,
+                    slotStartHour: dayRange?.slotStartHour ?? found.slotStartHour ?? 11,
+                    slotEndHour: dayRange?.slotEndHour ?? found.slotEndHour ?? 20,
+                    closedOnDate: dayRange?.closed ?? false,
+                    slots: zSlots,
+                    availableTimes: zSlots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+                    reservedTimes: zSlots.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+                  };
+                })
+              : [];
+
+            const headlineSlots = hasCachedZones
+              ? zonesPayload.find((z) => !z.closedOnDate)?.slots ?? zonesPayload[0]?.slots ?? []
+              : storeSlots;
+
             const cacheData: GetStoreDetailResponse = {
               store: {
                 id: found.storeId,
                 name: found.name,
                 images: found.imageUrl ? [found.imageUrl] : [],
-                maxCapacity: found.maxCapacity,
+                maxCapacity: hasCachedZones
+                  ? zonesPayload.reduce((acc, z) => acc + z.maxCapacity, 0)
+                  : found.maxCapacity,
                 slotStartHour: dayRange?.slotStartHour ?? found.slotStartHour,
                 slotEndHour: dayRange?.slotEndHour ?? found.slotEndHour,
                 closedOnDate: dayRange?.closed,
@@ -149,14 +196,16 @@ export default function StoreDetailPageClient() {
                 minGroupHeadcount: found.minGroupHeadcount ?? readMinGroupHeadcount(found),
                 ownerName: found.ownerName ?? null,
                 ownerBankAccount: found.ownerBankAccount ?? null,
-                availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
-                slots,
+                availableTimes: headlineSlots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+                slots: headlineSlots,
                 minOrderRules: [],
+                ...(hasCachedZones ? { zones: zonesPayload } : {}),
               },
               menus: found.menus || [],
-              slots,
-              availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
-              reservedTimes: slots.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+              slots: headlineSlots,
+              availableTimes: headlineSlots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+              reservedTimes: headlineSlots.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+              ...(hasCachedZones ? { zones: zonesPayload } : {}),
             };
             if (!cancelled) {
               setData(cacheData);

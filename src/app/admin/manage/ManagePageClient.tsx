@@ -87,6 +87,8 @@ type ManageReservation = {
   reservationId: string;
   storeId: string;
   storeName: string;
+  zoneId?: string | null;
+  zoneName?: string | null;
   userName: string;
   groupName: string;
   userPhone: string;
@@ -1363,7 +1365,14 @@ export default function ManagePageClient() {
                     {reservations.map((r) => (
                       <tr key={r.reservationId} className="border-b border-gray-100">
                         <td className="py-2 pr-2 font-mono text-[11px] text-gray-600">{r.reservationId}</td>
-                        <td className="py-2 pr-2">{r.storeName}</td>
+                        <td className="py-2 pr-2">
+                          <div className="font-medium">{r.storeName}</div>
+                          {r.zoneName ? (
+                            <span className="mt-0.5 inline-block rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                              {r.zoneName}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="py-2 pr-2">
                           {r.userName}
                           {r.groupName ? <span className="text-gray-400"> / {r.groupName}</span> : null}

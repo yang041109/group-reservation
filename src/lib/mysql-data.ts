@@ -203,7 +203,7 @@ async function fetchActiveReservationsFromToday(): Promise<ReservationRow[]> {
   const pool = getPool();
   const today = todayYmdLocal();
   const [reservations] = await pool.query<ReservationRow[]>(
-    `SELECT reservationId, storeId, headcount, \`date\`, startTime, endTime, status
+    `SELECT reservationId, storeId, zoneId, headcount, \`date\`, startTime, endTime, status
      FROM reservation
      WHERE DATE(\`date\`) >= ?
        AND status IN ('CONFIRMED', 'DEPOSIT_CONFIRMED')`,
@@ -804,10 +804,15 @@ export async function cancelReservationInMysql(reservationId: string) {
 /** 클라이언트 SWR 캐시용 — Apps Script `handleGetAllData` */
 export async function getAllDataFromMysql() {
   assertConfigured();
+  const pool = getPool();
   const [{ stores, menus }, reservations] = await Promise.all([
     fetchStoresMenusRules(),
     fetchActiveReservationsFromToday(),
   ]);
+  const zonesByStoreId = await fetchZonesByStoreIds(
+    pool,
+    stores.map((s) => String(s.storeId ?? '').trim()),
+  );
 
   const storeList = stores.map((store) => {
     const sid = String(store.storeId ?? '').trim();
@@ -815,6 +820,7 @@ export async function getAllDataFromMysql() {
     const range = getDefaultSlotHourRangeForStore(store as Record<string, unknown>);
     const depOpts = readStoreDepositOpts(store);
     const rec = store as Record<string, unknown>;
+    const storeZones = (zonesByStoreId.get(sid) ?? []).map((z) => zoneRowToSummary(z));
     return {
       storeId: sid,
       name: store.name,
@@ -852,17 +858,22 @@ export async function getAllDataFromMysql() {
         rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
           ? String(rec.ownerClosedSlotsJson).trim()
           : null,
+      zones: storeZones,
     };
   });
 
-  const confirmedReservations = reservations.map((r) => ({
-      reservationId: r.reservationId,
-      storeId: String(r.storeId ?? '').trim(),
-      headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-      date: rowDateToYmd(r.date),
-      startTime: String(r.startTime ?? '').trim(),
-      endTime: String(r.endTime ?? '').trim(),
-    }));
+  const confirmedReservations = reservations.map((r) => {
+      const zid = String(r.zoneId ?? '').trim();
+      return {
+        reservationId: r.reservationId,
+        storeId: String(r.storeId ?? '').trim(),
+        zoneId: zid || null,
+        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+        date: rowDateToYmd(r.date),
+        startTime: String(r.startTime ?? '').trim(),
+        endTime: String(r.endTime ?? '').trim(),
+      };
+    });
 
   return {
     stores: storeList,

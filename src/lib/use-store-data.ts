@@ -4,7 +4,7 @@ import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { buildSlots } from '@/lib/booking-slots';
 import { applyOwnerClosedBlocksToSlots } from '@/lib/owner-closed-slots';
-import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier } from '@/types';
+import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier, ZoneInfo } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
 
@@ -29,11 +29,15 @@ export interface CachedStore {
   ownerClosedSlotsJson?: string | null;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
+  /** 가게가 동(zone) 운영 중이면 동 요약 목록. 비어있으면 단일 운영. */
+  zones?: ZoneInfo[];
 }
 
 export interface CachedReservation {
   reservationId: string;
   storeId: string;
+  /** 가게가 동 운영이면 해당 동 ID. 그 외에는 null. */
+  zoneId?: string | null;
   headcount: number;
   date: string;
   startTime: string;
@@ -155,16 +159,20 @@ export function buildSlotsForDate(
   slotStartHour?: number,
   slotEndHour?: number,
   closed?: boolean,
-  storeMeta?: Pick<CachedStore, 'ownerClosedSlotsJson'>,
+  storeMeta?: Pick<CachedStore, 'ownerClosedSlotsJson'> & { zoneId?: string | null },
 ): TimeSlot[] {
   if (closed) return [];
   const startH = slotStartHour ?? 11;
   const endH = slotEndHour ?? 20;
   const crossesMidnight = endH < startH;
 
-  const matching = reservations.filter(
-    (r) => r.storeId === storeId && r.date === date,
-  );
+  // zoneId 가 명시되면 해당 동의 예약만 카운트. 명시 안하면 store 전체.
+  const targetZoneId = storeMeta?.zoneId ?? null;
+  const matching = reservations.filter((r) => {
+    if (r.storeId !== storeId || r.date !== date) return false;
+    if (targetZoneId === null) return true;
+    return String(r.zoneId ?? '') === targetZoneId;
+  });
 
   const base = buildSlots(
     maxPeople,

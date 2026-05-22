@@ -989,6 +989,8 @@ export interface ManageReservationListRow {
   reservationId: string;
   storeId: string;
   storeName: string;
+  zoneId: string | null;
+  zoneName: string | null;
   userName: string;
   groupName: string;
   userPhone: string;
@@ -1048,34 +1050,44 @@ export async function manageListReservations(options: {
 
     const listParams: (string | number)[] = [...params, limit, offset];
     const [rows] = await pool.query<ReservationRow[]>(
-      `SELECT r.*, IFNULL(s.name, r.storeId) AS storeName
+      `SELECT r.*,
+              IFNULL(s.name, r.storeId) AS storeName,
+              z.name AS zoneName
        FROM reservation r
        LEFT JOIN store s ON s.storeId = r.storeId
+       LEFT JOIN zone z ON z.zoneId = r.zoneId
        ${where}
        ORDER BY r.createdAt DESC, r.reservationId DESC
        LIMIT ? OFFSET ?`,
       listParams,
     );
 
-    const data: ManageReservationListRow[] = rows.map((r) => ({
-      reservationId: String(r.reservationId ?? '').trim(),
-      storeId: String(r.storeId ?? '').trim(),
-      storeName: String((r as Record<string, unknown>).storeName ?? r.storeId ?? '').trim(),
-      userName: String(r.userName ?? '').trim(),
-      groupName: String(r.groupName ?? '').trim(),
-      userPhone: String(r.userPhone ?? '').trim(),
-      date: rowDateToYmd(r.date),
-      startTime: String(r.startTime ?? '').trim(),
-      endTime: String(r.endTime ?? '').trim(),
-      headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-      totalAmount: parseInt(String(r.totalAmount ?? '0'), 10) || 0,
-      status: String(r.status ?? 'PENDING').trim(),
-      depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
-      createdAt:
-        r.createdAt instanceof Date
-          ? r.createdAt.toISOString().slice(0, 19).replace('T', ' ')
-          : String(r.createdAt ?? '').trim(),
-    }));
+    const data: ManageReservationListRow[] = rows.map((r) => {
+      const rec = r as Record<string, unknown>;
+      const zid = String(rec.zoneId ?? '').trim();
+      const zname = String(rec.zoneName ?? '').trim();
+      return {
+        reservationId: String(r.reservationId ?? '').trim(),
+        storeId: String(r.storeId ?? '').trim(),
+        storeName: String(rec.storeName ?? r.storeId ?? '').trim(),
+        zoneId: zid || null,
+        zoneName: zname || null,
+        userName: String(r.userName ?? '').trim(),
+        groupName: String(r.groupName ?? '').trim(),
+        userPhone: String(r.userPhone ?? '').trim(),
+        date: rowDateToYmd(r.date),
+        startTime: String(r.startTime ?? '').trim(),
+        endTime: String(r.endTime ?? '').trim(),
+        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+        totalAmount: parseInt(String(r.totalAmount ?? '0'), 10) || 0,
+        status: String(r.status ?? 'PENDING').trim(),
+        depositAmount: parseInt(String(r.depositAmount ?? '0'), 10) || 0,
+        createdAt:
+          r.createdAt instanceof Date
+            ? r.createdAt.toISOString().slice(0, 19).replace('T', ' ')
+            : String(r.createdAt ?? '').trim(),
+      };
+    });
 
     return { success: true, data, total, depositSum };
   } catch (e) {
