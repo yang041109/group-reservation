@@ -1,10 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool, isMysqlConfigured } from '@/lib/db';
-import {
-  buildSlots,
-  getSlotHourRangeFromStoreRow,
-  slotOverlapsReservation,
-} from '@/lib/booking-slots';
+import { buildSlots, slotOverlapsReservation } from '@/lib/booking-slots';
 import { applyOwnerClosedBlocksToSlots, isSlotBlockedForBooking } from '@/lib/owner-closed-slots';
 import {
   getDefaultSlotHourRangeForStore,
@@ -20,7 +16,19 @@ import {
   type DepositTier,
 } from '@/lib/deposit-tiers';
 import { sortMenusForDisplay } from '@/lib/menu-order';
-import type { MenuItemData, MinOrderRule } from '@/types';
+import {
+  buildEffectiveStoreRow,
+  fetchZonesByStoreId,
+  fetchZonesByStoreIds,
+  findZoneInStore,
+  zoneRowToSummary,
+  type ZoneRow,
+} from '@/lib/zone-resolve';
+import type {
+  MenuItemData,
+  ZoneCardEntry,
+  ZoneDetailEntry,
+} from '@/types';
 
 export class ReservationDbError extends Error {
   constructor(
@@ -133,6 +141,59 @@ async function fetchStoresMenusRules(): Promise<{
   return { stores, menus, rules };
 }
 
+/** effective row(store+zone 머지) 기준으로 타임라인 생성. 휴무일이면 빈 배열. */
+function buildTimelineForEffectiveRow(
+  effectiveRow: Record<string, unknown>,
+  date: string,
+  confirmedReservations: { headcount: number; startTime: string; endTime: string }[],
+): {
+  timeline: import('@/types').TimeSlot[];
+  slotStartHour: number;
+  slotEndHour: number;
+  crossesMidnight: boolean;
+  closed: boolean;
+  maxCapacity: number;
+} {
+  const cap = parseInt(String(effectiveRow.maxCapacity ?? '0'), 10) || 0;
+  const range = getSlotHourRangeForStoreOnDate(effectiveRow, date);
+  const { slotStartHour, slotEndHour, crossesMidnight, closed } = range;
+
+  if (closed) {
+    return {
+      timeline: [],
+      slotStartHour,
+      slotEndHour,
+      crossesMidnight,
+      closed: true,
+      maxCapacity: cap,
+    };
+  }
+
+  const slots = buildSlots(
+    cap,
+    confirmedReservations,
+    slotStartHour,
+    slotEndHour,
+    crossesMidnight,
+  );
+  const timeline = applyOwnerClosedBlocksToSlots(
+    slots,
+    date,
+    effectiveRow.ownerClosedSlotsJson,
+    undefined,
+    { slotStartHour, slotEndHour, crossesMidnight },
+  );
+
+  return {
+    timeline,
+    slotStartHour,
+    slotEndHour,
+    crossesMidnight,
+    closed: false,
+    maxCapacity: cap,
+  };
+}
+
 /** /api/data/all — 오늘(포함) 이후 확정 예약만 */
 async function fetchActiveReservationsFromToday(): Promise<ReservationRow[]> {
   assertConfigured();
@@ -164,17 +225,20 @@ async function fetchAllStoresMenusRulesReservations(): Promise<{
 /** GET /api/stores 용 — Apps Script `handleGetStores` 와 동일한 페이로드 */
 export async function getStoresFromMysql(date: string, headcount: number) {
   assertConfigured();
-  const { stores, menus, rules, reservations } = await fetchAllStoresMenusRulesReservations();
+  const pool = getPool();
+  const { stores, reservations } = await fetchAllStoresMenusRulesReservations();
+  const zonesByStoreId = await fetchZonesByStoreIds(
+    pool,
+    stores.map((s) => String(s.storeId ?? '').trim()),
+  );
 
   return stores.map((store) => {
     const sid = String(store.storeId ?? '').trim();
-    const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-    const storeRules = rules.filter((r) => String(r.storeId ?? '').trim() === sid);
-    const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
-    const { slotStartHour, slotEndHour, crossesMidnight, closed } = range;
-    const minGroupHeadcount = readMinGroupHeadcount(store as Record<string, unknown>);
+    const storeRec = store as Record<string, unknown>;
+    const minGroupHeadcount = readMinGroupHeadcount(storeRec);
+    const storeZones = zonesByStoreId.get(sid) ?? [];
 
-    const confirmedRes = reservations.filter(
+    const confirmedAll = reservations.filter(
       (r) =>
         String(r.storeId ?? '').trim() === sid &&
         rowDateToYmd(r.date) === date &&
@@ -182,48 +246,87 @@ export async function getStoresFromMysql(date: string, headcount: number) {
           String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED'),
     );
 
-    const timeline = closed
-      ? []
-      : applyOwnerClosedBlocksToSlots(
-          buildSlots(
-            cap,
-            confirmedRes.map((r) => ({
-              headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-              startTime: String(r.startTime ?? '').trim(),
-              endTime: String(r.endTime ?? '').trim(),
-            })),
-            slotStartHour,
-            slotEndHour,
-            crossesMidnight,
-          ),
-          date,
-          (store as Record<string, unknown>).ownerClosedSlotsJson,
-          undefined,
-          { slotStartHour, slotEndHour, crossesMidnight },
-        );
-
     const depOpts = readStoreDepositOpts(store);
     const resolvedDeposit = resolveDepositForHeadcount(headcount, {
       depositMode: depOpts.depositMode,
       depositTiers: depOpts.depositTiers,
       flatDepositAmount: depOpts.flatDepositAmount,
     });
+
+    // ── 동(zone) 운영 가게 ── zone마다 타임라인 따로 계산
+    if (storeZones.length > 0) {
+      const zonesEntries: ZoneCardEntry[] = storeZones.map((zone) => {
+        const zid = String(zone.zoneId ?? '').trim();
+        const effectiveRow = buildEffectiveStoreRow(storeRec, zone);
+        const zoneRes = confirmedAll
+          .filter((r) => String(r.zoneId ?? '').trim() === zid)
+          .map((r) => ({
+            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+            startTime: String(r.startTime ?? '').trim(),
+            endTime: String(r.endTime ?? '').trim(),
+          }));
+        const built = buildTimelineForEffectiveRow(effectiveRow, date, zoneRes);
+        const summary = zoneRowToSummary(zone);
+        return {
+          zoneId: zid,
+          name: summary.name,
+          maxCapacity: built.maxCapacity,
+          sortOrder: summary.sortOrder,
+          timeline: built.timeline,
+          slotStartHour: built.slotStartHour,
+          slotEndHour: built.slotEndHour,
+          closedOnDate: built.closed,
+        };
+      });
+
+      // 카드 상단 요약: 첫 zone 기준(닫혀 있으면 두 번째 등)으로 슬롯·휴무 노출
+      const firstOpen = zonesEntries.find((z) => !z.closedOnDate) ?? zonesEntries[0];
+      const allClosed = zonesEntries.every((z) => z.closedOnDate);
+
+      return {
+        storeId: sid,
+        name: store.name,
+        maxCapacity: zonesEntries.reduce((acc, z) => acc + z.maxCapacity, 0),
+        imageUrl: store.imageUrl || '',
+        slotStartHour: firstOpen?.slotStartHour,
+        slotEndHour: firstOpen?.slotEndHour,
+        depositAmount: resolvedDeposit,
+        depositMode: depOpts.depositMode,
+        depositUseTiers: depOpts.depositUseTiers,
+        depositTiers: depOpts.depositTiers,
+        depositFlatAmount: depOpts.flatDepositAmount,
+        timeline: firstOpen?.timeline ?? [],
+        minOrderRules: [],
+        minGroupHeadcount,
+        closedOnDate: allClosed,
+        zones: zonesEntries,
+      };
+    }
+
+    // ── 단일 운영(zone 0개): 기존 로직과 동일 ──
+    const confirmedRes = confirmedAll.map((r) => ({
+      headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+      startTime: String(r.startTime ?? '').trim(),
+      endTime: String(r.endTime ?? '').trim(),
+    }));
+    const built = buildTimelineForEffectiveRow(storeRec, date, confirmedRes);
+
     return {
       storeId: sid,
       name: store.name,
-      maxCapacity: cap,
+      maxCapacity: built.maxCapacity,
       imageUrl: store.imageUrl || '',
-      slotStartHour,
-      slotEndHour,
+      slotStartHour: built.slotStartHour,
+      slotEndHour: built.slotEndHour,
       depositAmount: resolvedDeposit,
       depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
       depositTiers: depOpts.depositTiers,
       depositFlatAmount: depOpts.flatDepositAmount,
-      timeline,
+      timeline: built.timeline,
       minOrderRules: [],
       minGroupHeadcount,
-      closedOnDate: closed,
+      closedOnDate: built.closed,
     };
   });
 }
@@ -244,11 +347,12 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
   }
 
   const [storeMenus] = await pool.query<MenuRow[]>('SELECT * FROM menu WHERE storeId = ?', [id]);
+  const storeZones = await fetchZonesByStoreId(pool, id);
 
   const confirmed: ReservationRow[] = dateYmd
     ? (
         await pool.query<ReservationRow[]>(
-          `SELECT reservationId, storeId, headcount, \`date\`, startTime, endTime, status
+          `SELECT reservationId, storeId, zoneId, headcount, \`date\`, startTime, endTime, status
            FROM reservation
            WHERE storeId = ?
              AND DATE(\`date\`) = ?
@@ -258,49 +362,96 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       )[0]
     : [];
 
-  const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-  const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
-  const { slotStartHour, slotEndHour, crossesMidnight, closed } = range;
-  const minGroupHeadcount = readMinGroupHeadcount(store as Record<string, unknown>);
-  const rec = store as Record<string, unknown>;
-  const ownerName = rec.ownerName != null && String(rec.ownerName).trim() ? String(rec.ownerName).trim() : null;
-  const ownerBankAccount =
-    rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
-      ? String(rec.ownerBankAccount).trim()
+  const storeRec = store as Record<string, unknown>;
+  const minGroupHeadcount = readMinGroupHeadcount(storeRec);
+  const ownerName =
+    storeRec.ownerName != null && String(storeRec.ownerName).trim()
+      ? String(storeRec.ownerName).trim()
       : null;
-
-  const slots = closed
-    ? []
-    : applyOwnerClosedBlocksToSlots(
-        buildSlots(
-          cap,
-          confirmed.map((r) => ({
-            headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-            startTime: String(r.startTime ?? '').trim(),
-            endTime: String(r.endTime ?? '').trim(),
-          })),
-          slotStartHour,
-          slotEndHour,
-          crossesMidnight,
-        ),
-        date,
-        rec.ownerClosedSlotsJson,
-        undefined,
-        { slotStartHour, slotEndHour, crossesMidnight },
-      );
-
+  const ownerBankAccount =
+    storeRec.ownerBankAccount != null && String(storeRec.ownerBankAccount).trim()
+      ? String(storeRec.ownerBankAccount).trim()
+      : null;
+  const depOpts = readStoreDepositOpts(store);
   const menusPayload = sortMenusForDisplay(storeMenus.map(menuRowToItem));
 
-  const depOpts = readStoreDepositOpts(store);
+  // 동 운영 가게: zone 마다 슬롯 산출
+  if (storeZones.length > 0) {
+    const zonesPayload: ZoneDetailEntry[] = storeZones.map((zone) => {
+      const zid = String(zone.zoneId ?? '').trim();
+      const effectiveRow = buildEffectiveStoreRow(storeRec, zone);
+      const zoneRes = confirmed
+        .filter((r) => String(r.zoneId ?? '').trim() === zid)
+        .map((r) => ({
+          headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+          startTime: String(r.startTime ?? '').trim(),
+          endTime: String(r.endTime ?? '').trim(),
+        }));
+      const built = buildTimelineForEffectiveRow(effectiveRow, date, zoneRes);
+      const summary = zoneRowToSummary(zone);
+      return {
+        zoneId: zid,
+        name: summary.name,
+        maxCapacity: built.maxCapacity,
+        sortOrder: summary.sortOrder,
+        slotStartHour: built.slotStartHour,
+        slotEndHour: built.slotEndHour,
+        closedOnDate: built.closed,
+        slots: built.timeline,
+        availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+        reservedTimes: built.timeline.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+      };
+    });
+
+    // 첫 zone(or 첫 영업 zone) 기준으로 호환 필드 노출
+    const first = zonesPayload.find((z) => !z.closedOnDate) ?? zonesPayload[0];
+    const totalCap = zonesPayload.reduce((acc, z) => acc + z.maxCapacity, 0);
+
+    return {
+      store: {
+        id,
+        name: store.name,
+        images: store.imageUrl ? [String(store.imageUrl)] : [],
+        maxCapacity: totalCap,
+        slotStartHour: first?.slotStartHour,
+        slotEndHour: first?.slotEndHour,
+        depositAmount: depOpts.flatDepositAmount,
+        depositMode: depOpts.depositMode,
+        depositUseTiers: depOpts.depositUseTiers,
+        depositTiers: depOpts.depositTiers,
+        minGroupHeadcount,
+        ownerName,
+        ownerBankAccount,
+        closedOnDate: zonesPayload.every((z) => z.closedOnDate),
+        availableTimes: first?.availableTimes ?? [],
+        slots: first?.slots ?? [],
+        minOrderRules: [],
+        zones: zonesPayload,
+      },
+      menus: menusPayload,
+      slots: first?.slots ?? [],
+      availableTimes: first?.availableTimes ?? [],
+      reservedTimes: first?.reservedTimes ?? [],
+      zones: zonesPayload,
+    };
+  }
+
+  // 단일 운영
+  const confirmedFlat = confirmed.map((r) => ({
+    headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+    startTime: String(r.startTime ?? '').trim(),
+    endTime: String(r.endTime ?? '').trim(),
+  }));
+  const built = buildTimelineForEffectiveRow(storeRec, date, confirmedFlat);
 
   return {
     store: {
       id,
       name: store.name,
       images: store.imageUrl ? [String(store.imageUrl)] : [],
-      maxCapacity: cap,
-      slotStartHour,
-      slotEndHour,
+      maxCapacity: built.maxCapacity,
+      slotStartHour: built.slotStartHour,
+      slotEndHour: built.slotEndHour,
       depositAmount: depOpts.flatDepositAmount,
       depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
@@ -308,20 +459,22 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       minGroupHeadcount,
       ownerName,
       ownerBankAccount,
-      closedOnDate: closed,
-      availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
-      slots,
+      closedOnDate: built.closed,
+      availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+      slots: built.timeline,
       minOrderRules: [],
     },
     menus: menusPayload,
-    slots,
-    availableTimes: slots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
-    reservedTimes: slots.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+    slots: built.timeline,
+    availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
+    reservedTimes: built.timeline.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
   };
 }
 
 export interface CreateReservationPayload {
   storeId: string;
+  /** 가게가 동(zone) 운영 중이면 필수. */
+  zoneId?: string;
   userName: string;
   groupName: string;
   userPhone: string;
@@ -341,6 +494,7 @@ export async function insertReservationValidated(
   assertConfigured();
   const pool = getPool();
   const storeId = String(payload.storeId).trim();
+  const zoneIdInput = String(payload.zoneId ?? '').trim();
   const date = String(payload.date).trim();
   const headcount = parseInt(String(payload.headcount), 10) || 0;
   const startTime = String(payload.startTime || '').trim();
@@ -359,9 +513,25 @@ export async function insertReservationValidated(
       await conn.rollback();
       throw new ReservationDbError(400, '가게를 찾을 수 없습니다.');
     }
+    const storeRec = store as Record<string, unknown>;
 
-    const cap = parseInt(String(store.maxCapacity ?? '0'), 10) || 0;
-    const minGroup = readMinGroupHeadcount(store as Record<string, unknown>);
+    // 동(zone) 검증: 가게에 zone이 있으면 zoneId 필수, 없으면 받아도 무시.
+    const storeZones = await fetchZonesByStoreId(conn, storeId);
+    let zone: ZoneRow | null = null;
+    if (storeZones.length > 0) {
+      if (!zoneIdInput) {
+        await conn.rollback();
+        throw new ReservationDbError(400, '예약할 동(zone)을 선택해주세요.');
+      }
+      zone = await findZoneInStore(conn, storeId, zoneIdInput);
+      if (!zone) {
+        await conn.rollback();
+        throw new ReservationDbError(400, '선택한 동을 찾을 수 없습니다.');
+      }
+    }
+    const effectiveRow = buildEffectiveStoreRow(storeRec, zone);
+    const cap = parseInt(String(effectiveRow.maxCapacity ?? '0'), 10) || 0;
+    const minGroup = readMinGroupHeadcount(effectiveRow);
     if (headcount < minGroup) {
       await conn.rollback();
       throw new ReservationDbError(
@@ -369,12 +539,12 @@ export async function insertReservationValidated(
         `단체예약은 최소 ${minGroup}명 이상부터 가능합니다.`,
       );
     }
-    if (isStoreClosedOnDate(store as Record<string, unknown>, date)) {
+    if (isStoreClosedOnDate(effectiveRow, date)) {
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 날짜는 휴무일입니다.');
     }
 
-    const range = getSlotHourRangeForStoreOnDate(store as Record<string, unknown>, date);
+    const range = getSlotHourRangeForStoreOnDate(effectiveRow, date);
     if (range.closed) {
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 날짜는 영업하지 않습니다.');
@@ -383,13 +553,16 @@ export async function insertReservationValidated(
     const slotEndHour = range.slotEndHour;
     const crossesMidnight = range.crossesMidnight;
 
+    // 같은 가게·zone·날짜의 확정 예약만 카운트
+    const zoneSql = zone ? ' AND zoneId = ?' : '';
+    const existingParams: unknown[] = zone ? [storeId, zone.zoneId, date] : [storeId, date];
     const [existingRows] = await conn.query<ReservationRow[]>(
       `SELECT * FROM reservation
-       WHERE storeId = ? AND date = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
-      [storeId, date],
+       WHERE storeId = ?${zoneSql} AND date = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
+      existingParams,
     );
 
-    const ownerJson = (store as Record<string, unknown>).ownerClosedSlotsJson;
+    const ownerJson = effectiveRow.ownerClosedSlotsJson;
     const slots = applyOwnerClosedBlocksToSlots(
       buildSlots(
         cap,
@@ -461,12 +634,13 @@ export async function insertReservationValidated(
 
     await conn.execute(
       `INSERT INTO reservation (
-        reservationId, storeId, userName, groupName, userPhone, userNote,
+        reservationId, storeId, zoneId, userName, groupName, userPhone, userNote,
         headcount, date, startTime, endTime, menuItems, totalAmount, status, depositAmount, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
       [
         reservationId,
         storeId,
+        zone ? String(zone.zoneId) : null,
         payload.userName || '',
         payload.groupName || '',
         payload.userPhone || '',
@@ -537,10 +711,12 @@ function mapReservationListItem(
     };
   });
 
+  const zid = String(r.zoneId ?? '').trim();
   return {
     reservationId: r.reservationId,
     storeId: sid,
     storeName: store ? store.name : sid,
+    zoneId: zid || undefined,
     date: rowDateToYmd(r.date),
     timeBlock: `${String(r.startTime ?? '').trim()} ~ ${String(r.endTime ?? '').trim()}`,
     headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,

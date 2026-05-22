@@ -50,10 +50,30 @@ CREATE TABLE IF NOT EXISTS rule (
   KEY idx_rule_store (storeId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 한 가게가 여러 동(zone)으로 나뉘는 경우. zone 0개면 store 단일 운영.
+-- NULL 컬럼은 store에서 상속. 참고: docs/zone-schema.sql
+CREATE TABLE IF NOT EXISTS zone (
+  zoneId VARCHAR(64) NOT NULL PRIMARY KEY,
+  storeId VARCHAR(64) NOT NULL,
+  name VARCHAR(40) NOT NULL,
+  sortOrder INT NOT NULL DEFAULT 0,
+  maxCapacity INT NOT NULL,
+  minGroupHeadcount INT NULL,
+  slotStartHour INT NULL,
+  slotEndHour INT NULL,
+  weeklyHoursJson JSON NULL,
+  closedDatesJson JSON NULL,
+  ownerClosedSlotsJson JSON NULL,
+  UNIQUE KEY uq_zone_store_name (storeId, name),
+  KEY idx_zone_store_sort (storeId, sortOrder),
+  CONSTRAINT fk_zone_store FOREIGN KEY (storeId) REFERENCES store (storeId) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Apps Script 예약 로직과 동일하게 동작하려면 아래 확장 컬럼이 필요합니다.
 CREATE TABLE IF NOT EXISTS reservation (
   reservationId VARCHAR(64) NOT NULL PRIMARY KEY,
   storeId VARCHAR(64) NOT NULL,
+  zoneId VARCHAR(64) NULL COMMENT '동(zone) 단위 운영 시 어느 동의 예약인지. NULL이면 store 단일 운영',
   userName VARCHAR(255) NOT NULL DEFAULT '',
   groupName VARCHAR(255) NOT NULL DEFAULT '',
   userPhone VARCHAR(64) NOT NULL DEFAULT '',
@@ -70,7 +90,9 @@ CREATE TABLE IF NOT EXISTS reservation (
   ownerEditNotice VARCHAR(500) NULL COMMENT '사장님이 시간/인원을 변경한 경우 사용자에게 보여줄 안내',
   createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_reservation_store FOREIGN KEY (storeId) REFERENCES store (storeId) ON DELETE CASCADE,
-  KEY idx_reservation_store_date_status (storeId, date, status)
+  CONSTRAINT fk_reservation_zone FOREIGN KEY (zoneId) REFERENCES zone (zoneId) ON DELETE SET NULL,
+  KEY idx_reservation_store_date_status (storeId, date, status),
+  KEY idx_reservation_store_zone_date_status (storeId, zoneId, date, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

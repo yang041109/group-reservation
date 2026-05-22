@@ -1,6 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import { ensureReservationOwnerColumns } from '@/lib/reservation-schema-migrate';
+import { fetchZonesByStoreId, findZoneInStore } from '@/lib/zone-resolve';
 
 type StoreRow = RowDataPacket & Record<string, unknown>;
 type MenuRow = RowDataPacket & Record<string, unknown>;
@@ -77,6 +78,7 @@ function mapReservationRow(
   storeId: string,
   storeName: string,
   menuById: Map<string, { name: string; price: number }>,
+  zoneNameById?: Map<string, string>,
 ): Record<string, unknown> {
   const parsedMenus = parseMenuItemsJson(r.menuItems);
   const menuDetails = parsedMenus.map((sm) => {
@@ -90,10 +92,15 @@ function mapReservationRow(
     };
   });
 
+  const zid = String(r.zoneId ?? '').trim();
+  const zoneName = zid ? zoneNameById?.get(zid) ?? '' : '';
+
   return {
     reservationId: r.reservationId,
     storeId,
     storeName,
+    zoneId: zid || undefined,
+    zoneName: zoneName || undefined,
     userName: r.userName || '',
     groupName: r.groupName || '',
     userPhone: r.userPhone || '',
@@ -130,7 +137,7 @@ export async function adminListReservationsByStore(
   dateFilter: string | null,
   rangeFrom: string | null = null,
   rangeTo: string | null = null,
-  opts?: { calendarConfirmed?: boolean; calendarVisible?: boolean },
+  opts?: { calendarConfirmed?: boolean; calendarVisible?: boolean; zoneId?: string | null },
 ): Promise<{ success: true; data: Record<string, unknown>[] } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -154,8 +161,19 @@ export async function adminListReservationsByStore(
       });
     }
 
+    const zones = await fetchZonesByStoreId(pool, sid);
+    const zoneNameById = new Map<string, string>();
+    for (const z of zones) {
+      zoneNameById.set(String(z.zoneId ?? '').trim(), String(z.name ?? '').trim());
+    }
+
     let sql = 'SELECT * FROM reservation WHERE storeId = ?';
     const params: unknown[] = [sid];
+    const zoneFilter = opts?.zoneId?.trim();
+    if (zoneFilter) {
+      sql += ' AND zoneId = ?';
+      params.push(zoneFilter);
+    }
     if (statusFilter?.trim()) {
       sql += ' AND status = ?';
       params.push(statusFilter.trim());
@@ -176,7 +194,7 @@ export async function adminListReservationsByStore(
     sql += ' ORDER BY `date`, startTime';
 
     const [resRows] = await pool.query<ReservationRow[]>(sql, params);
-    const data = resRows.map((r) => mapReservationRow(r, sid, storeName, menuById));
+    const data = resRows.map((r) => mapReservationRow(r, sid, storeName, menuById, zoneNameById));
     return { success: true, data };
   } catch (e) {
     console.error('[adminListReservationsByStore]', e);
@@ -571,6 +589,7 @@ export async function adminCreateManualReservation(
   storeId: string,
   mode: 'phone' | 'block',
   payload: {
+    zoneId?: string;
     userName?: string;
     groupName?: string;
     userPhone?: string;
@@ -630,14 +649,31 @@ export async function adminCreateManualReservation(
 
   try {
     const pool = getPool();
+
+    // 동 운영 가게면 zoneId 필수·유효성 확인
+    const storeZones = await fetchZonesByStoreId(pool, sid);
+    let zoneIdToSave: string | null = null;
+    if (storeZones.length > 0) {
+      const zid = (payload.zoneId ?? '').trim();
+      if (!zid) {
+        return { success: false, message: '예약할 동(zone)을 선택해 주세요.' };
+      }
+      const zoneRow = await findZoneInStore(pool, sid, zid);
+      if (!zoneRow) {
+        return { success: false, message: '선택한 동을 찾을 수 없습니다.' };
+      }
+      zoneIdToSave = String(zoneRow.zoneId);
+    }
+
     await pool.execute<ResultSetHeader>(
       `INSERT INTO reservation (
-        reservationId, storeId, userName, groupName, userPhone, userNote,
+        reservationId, storeId, zoneId, userName, groupName, userPhone, userNote,
         headcount, date, startTime, endTime, menuItems, totalAmount, status, depositAmount, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)`,
       [
         reservationId,
         sid,
+        zoneIdToSave,
         userName,
         groupName,
         userPhone,

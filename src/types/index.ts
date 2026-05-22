@@ -32,6 +32,16 @@ export interface TimeSlot {
   currentHeadcount: number;
 }
 
+// --- 동(zone) 관련 ---
+
+/** 한 가게가 동(zone) 단위로 운영될 때 각 동의 요약 정보. */
+export interface ZoneInfo {
+  zoneId: string;
+  name: string;
+  maxCapacity: number;
+  sortOrder: number;
+}
+
 // --- 가게 관련 ---
 
 /** GET /api/stores response item */
@@ -63,6 +73,21 @@ export interface StoreCard {
   locationLabel?: string | null;
   /** 전역관리 목록 순서 */
   sortOrder?: number;
+  /** 동(zone) 단위 운영 시 각 동의 타임라인. zones.length > 0 이면 동별 탭을 그린다. */
+  zones?: ZoneCardEntry[];
+}
+
+/** StoreCard 안에서 동별로 따로 노출되는 정보. */
+export interface ZoneCardEntry {
+  zoneId: string;
+  name: string;
+  maxCapacity: number;
+  sortOrder: number;
+  /** 이 동 기준 슬롯 타임라인 (closedOnDate true 면 빈 배열) */
+  timeline: TimeSlot[];
+  slotStartHour: number;
+  slotEndHour: number;
+  closedOnDate: boolean;
 }
 
 /** GET /api/stores/:id response – store detail */
@@ -90,6 +115,22 @@ export interface StoreDetail {
   ownerBankAccount?: string | null;
   closedOnDate?: boolean;
   locationLabel?: string | null;
+  /** 동(zone) 단위 운영 시 동별 세부 정보. 빈 배열이면 단일 운영. */
+  zones?: ZoneDetailEntry[];
+}
+
+/** StoreDetail 안에서 동별로 따로 내려주는 슬롯·영업시간 정보. */
+export interface ZoneDetailEntry {
+  zoneId: string;
+  name: string;
+  maxCapacity: number;
+  sortOrder: number;
+  slotStartHour: number;
+  slotEndHour: number;
+  closedOnDate: boolean;
+  slots: TimeSlot[];
+  availableTimes: string[];
+  reservedTimes: string[];
 }
 
 export interface MenuItemData {
@@ -120,6 +161,8 @@ export interface StatusTransitionResult {
 /** POST /api/reservations request */
 export interface CreateReservationRequest {
   storeId: string;
+  /** 가게가 동(zone) 운영 중이면 필수. 단일 운영이면 undefined. */
+  zoneId?: string;
   storeName?: string;          // Slack 알림용 (선택)
   headcount: number;
   date: string;
