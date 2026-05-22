@@ -48,6 +48,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ sto
     category: body.category != null ? String(body.category) : undefined,
     isRequired: Boolean(body.isRequired),
     imageUrl: body.imageUrl === null ? null : body.imageUrl !== undefined ? String(body.imageUrl) : undefined,
+    description:
+      body.description === undefined
+        ? undefined
+        : body.description === null
+          ? null
+          : String(body.description),
   });
 
   if (!result.success) {

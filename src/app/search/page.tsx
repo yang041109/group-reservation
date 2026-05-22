@@ -21,7 +21,8 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 export default function SearchPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedHeadcount, setSelectedHeadcount] = useState(0);
+  /** 기본 2명 — 단체예약 최소치. 가게 minGroup 필터를 즉시 작동시키기 위함. */
+  const [selectedHeadcount, setSelectedHeadcount] = useState(2);
   const [sortMode, setSortMode] = useState<SortMode>('recommended');
   const { stores, reservations, isLoading } = useAllData();
 
@@ -111,7 +112,9 @@ export default function SearchPage() {
     return storeCards.filter((store) => {
       if (selectedDate && store.closedOnDate) return false;
       const minGroup = store.minGroupHeadcount ?? 2;
-      if (selectedHeadcount > 0 && selectedHeadcount < minGroup) return false;
+      // 사용자 선택 인원이 가게 단체예약 최소 인원 미만이면 항상 제외.
+      // selectedHeadcount=0 (미선택)도 minGroup 이상 가게는 숨겨 모호한 표시를 피한다.
+      if (selectedHeadcount < minGroup) return false;
       if (store.maxCapacity > 0 && selectedHeadcount > store.maxCapacity) return false;
       if (selectedDate && selectedHeadcount > 0) {
         return isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);

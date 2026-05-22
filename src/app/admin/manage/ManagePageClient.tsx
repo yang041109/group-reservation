@@ -80,6 +80,7 @@ type ManageMenu = {
   category: string;
   isRequired: boolean;
   imageUrl: string | null;
+  description: string | null;
 };
 
 type ManageReservation = {
@@ -139,6 +140,7 @@ export default function ManagePageClient() {
     category: '',
     isRequired: false,
     imageUrl: '',
+    description: '',
   });
 
   const [reservations, setReservations] = useState<ManageReservation[]>([]);
@@ -576,6 +578,7 @@ export default function ManagePageClient() {
           category: newMenu.category.trim(),
           isRequired: newMenu.isRequired,
           imageUrl: newMenu.imageUrl.trim() === '' ? null : newMenu.imageUrl.trim(),
+          description: newMenu.description.trim() === '' ? null : newMenu.description.trim(),
         }),
       });
       const data = await res.json();
@@ -583,13 +586,14 @@ export default function ManagePageClient() {
         setErr(data.message || '메뉴 추가 실패');
         return;
       }
-      setNewMenu((prev) => ({
+      setNewMenu(() => ({
         menuId: '',
         name: '',
         price: '',
         category: '',
         isRequired: false,
         imageUrl: '',
+        description: '',
       }));
       setMsg('메뉴를 추가했습니다.');
       await loadMenus();
@@ -617,6 +621,8 @@ export default function ManagePageClient() {
             category: m.category,
             isRequired: m.isRequired,
             imageUrl: m.imageUrl === null || m.imageUrl === '' ? null : m.imageUrl,
+            description:
+              m.description === null || m.description === '' ? null : m.description,
           }),
         },
       );
@@ -1251,6 +1257,15 @@ export default function ManagePageClient() {
                             value={newMenu.imageUrl}
                             onChange={(e) => setNewMenu((n) => ({ ...n, imageUrl: e.target.value }))}
                           />
+                          <textarea
+                            placeholder="메뉴 설명 (선택, 재료·특징·안내 등)"
+                            rows={2}
+                            className="rounded border border-gray-300 px-2 py-1.5 text-sm sm:col-span-2 lg:col-span-3"
+                            value={newMenu.description}
+                            onChange={(e) =>
+                              setNewMenu((n) => ({ ...n, description: e.target.value }))
+                            }
+                          />
                           <label className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
@@ -1449,6 +1464,7 @@ function MenuEditRow({
         cur.price === initial.price &&
         cur.category === initial.category &&
         (cur.imageUrl ?? '') === (initial.imageUrl ?? '') &&
+        (cur.description ?? '') === (initial.description ?? '') &&
         cur.isRequired === initial.isRequired
       ) {
         return cur;
@@ -1493,12 +1509,22 @@ function MenuEditRow({
         />
       </td>
       <td className="py-2 pr-2">
-        <input
-          className="w-full min-w-[100px] rounded border border-gray-200 px-1 py-0.5"
-          value={m.name}
-          onChange={(e) => setM((x) => ({ ...x, name: e.target.value }))}
-          onBlur={() => flush()}
-        />
+        <div className="flex flex-col gap-1">
+          <input
+            className="w-full min-w-[100px] rounded border border-gray-200 px-1 py-0.5"
+            value={m.name}
+            onChange={(e) => setM((x) => ({ ...x, name: e.target.value }))}
+            onBlur={() => flush()}
+          />
+          <textarea
+            className="w-full min-w-[100px] rounded border border-gray-200 px-1 py-0.5 text-xs text-gray-600"
+            value={m.description ?? ''}
+            onChange={(e) => setM((x) => ({ ...x, description: e.target.value }))}
+            onBlur={() => flush()}
+            placeholder="설명 (선택)"
+            rows={1}
+          />
+        </div>
       </td>
       <td className="py-2 pr-2">
         <input

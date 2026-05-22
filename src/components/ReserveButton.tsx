@@ -58,11 +58,20 @@ export default function ReserveButton({
   const missingRequired = requiredMenus.filter((m) => (menuQuantities[m.id] ?? 0) < 1);
   const requiredMenuNotSelected = missingRequired.length > 0;
 
+  // 메뉴 자체가 등록돼 있으면 최소 하나는 골라야 함 (시간에 맞춰 깔리는 기본 세팅)
+  const hasAnyMenu = menus.length > 0;
+  const totalSelectedQty = Object.values(menuQuantities).reduce(
+    (sum, q) => sum + (typeof q === 'number' && q > 0 ? q : 0),
+    0,
+  );
+  const noMenuSelected = hasAnyMenu && totalSelectedQty === 0;
+
   const isDisabled =
     dateNotSelected ||
     timeNotSelected ||
     belowGroupMin ||
     requiredMenuNotSelected ||
+    noMenuSelected ||
     !!zoneRequiredButNotSelected;
 
   let validationMessage: string | null = null;
@@ -77,6 +86,8 @@ export default function ReserveButton({
   } else if (requiredMenuNotSelected) {
     const names = missingRequired.map((m) => m.name).join(', ');
     validationMessage = `필수 메뉴를 선택해주세요: ${names}`;
+  } else if (noMenuSelected) {
+    validationMessage = '예약 시간에 깔아둘 메뉴를 최소 하나 이상 선택해주세요';
   }
 
   const handleClick = () => {

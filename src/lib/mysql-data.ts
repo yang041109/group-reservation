@@ -71,6 +71,7 @@ type ReservationRow = RowDataPacket & Record<string, unknown>;
 
 function menuRowToItem(m: MenuRow): MenuItemData {
   const rec = m as Record<string, unknown>;
+  const descRaw = rec.description;
   return {
     id: String(m.menuId ?? '').trim(),
     name: String(m.name ?? ''),
@@ -79,6 +80,8 @@ function menuRowToItem(m: MenuRow): MenuItemData {
     sortOrder: parseInt(String(rec.sortOrder ?? '0'), 10) || 0,
     isRequired: String(m.isRequired ?? '').toLowerCase() === 'true' || Number(m.isRequired) === 1,
     imageUrl: String(m.imageUrl ?? ''),
+    description:
+      descRaw != null && String(descRaw).trim() !== '' ? String(descRaw).trim() : null,
   };
 }
 

@@ -21,6 +21,7 @@ function MenuQuantityRow({
   onDelta: (delta: number) => void;
 }) {
   const isRequired = !!menu.isRequired;
+  const description = menu.description?.trim();
   return (
     <li
       className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
@@ -35,7 +36,7 @@ function MenuQuantityRow({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={menu.imageUrl} alt={menu.name} className="h-16 w-16 rounded-lg object-cover" />
       ) : null}
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <div>
           <span className={`text-sm ${isRequired ? 'font-bold' : 'font-medium'} text-gray-900`}>
             {menu.name}
@@ -44,9 +45,14 @@ function MenuQuantityRow({
             <span className="ml-1 text-xs font-bold text-red-500">필수</span>
           ) : null}
         </div>
-        <span className="text-sm text-gray-500">{menu.price.toLocaleString()}원</span>
+        {description ? (
+          <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">{description}</p>
+        ) : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="min-w-[3.5rem] text-right text-sm font-semibold text-gray-900 tabular-nums">
+          {menu.price.toLocaleString()}원
+        </span>
         <button
           type="button"
           disabled={qty <= 0}
@@ -107,6 +113,14 @@ export default function MenuSection({
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
       ) : (
         <>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+            <p className="font-semibold">📌 안내</p>
+            <ul className="mt-1 space-y-0.5 text-[13px] leading-relaxed">
+              <li>· 여기서 선택한 메뉴는 <b>예약 시간에 맞춰 자리에 미리 준비</b>되는 기본 세팅 메뉴입니다.</li>
+              <li>· 주류·추가 메뉴는 매장에 방문하셔서 자유롭게 주문하실 수 있어요.</li>
+              <li>· 최소 한 개 이상의 메뉴를 선택해 주세요.</li>
+            </ul>
+          </div>
           {categories.length > 1 ? (
             <div className="flex flex-wrap gap-2">
               <button

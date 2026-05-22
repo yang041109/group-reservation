@@ -144,6 +144,8 @@ export interface MenuItemData {
   imageUrl?: string;
   /** 표시 순서(작을수록 앞) */
   sortOrder?: number;
+  /** 메뉴 설명 (재료/특징/안내 등) */
+  description?: string | null;
 }
 
 // --- 예약 상태 ---

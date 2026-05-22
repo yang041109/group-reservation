@@ -23,6 +23,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
     category?: string;
     isRequired?: boolean;
     imageUrl?: string | null;
+    description?: string | null;
   } = {};
   if (body.name !== undefined) patch.name = String(body.name);
   if (body.price !== undefined) {
@@ -36,6 +37,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
   if (body.isRequired !== undefined) patch.isRequired = Boolean(body.isRequired);
   if (body.imageUrl !== undefined) {
     patch.imageUrl = body.imageUrl === null ? null : String(body.imageUrl);
+  }
+  if (body.description !== undefined) {
+    patch.description = body.description === null ? null : String(body.description);
   }
 
   const result = await manageUpdateMenu(storeId, menuId, patch);

@@ -372,6 +372,7 @@ export interface ManageMenuRow {
   sortOrder: number;
   isRequired: boolean;
   imageUrl: string | null;
+  description: string | null;
 }
 
 function mapMenuRow(r: MenuRow): ManageMenuRow {
@@ -380,6 +381,7 @@ function mapMenuRow(r: MenuRow): ManageMenuRow {
     typeof ir === 'boolean'
       ? ir
       : String(ir).toLowerCase() === 'true' || Number(ir) === 1;
+  const desc = (r as Record<string, unknown>).description;
   return {
     storeId: String(r.storeId ?? '').trim(),
     menuId: String(r.menuId ?? '').trim(),
@@ -389,6 +391,7 @@ function mapMenuRow(r: MenuRow): ManageMenuRow {
     sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
     isRequired: req,
     imageUrl: r.imageUrl != null && String(r.imageUrl).trim() ? String(r.imageUrl) : null,
+    description: desc != null && String(desc).trim() !== '' ? String(desc).trim() : null,
   };
 }
 
@@ -408,8 +411,8 @@ export async function manageListMenus(
     const hasSort = await menuHasSortOrderColumn(pool);
     const [rows] = await pool.query<MenuRow[]>(
       hasSort
-        ? 'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC'
-        : 'SELECT storeId, menuId, name, price, category, isRequired, imageUrl FROM menu WHERE storeId = ? ORDER BY menuId ASC',
+        ? 'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl, description FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC'
+        : 'SELECT storeId, menuId, name, price, category, isRequired, imageUrl, description FROM menu WHERE storeId = ? ORDER BY menuId ASC',
       [sid],
     );
     const data = rows.map(mapMenuRow);
