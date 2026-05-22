@@ -64,3 +64,38 @@ export async function menuHasSortOrderColumn(pool: Pool): Promise<boolean> {
   if (await menuColumnExists(pool, 'sortOrder')) return true;
   return ensureMenuSortOrderColumn(pool);
 }
+
+let descEnsurePromise: Promise<void> | null = null;
+
+/** menu.description 컬럼이 없으면 추가. 성공 시 true, 실패(권한 등) 시 false */
+export async function ensureMenuDescriptionColumn(pool: Pool): Promise<boolean> {
+  if (await menuColumnExists(pool, 'description')) return true;
+  if (descEnsurePromise) {
+    await descEnsurePromise;
+    return menuColumnExists(pool, 'description');
+  }
+
+  descEnsurePromise = (async () => {
+    if (await menuColumnExists(pool, 'description')) return;
+    await pool.execute(
+      `ALTER TABLE menu
+       ADD COLUMN description TEXT NULL
+       COMMENT '메뉴 설명 (재료, 특징 등)'
+       AFTER imageUrl`,
+    );
+  })()
+    .catch((e) => {
+      console.warn('[ensureMenuDescriptionColumn]', e);
+    })
+    .finally(() => {
+      descEnsurePromise = null;
+    });
+
+  await descEnsurePromise;
+  return menuColumnExists(pool, 'description');
+}
+
+export async function menuHasDescriptionColumn(pool: Pool): Promise<boolean> {
+  if (await menuColumnExists(pool, 'description')) return true;
+  return ensureMenuDescriptionColumn(pool);
+}

@@ -8,7 +8,7 @@ import {
 } from '@/lib/deposit-tiers';
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
-import { menuHasSortOrderColumn } from '@/lib/menu-schema-migrate';
+import { menuHasDescriptionColumn, menuHasSortOrderColumn } from '@/lib/menu-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
@@ -409,10 +409,12 @@ export async function manageListMenus(
   try {
     const pool = getPool();
     const hasSort = await menuHasSortOrderColumn(pool);
+    const hasDesc = await menuHasDescriptionColumn(pool);
+    const descCol = hasDesc ? ', description' : '';
     const [rows] = await pool.query<MenuRow[]>(
       hasSort
-        ? 'SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl, description FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC'
-        : 'SELECT storeId, menuId, name, price, category, isRequired, imageUrl, description FROM menu WHERE storeId = ? ORDER BY menuId ASC',
+        ? `SELECT storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl${descCol} FROM menu WHERE storeId = ? ORDER BY sortOrder ASC, menuId ASC`
+        : `SELECT storeId, menuId, name, price, category, isRequired, imageUrl${descCol} FROM menu WHERE storeId = ? ORDER BY menuId ASC`,
       [sid],
     );
     const data = rows.map(mapMenuRow);
@@ -483,22 +485,30 @@ export async function manageInsertMenu(
       }
 
       const hasSort = await menuHasSortOrderColumn(pool);
+      const hasDesc = await menuHasDescriptionColumn(pool);
+      // 컬럼 유무에 따라 동적으로 INSERT 쿼리·파라미터 조립 (오래된 DB 호환)
+      const cols = ['storeId', 'menuId', 'name', 'price', 'category'];
+      const vals: (string | number | null)[] = [sid, menuId, name, price, category];
       if (hasSort) {
         const [maxRows] = await pool.query<RowDataPacket[]>(
           'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM menu WHERE storeId = ?',
           [sid],
         );
         const nextSort = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
-        await pool.execute(
-          `INSERT INTO menu (storeId, menuId, name, price, category, sortOrder, isRequired, imageUrl, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [sid, menuId, name, price, category, nextSort, isReq, imageUrl, description],
-        );
-      } else {
-        await pool.execute(
-          `INSERT INTO menu (storeId, menuId, name, price, category, isRequired, imageUrl, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [sid, menuId, name, price, category, isReq, imageUrl, description],
-        );
+        cols.push('sortOrder');
+        vals.push(nextSort);
       }
+      cols.push('isRequired', 'imageUrl');
+      vals.push(isReq, imageUrl);
+      if (hasDesc) {
+        cols.push('description');
+        vals.push(description);
+      }
+      const placeholders = cols.map(() => '?').join(', ');
+      await pool.execute(
+        `INSERT INTO menu (${cols.join(', ')}) VALUES (${placeholders})`,
+        vals,
+      );
       return { success: true, data: { menuId } };
     }
 
@@ -554,17 +564,28 @@ export async function manageUpdateMenu(
     sets.push('imageUrl = ?');
     params.push(patch.imageUrl == null || String(patch.imageUrl).trim() === '' ? null : String(patch.imageUrl));
   }
+  // description은 컬럼이 있는 DB에서만 set 한다 (없는 DB에서는 조용히 무시)
+  let pendingDescription: string | null | undefined;
   if (patch.description !== undefined) {
-    sets.push('description = ?');
-    params.push(patch.description == null || String(patch.description).trim() === '' ? null : String(patch.description).trim());
+    pendingDescription =
+      patch.description == null || String(patch.description).trim() === ''
+        ? null
+        : String(patch.description).trim();
   }
-  if (!sets.length) {
+  if (!sets.length && pendingDescription === undefined) {
     return { success: false, message: '수정할 필드가 없습니다.' };
   }
-  params.push(sid, mid);
 
   try {
     const pool = getPool();
+    if (pendingDescription !== undefined && (await menuHasDescriptionColumn(pool))) {
+      sets.push('description = ?');
+      params.push(pendingDescription);
+    }
+    if (!sets.length) {
+      return { success: true }; // description-only 요청이고 컬럼 없으면 no-op
+    }
+    params.push(sid, mid);
     const [h] = await pool.execute<ResultSetHeader>(
       `UPDATE menu SET ${sets.join(', ')} WHERE storeId = ? AND menuId = ?`,
       params,
