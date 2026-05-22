@@ -645,6 +645,293 @@ export async function manageReorderMenus(
   }
 }
 
+// ── 동(zone) 관리 ────────────────────────────────────────
+
+export interface ManageZoneRow {
+  zoneId: string;
+  storeId: string;
+  name: string;
+  sortOrder: number;
+  maxCapacity: number;
+  minGroupHeadcount: number | null;
+  slotStartHour: number | null;
+  slotEndHour: number | null;
+  weeklyHoursJson: string | null;
+  closedDatesJson: string | null;
+  ownerClosedSlotsJson: string | null;
+}
+
+function mapZoneRow(r: RowDataPacket & Record<string, unknown>): ManageZoneRow {
+  return {
+    zoneId: String(r.zoneId ?? '').trim(),
+    storeId: String(r.storeId ?? '').trim(),
+    name: String(r.name ?? '').trim(),
+    sortOrder: parseInt(String(r.sortOrder ?? '0'), 10) || 0,
+    maxCapacity: parseInt(String(r.maxCapacity ?? '0'), 10) || 0,
+    minGroupHeadcount:
+      r.minGroupHeadcount != null ? parseInt(String(r.minGroupHeadcount), 10) || null : null,
+    slotStartHour: r.slotStartHour != null ? Number(r.slotStartHour) : null,
+    slotEndHour: r.slotEndHour != null ? Number(r.slotEndHour) : null,
+    weeklyHoursJson:
+      r.weeklyHoursJson != null && String(r.weeklyHoursJson).trim()
+        ? String(r.weeklyHoursJson)
+        : null,
+    closedDatesJson:
+      r.closedDatesJson != null && String(r.closedDatesJson).trim()
+        ? String(r.closedDatesJson)
+        : null,
+    ownerClosedSlotsJson:
+      r.ownerClosedSlotsJson != null && String(r.ownerClosedSlotsJson).trim()
+        ? String(r.ownerClosedSlotsJson)
+        : null,
+  };
+}
+
+export async function manageListZones(
+  storeId: string,
+): Promise<{ success: true; data: ManageZoneRow[] } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
+      'SELECT * FROM zone WHERE storeId = ? ORDER BY sortOrder ASC, name ASC',
+      [sid],
+    );
+    return { success: true, data: rows.map(mapZoneRow) };
+  } catch (e) {
+    console.error('[manageListZones]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+function generateZoneId(): string {
+  return `zn_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
+
+export async function manageInsertZone(
+  storeId: string,
+  body: {
+    name: string;
+    maxCapacity: number;
+    sortOrder?: number;
+    minGroupHeadcount?: number | null;
+    slotStartHour?: number | null;
+    slotEndHour?: number | null;
+    weeklyHoursJson?: string | null;
+    closedDatesJson?: string | null;
+  },
+): Promise<{ success: true; data: { zoneId: string } } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  const name = String(body.name ?? '').trim();
+  if (!name) return { success: false, message: '동(zone) 이름이 필요합니다.' };
+  if (name.length > 40) {
+    return { success: false, message: '동 이름은 40자 이내로 입력해 주세요.' };
+  }
+  const maxCap = Math.max(1, Math.floor(Number(body.maxCapacity) || 0));
+  if (maxCap < 1) {
+    return { success: false, message: '최대 수용 인원은 1명 이상이어야 합니다.' };
+  }
+
+  try {
+    const pool = getPool();
+    // 이름 중복 확인
+    const [dup] = await pool.query<RowDataPacket[]>(
+      'SELECT 1 FROM zone WHERE storeId = ? AND name = ? LIMIT 1',
+      [sid, name],
+    );
+    if (dup.length) {
+      return { success: false, message: '같은 이름의 동이 이미 있습니다.' };
+    }
+
+    // sortOrder 자동 계산
+    let sortOrder = Number(body.sortOrder);
+    if (!Number.isFinite(sortOrder)) {
+      const [maxRows] = await pool.query<RowDataPacket[]>(
+        'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM zone WHERE storeId = ?',
+        [sid],
+      );
+      sortOrder = (parseInt(String(maxRows[0]?.m ?? '0'), 10) || 0) + 10;
+    }
+
+    const zoneId = generateZoneId();
+    await pool.execute(
+      `INSERT INTO zone (zoneId, storeId, name, sortOrder, maxCapacity,
+        minGroupHeadcount, slotStartHour, slotEndHour, weeklyHoursJson, closedDatesJson)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        zoneId,
+        sid,
+        name,
+        Math.floor(sortOrder),
+        maxCap,
+        body.minGroupHeadcount != null && Number.isFinite(Number(body.minGroupHeadcount))
+          ? Math.max(1, Math.floor(Number(body.minGroupHeadcount)))
+          : null,
+        body.slotStartHour != null && Number.isFinite(Number(body.slotStartHour))
+          ? Math.min(23, Math.max(0, Math.floor(Number(body.slotStartHour))))
+          : null,
+        body.slotEndHour != null && Number.isFinite(Number(body.slotEndHour))
+          ? Math.min(23, Math.max(0, Math.floor(Number(body.slotEndHour))))
+          : null,
+        body.weeklyHoursJson ?? null,
+        body.closedDatesJson ?? null,
+      ],
+    );
+    return { success: true, data: { zoneId } };
+  } catch (e) {
+    console.error('[manageInsertZone]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+export async function manageUpdateZone(
+  storeId: string,
+  zoneId: string,
+  patch: {
+    name?: string;
+    maxCapacity?: number;
+    sortOrder?: number;
+    minGroupHeadcount?: number | null;
+    slotStartHour?: number | null;
+    slotEndHour?: number | null;
+    weeklyHoursJson?: string | null;
+    closedDatesJson?: string | null;
+    ownerClosedSlotsJson?: string | null;
+  },
+): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  const zid = zoneId.trim();
+  if (!sid || !zid) return { success: false, message: '가게 ID와 동 ID가 필요합니다.' };
+
+  const sets: string[] = [];
+  const params: (string | number | null)[] = [];
+  if (patch.name !== undefined) {
+    const name = String(patch.name).trim();
+    if (!name) return { success: false, message: '동 이름은 비울 수 없습니다.' };
+    if (name.length > 40) {
+      return { success: false, message: '동 이름은 40자 이내로 입력해 주세요.' };
+    }
+    // 같은 가게 내 다른 zone과 이름 중복 확인
+    try {
+      const pool = getPool();
+      const [dup] = await pool.query<RowDataPacket[]>(
+        'SELECT 1 FROM zone WHERE storeId = ? AND name = ? AND zoneId <> ? LIMIT 1',
+        [sid, name, zid],
+      );
+      if (dup.length) {
+        return { success: false, message: '같은 이름의 동이 이미 있습니다.' };
+      }
+    } catch (e) {
+      console.error('[manageUpdateZone dup check]', e);
+      return { success: false, message: formatMysqlUserError(e) };
+    }
+    sets.push('name = ?');
+    params.push(name);
+  }
+  if (patch.maxCapacity !== undefined) {
+    const cap = Math.max(1, Math.floor(Number(patch.maxCapacity) || 0));
+    if (cap < 1) return { success: false, message: '최대 수용 인원은 1명 이상이어야 합니다.' };
+    sets.push('maxCapacity = ?');
+    params.push(cap);
+  }
+  if (patch.sortOrder !== undefined) {
+    sets.push('sortOrder = ?');
+    params.push(Math.floor(Number(patch.sortOrder) || 0));
+  }
+  if (patch.minGroupHeadcount !== undefined) {
+    sets.push('minGroupHeadcount = ?');
+    params.push(
+      patch.minGroupHeadcount == null
+        ? null
+        : Math.max(1, Math.floor(Number(patch.minGroupHeadcount) || 1)),
+    );
+  }
+  if (patch.slotStartHour !== undefined) {
+    sets.push('slotStartHour = ?');
+    params.push(
+      patch.slotStartHour == null
+        ? null
+        : Math.min(23, Math.max(0, Math.floor(Number(patch.slotStartHour) || 0))),
+    );
+  }
+  if (patch.slotEndHour !== undefined) {
+    sets.push('slotEndHour = ?');
+    params.push(
+      patch.slotEndHour == null
+        ? null
+        : Math.min(23, Math.max(0, Math.floor(Number(patch.slotEndHour) || 0))),
+    );
+  }
+  if (patch.weeklyHoursJson !== undefined) {
+    sets.push('weeklyHoursJson = ?');
+    params.push(patch.weeklyHoursJson ?? null);
+  }
+  if (patch.closedDatesJson !== undefined) {
+    sets.push('closedDatesJson = ?');
+    params.push(patch.closedDatesJson ?? null);
+  }
+  if (patch.ownerClosedSlotsJson !== undefined) {
+    sets.push('ownerClosedSlotsJson = ?');
+    params.push(patch.ownerClosedSlotsJson ?? null);
+  }
+  if (!sets.length) {
+    return { success: false, message: '수정할 필드가 없습니다.' };
+  }
+  params.push(sid, zid);
+
+  try {
+    const pool = getPool();
+    const [h] = await pool.execute<ResultSetHeader>(
+      `UPDATE zone SET ${sets.join(', ')} WHERE storeId = ? AND zoneId = ?`,
+      params,
+    );
+    if (!h.affectedRows) {
+      return { success: false, message: '동을 찾을 수 없습니다.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error('[manageUpdateZone]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+export async function manageDeleteZone(
+  storeId: string,
+  zoneId: string,
+): Promise<{ success: true } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  const zid = zoneId.trim();
+  if (!sid || !zid) return { success: false, message: '가게 ID와 동 ID가 필요합니다.' };
+  try {
+    const pool = getPool();
+    const [h] = await pool.execute<ResultSetHeader>(
+      'DELETE FROM zone WHERE storeId = ? AND zoneId = ?',
+      [sid, zid],
+    );
+    if (!h.affectedRows) {
+      return { success: false, message: '동을 찾을 수 없습니다.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error('[manageDeleteZone]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
 function newAdminToken(): string {
   return `adm_${randomUUID().replace(/-/g, '')}`;
 }

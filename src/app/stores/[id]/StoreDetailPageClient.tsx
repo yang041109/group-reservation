@@ -35,6 +35,7 @@ export default function StoreDetailPageClient() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedHeadcount, setSelectedHeadcount] = useState(1);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
   const [navigatingToSearch, setNavigatingToSearch] = useState(false);
 
@@ -196,6 +197,19 @@ export default function StoreDetailPageClient() {
     };
   }, [storeId, searchParams]);
 
+  // zone 운영 가게에서 데이터 로드 후 첫 zone 자동 선택. 이미 유효한 선택이 있으면 유지.
+  useEffect(() => {
+    const zonesFromData = data?.zones ?? data?.store?.zones ?? [];
+    if (!zonesFromData.length) {
+      if (selectedZoneId !== null) setSelectedZoneId(null);
+      return;
+    }
+    const stillValid = zonesFromData.some((z) => z.zoneId === selectedZoneId);
+    if (!stillValid) {
+      setSelectedZoneId(zonesFromData[0].zoneId);
+    }
+  }, [data, selectedZoneId]);
+
   const menusForReceipt = data?.menus ?? [];
 
   const menuReceiptLines = useMemo((): MenuReceiptLine[] => {
@@ -247,11 +261,30 @@ export default function StoreDetailPageClient() {
     );
   }
 
-  const { store, menus, availableTimes, reservedTimes } = data;
-  const slots = data.slots ?? store.slots ?? [];
-  const startHour = store.slotStartHour ?? DEFAULT_SLOT_START_HOUR;
-  const endHour = store.slotEndHour ?? DEFAULT_SLOT_END_HOUR;
+  const { store, menus } = data;
+  const zones = data.zones ?? store.zones ?? [];
+  const hasZones = zones.length > 0;
+
+  // zone 운영 가게: 선택된 zone 정보 우선 사용
+  const activeZone = hasZones
+    ? zones.find((z) => z.zoneId === selectedZoneId) ?? zones[0]
+    : null;
+
+  const slots = activeZone ? activeZone.slots : data.slots ?? store.slots ?? [];
+  const availableTimes = activeZone
+    ? activeZone.availableTimes
+    : data.availableTimes;
+  const reservedTimes = activeZone
+    ? activeZone.reservedTimes
+    : data.reservedTimes;
+  const startHour = activeZone
+    ? activeZone.slotStartHour
+    : store.slotStartHour ?? DEFAULT_SLOT_START_HOUR;
+  const endHour = activeZone
+    ? activeZone.slotEndHour
+    : store.slotEndHour ?? DEFAULT_SLOT_END_HOUR;
   const crossesMidnight = endHour < startHour;
+  const zoneClosed = activeZone ? activeZone.closedOnDate : false;
 
   const depositMode: DepositMode =
     store.depositMode ?? (store.depositUseTiers ? 'tiered' : 'flat');
@@ -356,6 +389,44 @@ export default function StoreDetailPageClient() {
           </p>
         )}
 
+        {hasZones ? (
+          <div>
+            <p className="mb-2 text-xs font-medium text-gray-500">예약할 동(zone) 선택</p>
+            <div className="flex flex-wrap gap-2">
+              {zones.map((z) => {
+                const isActive = z.zoneId === (activeZone?.zoneId ?? '');
+                return (
+                  <button
+                    key={z.zoneId}
+                    type="button"
+                    onClick={() => {
+                      if (z.zoneId !== selectedZoneId) {
+                        setSelectedZoneId(z.zoneId);
+                        setSelectedTime(null);
+                      }
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-blue-500 text-white shadow'
+                        : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {z.name}
+                    <span className={`ml-1.5 text-xs ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>
+                      최대 {z.maxCapacity}명
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {zoneClosed ? (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                선택한 동은 이 날짜에 영업하지 않습니다.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <TimeSelector
           availableTimes={availableTimes}
           reservedTimes={reservedTimes}
@@ -385,6 +456,9 @@ export default function StoreDetailPageClient() {
         totalAmount={totalAmount}
         storeId={storeId}
         storeName={store.name}
+        selectedZoneId={activeZone?.zoneId}
+        selectedZoneName={activeZone?.name}
+        zoneRequiredButNotSelected={hasZones && !activeZone}
         menuQuantities={menuQuantities}
         menus={menus}
         expectedDeposit={effectiveDeposit}

@@ -241,6 +241,8 @@ export interface GetStoreDetailResponse {
   availableTimes: string[];
   /** @deprecated 하위 호환용 */
   reservedTimes: string[];
+  /** 가게가 동(zone) 운영 중이면 동별 상세. store.zones 와 동일. */
+  zones?: ZoneDetailEntry[];
 }
 
 // --- 전화번호 예약 조회 응답 (reservations + reservation_menus JOIN) ---

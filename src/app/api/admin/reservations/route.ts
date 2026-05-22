@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const zoneId = searchParams.get('zoneId');
     const calendarConfirmed =
       searchParams.get('calendarConfirmed') === '1' || searchParams.get('calendarConfirmed') === 'true';
     const calendarVisible =
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
     const result = await adminListReservationsByStore(storeId, status, date, from, to, {
       calendarConfirmed: calendarConfirmed && !status?.trim(),
       calendarVisible: calendarVisible && !status?.trim(),
+      zoneId,
     });
 
     if (!result.success) {

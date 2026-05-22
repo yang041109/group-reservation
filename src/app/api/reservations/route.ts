@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     await insertReservationValidated(
       {
         storeId: body.storeId,
+        zoneId: body.zoneId,
         userName: body.representativeName,
         groupName: body.groupName,
         userPhone: body.phone,

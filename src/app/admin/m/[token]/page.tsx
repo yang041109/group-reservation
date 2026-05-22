@@ -9,6 +9,8 @@ interface Reservation {
   reservationId: string;
   userName: string;
   groupName?: string;
+  zoneId?: string;
+  zoneName?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -161,6 +163,11 @@ export default function AdminDashboardByToken() {
                     <p className="text-sm font-semibold text-gray-900">
                       {r.startTime}
                       {r.endTime ? ` – ${r.endTime}` : ''}
+                      {r.zoneName ? (
+                        <span className="ml-2 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                          {r.zoneName}
+                        </span>
+                      ) : null}
                     </p>
                     <p className="mt-0.5 truncate text-sm text-gray-700">
                       {r.userName}

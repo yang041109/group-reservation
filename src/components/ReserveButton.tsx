@@ -16,6 +16,11 @@ interface ReserveButtonProps {
   totalAmount: number;
   storeId: string;
   storeName: string;
+  /** 가게가 동(zone) 운영 중이면 선택된 동의 zoneId·이름. 단일 운영이면 둘 다 undefined. */
+  selectedZoneId?: string;
+  selectedZoneName?: string;
+  /** zone 운영 가게인데 zone 선택 전이면 true → 예약 버튼 비활성화 */
+  zoneRequiredButNotSelected?: boolean;
   menuQuantities: Record<string, number>;
   menus: MenuItemInput[];
   /** 예약 확정 시 저장되는 예약금(인원 구간 반영) */
@@ -32,6 +37,9 @@ export default function ReserveButton({
   totalAmount,
   storeId,
   storeName,
+  selectedZoneId,
+  selectedZoneName,
+  zoneRequiredButNotSelected,
   menuQuantities,
   menus,
   expectedDeposit,
@@ -51,10 +59,16 @@ export default function ReserveButton({
   const requiredMenuNotSelected = missingRequired.length > 0;
 
   const isDisabled =
-    dateNotSelected || timeNotSelected || belowGroupMin || requiredMenuNotSelected;
+    dateNotSelected ||
+    timeNotSelected ||
+    belowGroupMin ||
+    requiredMenuNotSelected ||
+    !!zoneRequiredButNotSelected;
 
   let validationMessage: string | null = null;
-  if (dateNotSelected) {
+  if (zoneRequiredButNotSelected) {
+    validationMessage = '예약할 동(zone)을 선택해주세요';
+  } else if (dateNotSelected) {
     validationMessage = '날짜를 선택해주세요';
   } else if (timeNotSelected) {
     validationMessage = '시간을 선택해주세요';
@@ -81,6 +95,8 @@ export default function ReserveButton({
     const pendingReservation = {
       storeId,
       storeName,
+      zoneId: selectedZoneId ?? null,
+      zoneName: selectedZoneName ?? null,
       headcount: selectedHeadcount,
       date: selectedDate,
       time: selectedTime,

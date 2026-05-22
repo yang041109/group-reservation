@@ -9,6 +9,8 @@ interface Reservation {
   userName: string;
   groupName: string;
   userPhone: string;
+  zoneId?: string;
+  zoneName?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -21,6 +23,12 @@ interface Reservation {
     quantity: number;
     priceAtTime: number;
   }>;
+}
+
+interface ZoneSummary {
+  zoneId: string;
+  name: string;
+  maxCapacity: number;
 }
 
 const REJECT_REASON_PRESETS = [
@@ -38,6 +46,8 @@ export default function AdminPendingByToken() {
 
   const [pendingReservations, setPendingReservations] = useState<Reservation[]>([]);
   const [depositPendingReservations, setDepositPendingReservations] = useState<Reservation[]>([]);
+  const [zones, setZones] = useState<ZoneSummary[]>([]);
+  const [zoneFilter, setZoneFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
@@ -45,14 +55,34 @@ export default function AdminPendingByToken() {
   const [rejectAlternativeDraft, setRejectAlternativeDraft] = useState('');
 
   const reloadLists = useCallback(async () => {
+    const zoneQp = zoneFilter ? `&zoneId=${encodeURIComponent(zoneFilter)}` : '';
     const [pRes, dRes] = await Promise.all([
-      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
-      fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
+      fetch(
+        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING${zoneQp}`,
+      ),
+      fetch(
+        `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING${zoneQp}`,
+      ),
     ]);
     const [pJson, dJson] = await Promise.all([pRes.json(), dRes.json()]);
     if (pJson.success) setPendingReservations((pJson.data || []) as Reservation[]);
     if (dJson.success) setDepositPendingReservations((dJson.data || []) as Reservation[]);
-  }, [store.id]);
+  }, [store.id, zoneFilter]);
+
+  // 가게 zone 목록 (필터 드롭다운용). zone 0개 가게에선 비어 있어 필터 UI가 숨겨진다.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/store/zones?token=${encodeURIComponent(store.token)}`,
+        );
+        const data = await res.json();
+        if (data.success) setZones((data.data || []) as ZoneSummary[]);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [store.token]);
 
   useEffect(() => {
     if (!rejectTargetId) return;
@@ -204,6 +234,35 @@ export default function AdminPendingByToken() {
             </span>
             건의 예약이 대기 중입니다
           </p>
+          {zones.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setZoneFilter('')}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  zoneFilter === ''
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-300 bg-white text-gray-700'
+                }`}
+              >
+                전체 동
+              </button>
+              {zones.map((z) => (
+                <button
+                  key={z.zoneId}
+                  type="button"
+                  onClick={() => setZoneFilter(z.zoneId)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    zoneFilter === z.zoneId
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-300 bg-white text-gray-700'
+                  }`}
+                >
+                  {z.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {depositPendingReservations.length > 0 && (
@@ -272,6 +331,11 @@ export default function AdminPendingByToken() {
                         {reservation.userName}
                         {reservation.groupName ? (
                           <span className="text-sm font-normal text-gray-500"> / {reservation.groupName}</span>
+                        ) : null}
+                        {reservation.zoneName ? (
+                          <span className="ml-2 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                            {reservation.zoneName}
+                          </span>
                         ) : null}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">

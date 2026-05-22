@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       storeId,
+      zoneId,
       mode,
       userName,
       groupName,
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     }
 
     const result = await adminCreateManualReservation(String(storeId), mode, {
+      zoneId: typeof zoneId === 'string' ? zoneId : undefined,
       userName: typeof userName === 'string' ? userName : undefined,
       groupName: typeof groupName === 'string' ? groupName : undefined,
       userPhone: typeof userPhone === 'string' ? userPhone : undefined,

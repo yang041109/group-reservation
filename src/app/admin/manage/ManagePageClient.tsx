@@ -27,6 +27,7 @@ import DepositSettingsFields, {
   defaultDepositTierRows,
   type DepositTierFormRow,
 } from '@/components/admin/DepositSettingsFields';
+import ZoneManager from '@/components/admin/ZoneManager';
 import {
   depositModeFromDb,
   depositRequiresBankInfo,
@@ -1159,6 +1160,17 @@ export default function ManagePageClient() {
                         ) : null}
                       </div>
                     </section>
+
+                    {selectedId ? (
+                      <ZoneManager
+                        storeId={selectedId}
+                        storedSecret={storedSecret}
+                        storeMaxCapacity={selected?.maxCapacity ?? 0}
+                        onMessage={(m) => setMsg(m)}
+                        onError={(e) => setErr(e)}
+                        onZonesChanged={() => void invalidateAllDataCache()}
+                      />
+                    ) : null}
 
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

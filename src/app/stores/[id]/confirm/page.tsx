@@ -14,6 +14,8 @@ interface PendingMenuItem {
 interface PendingReservation {
   storeId: string;
   storeName: string;
+  zoneId?: string | null;
+  zoneName?: string | null;
   headcount: number;
   date: string;
   time: string;
@@ -83,6 +85,7 @@ export default function ReservationConfirmPage() {
         body: JSON.stringify({
           storeId: reservation.storeId,
           storeName: reservation.storeName,
+          zoneId: reservation.zoneId || undefined,
           headcount: reservation.headcount,
           date: reservation.date,
           time: reservation.time,
@@ -144,6 +147,14 @@ export default function ReservationConfirmPage() {
           <span className="text-sm text-gray-500">가게</span>
           <span className="font-semibold text-gray-900">{reservation.storeName}</span>
         </div>
+
+        {/* 동(zone) — 동 운영 가게만 표시 */}
+        {reservation.zoneName ? (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">동</span>
+            <span className="font-semibold text-gray-900">{reservation.zoneName}</span>
+          </div>
+        ) : null}
 
         {/* 인원수 */}
         <div className="flex items-center justify-between">

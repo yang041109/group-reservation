@@ -10,6 +10,8 @@ interface Reservation {
   groupName: string;
   userPhone: string;
   userNote?: string;
+  zoneId?: string;
+  zoneName?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -134,7 +136,24 @@ export default function AdminCalendarByToken() {
   const [eventStartTime, setEventStartTime] = useState('09:00');
   const [eventEndTime, setEventEndTime] = useState('10:00');
   const [eventMemo, setEventMemo] = useState('');
+  const [eventZoneId, setEventZoneId] = useState<string>('');
   const [eventLoading, setEventLoading] = useState(false);
+
+  // 동(zone) 목록 — zone 운영 가게에서만 사용. 빈 배열이면 단일 운영.
+  const [zones, setZones] = useState<{ zoneId: string; name: string; maxCapacity: number }[]>([]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/store/zones?token=${encodeURIComponent(store.token)}`,
+        );
+        const data = await res.json();
+        if (data.success) setZones(data.data || []);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [store.token]);
 
   const monthRange = useMemo(() => {
     const mi = viewMonth - 1;
@@ -330,6 +349,7 @@ export default function AdminCalendarByToken() {
     setEventStartTime('09:00');
     setEventEndTime('10:00');
     setEventMemo('');
+    setEventZoneId(zones.length === 1 ? zones[0].zoneId : '');
     setEventCreateOpen(true);
   };
 
@@ -351,6 +371,10 @@ export default function AdminCalendarByToken() {
       alert('인원수는 1 이상 999 이하의 숫자로 입력해 주세요.');
       return;
     }
+    if (zones.length > 0 && !eventZoneId) {
+      alert('예약할 동(zone)을 선택해 주세요.');
+      return;
+    }
 
     setEventLoading(true);
     try {
@@ -360,6 +384,7 @@ export default function AdminCalendarByToken() {
         body: JSON.stringify({
           storeId: store.id,
           mode: 'phone',
+          zoneId: eventZoneId || undefined,
           userName: eventUserName.trim(),
           groupName: eventGroupName.trim() || undefined,
           userPhone: eventUserPhone.trim() || undefined,
@@ -557,6 +582,11 @@ export default function AdminCalendarByToken() {
                       {reservation.groupName ? (
                         <span className="text-gray-400"> / {reservation.groupName}</span>
                       ) : null}
+                      {reservation.zoneName ? (
+                        <span className="ml-2 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 align-middle">
+                          {reservation.zoneName}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-gray-500">{reservation.headcount}명</div>
                   </div>
@@ -618,11 +648,18 @@ export default function AdminCalendarByToken() {
                     </span>
                   ) : null}
                 </h3>
-                <span
-                  className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(detail.status)}`}
-                >
-                  {getStatusLabel(detail.status)}
-                </span>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(detail.status)}`}
+                  >
+                    {getStatusLabel(detail.status)}
+                  </span>
+                  {detail.zoneName ? (
+                    <span className="inline-block rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
+                      {detail.zoneName}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button
                 type="button"
@@ -979,6 +1016,27 @@ export default function AdminCalendarByToken() {
             </div>
 
             <div className="space-y-3">
+              {zones.length > 0 ? (
+                <label className="block">
+                  <span className="text-xs text-gray-500">
+                    동(zone) <span className="text-red-500">*</span>
+                  </span>
+                  <select
+                    value={eventZoneId}
+                    onChange={(e) => setEventZoneId(e.target.value)}
+                    disabled={eventLoading}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
+                  >
+                    <option value="">— 동 선택 —</option>
+                    {zones.map((z) => (
+                      <option key={z.zoneId} value={z.zoneId}>
+                        {z.name} (최대 {z.maxCapacity}명)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-xs text-gray-500">시작 시간</span>
