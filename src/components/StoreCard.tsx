@@ -121,10 +121,6 @@ export default function StoreCard({
         <div className="mt-4">
           {closedOnDate ? (
             <p className="rounded-lg bg-gray-100 px-3 py-2 text-center text-sm text-gray-500">선택한 날짜 휴무</p>
-          ) : sameDayBlocked ? (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-800">
-              당일 예약 불가 · 가게에서 받지 않습니다
-            </p>
           ) : (
           <>
           <div className="mb-1 flex">
@@ -144,7 +140,11 @@ export default function StoreCard({
               let bg: string;
               let title: string;
 
-              if (slot) {
+              // 당일 예약 불가 가게는 슬롯 전체를 회색(마감)으로 표시.
+              if (sameDayBlocked) {
+                bg = SLOT_CLOSED_CLASS;
+                title = `${time} (당일 예약 불가)`;
+              } else if (slot) {
                 const remaining = slot.maxPeople - slot.currentHeadcount;
                 const ratio = slot.maxPeople > 0 ? slot.currentHeadcount / slot.maxPeople : 1;
                 if (!slot.isAvailable) {
@@ -178,14 +178,20 @@ export default function StoreCard({
               );
             })}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-            {TIMELINE_LEGEND.map((item) => (
-              <span key={item.label} className="flex items-center gap-1 text-[11px] text-gray-600">
-                <span className={`inline-block h-2.5 w-2.5 rounded-sm ${item.color}`} />
-                {item.label}
-              </span>
-            ))}
-          </div>
+          {sameDayBlocked ? (
+            <p className="mt-2 text-center text-[11px] font-medium text-amber-700">
+              당일 예약 불가 · 가게에서 받지 않습니다
+            </p>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {TIMELINE_LEGEND.map((item) => (
+                <span key={item.label} className="flex items-center gap-1 text-[11px] text-gray-600">
+                  <span className={`inline-block h-2.5 w-2.5 rounded-sm ${item.color}`} />
+                  {item.label}
+                </span>
+              ))}
+            </div>
+          )}
           </>
           )}
         </div>
