@@ -14,7 +14,7 @@ import type { StoreCard as StoreCardType } from '@/types';
 type SortMode = 'recommended' | 'availability' | 'deposit';
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: 'recommended', label: '추천순' },
+  { value: 'recommended', label: '기본순' },
   { value: 'availability', label: '여유순' },
   { value: 'deposit', label: '예약금 낮은순' },
 ];
@@ -127,7 +127,8 @@ export default function SearchPage() {
     const arr = [...filteredStores];
     const hc = selectedHeadcount;
     if (sortMode === 'recommended') {
-      arr.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, 'ko'));
+      // '기본순' = 가게 이름 한글 가나다순. 동률이면 admin의 sortOrder 로 보조 정렬.
+      arr.sort((a, b) => a.name.localeCompare(b.name, 'ko') || (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     } else if (sortMode === 'availability') {
       arr.sort((a, b) => {
         const sb = computeAvailabilityScore(b.timeline, hc);
@@ -155,20 +156,23 @@ export default function SearchPage() {
 
   const showStores = selectedDate !== null;
 
-  const getUpdateTimeMessage = () => {
+  // 서버/클라이언트 시간대 차이로 인한 hydration mismatch 방지:
+  // 시간 메시지는 마운트 후 효과에서만 계산.
+  const [updateTimeMessage, setUpdateTimeMessage] = useState<string | null>(null);
+  useEffect(() => {
     const now = new Date();
     const currentHour = now.getHours();
     const hoursSinceUpdate = currentHour >= 12 ? currentHour - 12 : currentHour;
-    return `${hoursSinceUpdate}시간 전 업데이트된 예약 현황입니다`;
-  };
+    setUpdateTimeMessage(`${hoursSinceUpdate}시간 전 업데이트된 예약 현황입니다`);
+  }, []);
 
   return (
     <main className="mx-auto w-full max-w-5xl overflow-x-clip px-4 py-8">
       <p className="text-sm text-gray-500">날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다</p>
 
-      {showStores && !isLoading && (
+      {showStores && !isLoading && updateTimeMessage && (
         <div className="mt-4 rounded-lg bg-blue-50 px-4 py-2">
-          <p className="text-xs text-blue-600">⏰ {getUpdateTimeMessage()}</p>
+          <p className="text-xs text-blue-600">⏰ {updateTimeMessage}</p>
         </div>
       )}
 

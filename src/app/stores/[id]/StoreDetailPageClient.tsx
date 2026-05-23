@@ -473,6 +473,18 @@ export default function StoreDetailPageClient() {
                 선택한 동은 이 날짜에 영업하지 않습니다.
               </p>
             ) : null}
+            {(() => {
+              const largestZoneCap = Math.max(...zones.map((z) => z.maxCapacity));
+              if (selectedHeadcount > largestZoneCap) {
+                return (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    <b>{selectedHeadcount}명 단체</b>는 한 동에서 받기 어려워요 (가장 큰 동 {largestZoneCap}명). 동을 나눠
+                    각각 따로 예약하시거나 가게에 문의해 주세요.
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
         ) : null}
 

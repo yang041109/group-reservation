@@ -14,7 +14,9 @@ function getTodayYmd(): string {
 
 export default function LandingHero() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState<string | null>(() => getTodayYmd());
+  // SSR 와 클라이언트의 시간대 차이로 인한 hydration mismatch 방지:
+  // 서버 첫 render 에선 null, 마운트 후 useEffect 에서 오늘 날짜 세팅.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [people, setPeople] = useState(0);
   const [urrSize, setUrrSize] = useState(72);
   const [going, setGoing] = useState(false);
@@ -26,6 +28,10 @@ export default function LandingHero() {
     const dow = ['일', '월', '화', '수', '목', '금', '토'];
     return `${dow[d.getDay()]} · ${d.getMonth() + 1}/${d.getDate()}`;
   }, [selectedDate]);
+
+  useEffect(() => {
+    setSelectedDate((prev) => prev ?? getTodayYmd());
+  }, []);
 
   useEffect(() => {
     const fn = () => setUrrSize(Math.min(160, Math.floor(window.innerWidth * 0.16)));
