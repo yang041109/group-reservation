@@ -11,8 +11,11 @@ import {
 } from '@/lib/store-weekly-hours';
 import {
   depositModeFromDb,
+  parseDepositActiveMonthRangesJson,
   parseDepositTiersJson,
   resolveDepositForHeadcount,
+  resolveDepositForHeadcountAndDate,
+  type DepositActiveMonthRange,
   type DepositMode,
   type DepositTier,
 } from '@/lib/deposit-tiers';
@@ -99,16 +102,19 @@ function readStoreDepositOpts(store: StoreRow): {
   depositUseTiers: boolean;
   depositTiers: DepositTier[];
   flatDepositAmount: number;
+  depositActiveMonthRanges: DepositActiveMonthRange[];
 } {
   const rec = store as Record<string, unknown>;
   const depositMode = depositModeFromDb(rec.depositUseTiers);
   const flat = parseInt(String(rec.depositAmount ?? '0'), 10) || 0;
   const tiers = parseDepositTiersJson(rec.depositTiersJson);
+  const ranges = parseDepositActiveMonthRangesJson(rec.depositActiveMonthRangesJson);
   return {
     depositMode,
     depositUseTiers: depositMode === 'tiered',
     depositTiers: tiers,
     flatDepositAmount: flat,
+    depositActiveMonthRanges: ranges,
   };
 }
 
@@ -431,6 +437,15 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         slots: first?.slots ?? [],
         minOrderRules: [],
         allowSameDayBooking: Number(storeRec.allowSameDayBooking ?? 0) === 1,
+        menuNoticeText:
+          storeRec.menuNoticeText != null && String(storeRec.menuNoticeText).trim()
+            ? String(storeRec.menuNoticeText).trim()
+            : null,
+        depositActiveMonthRanges: depOpts.depositActiveMonthRanges,
+        menuRequiredPeoplePerItem:
+          storeRec.menuRequiredPeoplePerItem != null && storeRec.menuRequiredPeoplePerItem !== ''
+            ? parseInt(String(storeRec.menuRequiredPeoplePerItem), 10) || null
+            : null,
         zones: zonesPayload,
       },
       menus: menusPayload,
@@ -469,6 +484,15 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       slots: built.timeline,
       minOrderRules: [],
       allowSameDayBooking: Number(storeRec.allowSameDayBooking ?? 0) === 1,
+      menuNoticeText:
+        storeRec.menuNoticeText != null && String(storeRec.menuNoticeText).trim()
+          ? String(storeRec.menuNoticeText).trim()
+          : null,
+      depositActiveMonthRanges: depOpts.depositActiveMonthRanges,
+      menuRequiredPeoplePerItem:
+        storeRec.menuRequiredPeoplePerItem != null && storeRec.menuRequiredPeoplePerItem !== ''
+          ? parseInt(String(storeRec.menuRequiredPeoplePerItem), 10) || null
+          : null,
     },
     menus: menusPayload,
     slots: built.timeline,
@@ -646,11 +670,34 @@ export async function insertReservationValidated(
       }
     }
 
+    // N명당 메뉴 1개 강제 (store.menuRequiredPeoplePerItem)
+    const peoplePerItemRaw = (store as Record<string, unknown>).menuRequiredPeoplePerItem;
+    const peoplePerItem =
+      peoplePerItemRaw != null && peoplePerItemRaw !== ''
+        ? Math.max(0, Math.floor(Number(peoplePerItemRaw)) || 0)
+        : 0;
+    if (peoplePerItem > 0) {
+      const totalItemQty = selectedMenus.reduce(
+        (sum, sm) => sum + (parseInt(String(sm.quantity ?? '0'), 10) || 0),
+        0,
+      );
+      const requiredItemQty = Math.ceil(headcount / peoplePerItem);
+      if (totalItemQty < requiredItemQty) {
+        await conn.rollback();
+        throw new ReservationDbError(
+          400,
+          `이 가게는 ${peoplePerItem}명당 메뉴 1개 이상을 주문해야 합니다. ` +
+            `${headcount}명이면 메뉴 ${requiredItemQty}개 이상 필요(현재 ${totalItemQty}개).`,
+        );
+      }
+    }
+
     const depOpts = readStoreDepositOpts(store);
-    const depositAmount = resolveDepositForHeadcount(headcount, {
+    const depositAmount = resolveDepositForHeadcountAndDate(headcount, date, {
       depositMode: depOpts.depositMode,
       depositTiers: depOpts.depositTiers,
       flatDepositAmount: depOpts.flatDepositAmount,
+      depositActiveMonthRanges: depOpts.depositActiveMonthRanges,
     });
     const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
@@ -882,6 +929,18 @@ export async function getAllDataFromMysql() {
           ? String(rec.closedWeekdaysJson).trim()
           : null,
       allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
+      menuNoticeText:
+        rec.menuNoticeText != null && String(rec.menuNoticeText).trim()
+          ? String(rec.menuNoticeText).trim()
+          : null,
+      depositActiveMonthRangesJson:
+        rec.depositActiveMonthRangesJson != null && String(rec.depositActiveMonthRangesJson).trim()
+          ? String(rec.depositActiveMonthRangesJson).trim()
+          : null,
+      menuRequiredPeoplePerItem:
+        rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
+          ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
+          : null,
       zones: storeZones,
     };
   });

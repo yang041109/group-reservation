@@ -29,6 +29,9 @@ export interface CachedStore {
   ownerClosedSlotsJson?: string | null;
   closedWeekdaysJson?: string | null;
   allowSameDayBooking?: boolean;
+  menuNoticeText?: string | null;
+  depositActiveMonthRangesJson?: string | null;
+  menuRequiredPeoplePerItem?: number | null;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
   /** 가게가 동(zone) 운영 중이면 동 요약 목록. 비어있으면 단일 운영. */

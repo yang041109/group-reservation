@@ -13,6 +13,9 @@ import {
   ensureStoreBookingRulesColumns,
   storeHasAllowSameDayBookingColumn,
   storeHasClosedWeekdaysColumn,
+  storeHasDepositActiveMonthRangesColumn,
+  storeHasMenuNoticeTextColumn,
+  storeHasMenuRequiredPeoplePerItemColumn,
 } from '@/lib/store-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
@@ -60,6 +63,9 @@ export interface ManageStoreRow {
   closedDatesJson: string | null;
   closedWeekdaysJson: string | null;
   allowSameDayBooking: boolean;
+  menuNoticeText: string | null;
+  depositActiveMonthRangesJson: string | null;
+  menuRequiredPeoplePerItem: number | null;
   description: string | null;
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
@@ -106,6 +112,18 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
         ? String(rec.closedWeekdaysJson)
         : null,
     allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
+    menuNoticeText:
+      rec.menuNoticeText != null && String(rec.menuNoticeText).trim()
+        ? String(rec.menuNoticeText).trim()
+        : null,
+    depositActiveMonthRangesJson:
+      rec.depositActiveMonthRangesJson != null && String(rec.depositActiveMonthRangesJson).trim()
+        ? String(rec.depositActiveMonthRangesJson)
+        : null,
+    menuRequiredPeoplePerItem:
+      rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
+        ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
+        : null,
     description: r.description != null && String(r.description).trim() ? String(r.description) : null,
     adminAccessToken:
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
@@ -164,6 +182,9 @@ export async function manageUpdateStore(
     closedDatesJson?: string | null;
     closedWeekdaysJson?: string | null;
     allowSameDayBooking?: boolean;
+    menuNoticeText?: string | null;
+    depositActiveMonthRangesJson?: string | null;
+    menuRequiredPeoplePerItem?: number | null;
     slotStartHour?: number | null;
     slotEndHour?: number | null;
     ownerClosedSlotsJson?: string | null;
@@ -273,8 +294,33 @@ export async function manageUpdateStore(
   if (patch.closedWeekdaysJson !== undefined) {
     pendingClosedWeekdays = patch.closedWeekdaysJson;
   }
+  let pendingMenuNotice: string | null | undefined;
+  if (patch.menuNoticeText !== undefined) {
+    const s = patch.menuNoticeText == null ? null : String(patch.menuNoticeText).trim();
+    pendingMenuNotice = s && s.length ? s : null;
+  }
+  let pendingDepositRanges: string | null | undefined;
+  if (patch.depositActiveMonthRangesJson !== undefined) {
+    pendingDepositRanges = patch.depositActiveMonthRangesJson;
+  }
+  let pendingMenuRequired: number | null | undefined;
+  if (patch.menuRequiredPeoplePerItem !== undefined) {
+    if (patch.menuRequiredPeoplePerItem == null) {
+      pendingMenuRequired = null;
+    } else {
+      const n = Math.floor(Number(patch.menuRequiredPeoplePerItem) || 0);
+      pendingMenuRequired = n > 0 ? n : null;
+    }
+  }
 
-  if (!sets.length && pendingAllowSameDay === undefined && pendingClosedWeekdays === undefined) {
+  const hasAnyExtra =
+    pendingAllowSameDay !== undefined ||
+    pendingClosedWeekdays !== undefined ||
+    pendingMenuNotice !== undefined ||
+    pendingDepositRanges !== undefined ||
+    pendingMenuRequired !== undefined;
+
+  if (!sets.length && !hasAnyExtra) {
     return { success: false, message: '수정할 필드가 없습니다.' };
   }
 
@@ -287,6 +333,18 @@ export async function manageUpdateStore(
     if (pendingClosedWeekdays !== undefined && (await storeHasClosedWeekdaysColumn(pool))) {
       sets.push('closedWeekdaysJson = ?');
       params.push(pendingClosedWeekdays);
+    }
+    if (pendingMenuNotice !== undefined && (await storeHasMenuNoticeTextColumn(pool))) {
+      sets.push('menuNoticeText = ?');
+      params.push(pendingMenuNotice);
+    }
+    if (pendingDepositRanges !== undefined && (await storeHasDepositActiveMonthRangesColumn(pool))) {
+      sets.push('depositActiveMonthRangesJson = ?');
+      params.push(pendingDepositRanges);
+    }
+    if (pendingMenuRequired !== undefined && (await storeHasMenuRequiredPeoplePerItemColumn(pool))) {
+      sets.push('menuRequiredPeoplePerItem = ?');
+      params.push(pendingMenuRequired);
     }
     if (!sets.length) {
       return { success: true }; // 새 컬럼만 보낸 요청인데 컬럼이 없으면 no-op

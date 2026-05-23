@@ -113,3 +113,107 @@ export function formatDepositModeLabel(mode: DepositMode): string {
   if (mode === 'tiered') return '구간별';
   return '고정';
 }
+
+// ── 예약금 적용 기간 (날짜 범위) ────────────────────────────
+
+export interface DepositActiveMonthRange {
+  /** MM-DD 형식 */
+  start: string;
+  end: string;
+}
+
+const MMDD_RE = /^(\d{2})-(\d{2})$/;
+
+function isValidMmDd(s: string): boolean {
+  const m = MMDD_RE.exec(s);
+  if (!m) return false;
+  const mm = parseInt(m[1], 10);
+  const dd = parseInt(m[2], 10);
+  return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31;
+}
+
+export function parseDepositActiveMonthRangesJson(raw: unknown): DepositActiveMonthRange[] {
+  if (raw == null || raw === '') return [];
+  let v: unknown = raw;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (!t) return [];
+    try {
+      v = JSON.parse(t) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(v)) return [];
+  const out: DepositActiveMonthRange[] = [];
+  for (const item of v) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const start = String(o.start ?? '').trim();
+    const end = String(o.end ?? '').trim();
+    if (isValidMmDd(start) && isValidMmDd(end)) {
+      out.push({ start, end });
+    }
+  }
+  return out;
+}
+
+export function serializeDepositActiveMonthRangesForDb(
+  ranges: DepositActiveMonthRange[],
+): string | null {
+  const cleaned = ranges.filter((r) => isValidMmDd(r.start) && isValidMmDd(r.end));
+  return cleaned.length ? JSON.stringify(cleaned) : null;
+}
+
+/**
+ * 예약 날짜(YYYY-MM-DD)가 활성 범위 중 하나라도 안에 들어가는지.
+ * 범위가 비어있으면 항상 활성(true) — 기존 동작 유지.
+ * end < start 인 경우 자동으로 연도 경계를 넘어가는 범위로 해석 (예: 11-15 ~ 02-28).
+ */
+export function isDepositActiveOnDate(
+  dateYmd: string,
+  ranges: DepositActiveMonthRange[],
+): boolean {
+  if (!ranges.length) return true;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateYmd).slice(0, 10));
+  if (!m) return true;
+  const mm = parseInt(m[2], 10);
+  const dd = parseInt(m[3], 10);
+  const cmp = (sM: number, sD: number, eM: number, eD: number) => {
+    const cur = mm * 100 + dd;
+    const lo = sM * 100 + sD;
+    const hi = eM * 100 + eD;
+    if (lo <= hi) return cur >= lo && cur <= hi;
+    // 연도 경계 넘김: lo 이상이거나 hi 이하면 매치
+    return cur >= lo || cur <= hi;
+  };
+  for (const r of ranges) {
+    const sm = parseInt(r.start.slice(0, 2), 10);
+    const sd = parseInt(r.start.slice(3, 5), 10);
+    const em = parseInt(r.end.slice(0, 2), 10);
+    const ed = parseInt(r.end.slice(3, 5), 10);
+    if (cmp(sm, sd, em, ed)) return true;
+  }
+  return false;
+}
+
+/**
+ * resolveDepositForHeadcount 의 날짜 인식 버전.
+ * 예약 날짜가 활성 범위 밖이면 0 반환. 활성이면 기존 로직대로 계산.
+ */
+export function resolveDepositForHeadcountAndDate(
+  headcount: number,
+  dateYmd: string | null | undefined,
+  opts: {
+    depositMode: DepositMode;
+    depositTiers: DepositTier[];
+    flatDepositAmount: number;
+    depositActiveMonthRanges?: DepositActiveMonthRange[];
+  },
+): number {
+  const ranges = opts.depositActiveMonthRanges ?? [];
+  if (dateYmd && ranges.length > 0 && !isDepositActiveOnDate(dateYmd, ranges)) {
+    return 0;
+  }
+  return resolveDepositForHeadcount(headcount, opts);
+}

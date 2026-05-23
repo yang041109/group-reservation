@@ -89,6 +89,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
     patch.closedWeekdaysJson =
       body.closedWeekdaysJson === null ? null : String(body.closedWeekdaysJson);
   }
+  if (body.menuNoticeText !== undefined) {
+    patch.menuNoticeText =
+      body.menuNoticeText === null ? null : String(body.menuNoticeText);
+  }
+  if (body.depositActiveMonthRangesJson !== undefined) {
+    patch.depositActiveMonthRangesJson =
+      body.depositActiveMonthRangesJson === null
+        ? null
+        : String(body.depositActiveMonthRangesJson);
+  }
+  if (body.menuRequiredPeoplePerItem !== undefined) {
+    if (body.menuRequiredPeoplePerItem === null) {
+      patch.menuRequiredPeoplePerItem = null;
+    } else {
+      const n = Number(body.menuRequiredPeoplePerItem);
+      patch.menuRequiredPeoplePerItem = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    }
+  }
 
   const result = await manageUpdateStore(storeId, patch);
   if (!result.success) {

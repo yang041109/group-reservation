@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS store (
   closedDatesJson JSON NULL COMMENT '지정 휴무일 YYYY-MM-DD 배열',
   closedWeekdaysJson JSON NULL COMMENT '매주 항상 휴무 요일 ["sun","mon"] 형태',
   allowSameDayBooking TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1이면 당일 예약 허용',
+  menuNoticeText TEXT NULL COMMENT '메뉴 관련 안내 문구',
+  depositActiveMonthRangesJson JSON NULL COMMENT '예약금 적용 기간 [{"start":"MM-DD","end":"MM-DD"}]',
+  menuRequiredPeoplePerItem INT NULL COMMENT 'N명당 메뉴 1개 강제. NULL = 제한 없음',
   description TEXT NULL,
   adminAccessToken VARCHAR(64) NULL UNIQUE COMMENT '사장님 전용 URL 토큰 (/admin/m/{token})',
   sortOrder INT NOT NULL DEFAULT 0 COMMENT '목록 표시 순서(작을수록 앞)'

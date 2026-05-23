@@ -117,6 +117,12 @@ export interface StoreDetail {
   locationLabel?: string | null;
   /** true 이면 당일 예약을 받음 (false/undefined 면 내일 이후만 가능) */
   allowSameDayBooking?: boolean;
+  /** 메뉴 영역 상단에 띄울 안내 문구 (예: 전 인원 동일 메뉴) */
+  menuNoticeText?: string | null;
+  /** 예약금 적용 기간 (비어있으면 연중 적용). MM-DD 범위. */
+  depositActiveMonthRanges?: { start: string; end: string }[];
+  /** N명당 메뉴 1개 강제. null/undefined 면 제한 없음. */
+  menuRequiredPeoplePerItem?: number | null;
   /** 동(zone) 단위 운영 시 동별 세부 정보. 빈 배열이면 단일 운영. */
   zones?: ZoneDetailEntry[];
 }

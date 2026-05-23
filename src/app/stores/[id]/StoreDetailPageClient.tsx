@@ -5,6 +5,7 @@ import type { MenuReceiptLine } from '@/components/TotalPrice';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   formatTierDepositLabel,
+  isDepositActiveOnDate,
   resolveDepositForHeadcount,
 } from '@/lib/deposit-tiers';
 import type { DepositMode } from '@/types';
@@ -199,6 +200,19 @@ export default function StoreDetailPageClient() {
                 availableTimes: headlineSlots.filter((s) => s.isAvailable).map((s) => s.timeBlock),
                 slots: headlineSlots,
                 minOrderRules: [],
+                allowSameDayBooking: found.allowSameDayBooking,
+                menuNoticeText: found.menuNoticeText ?? null,
+                depositActiveMonthRanges: (() => {
+                  try {
+                    const raw = found.depositActiveMonthRangesJson;
+                    if (!raw) return [];
+                    const parsed = JSON.parse(String(raw));
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch {
+                    return [];
+                  }
+                })(),
+                menuRequiredPeoplePerItem: found.menuRequiredPeoplePerItem ?? null,
                 ...(hasCachedZones ? { zones: zonesPayload } : {}),
               },
               menus: found.menus || [],
@@ -338,11 +352,21 @@ export default function StoreDetailPageClient() {
   const depositMode: DepositMode =
     store.depositMode ?? (store.depositUseTiers ? 'tiered' : 'flat');
 
-  const effectiveDeposit = resolveDepositForHeadcount(selectedHeadcount, {
-    depositMode,
-    depositTiers: store.depositTiers ?? [],
-    flatDepositAmount: store.depositAmount ?? 0,
-  });
+  // 날짜별 예약금: store.depositActiveMonthRanges 가 비어있거나 선택 날짜가 범위 안이면 정상 부과,
+  // 범위 밖이면 0원으로 표시.
+  const depositRanges = store.depositActiveMonthRanges ?? [];
+  const depositActiveOnSelectedDate =
+    !selectedDate || depositRanges.length === 0
+      ? true
+      : isDepositActiveOnDate(selectedDate, depositRanges);
+
+  const effectiveDeposit = depositActiveOnSelectedDate
+    ? resolveDepositForHeadcount(selectedHeadcount, {
+        depositMode,
+        depositTiers: store.depositTiers ?? [],
+        flatDepositAmount: store.depositAmount ?? 0,
+      })
+    : 0;
 
   const dateDisplay = selectedDate
     ? (() => {
@@ -500,7 +524,14 @@ export default function StoreDetailPageClient() {
         />
       </div>
 
-      <MenuSection menus={menus} quantities={menuQuantities} onChange={setMenuQuantities} />
+      <MenuSection
+        menus={menus}
+        quantities={menuQuantities}
+        onChange={setMenuQuantities}
+        ownerNoticeText={store.menuNoticeText}
+        requiredPeoplePerItem={store.menuRequiredPeoplePerItem}
+        selectedHeadcount={selectedHeadcount}
+      />
 
       <TotalPrice
         totalAmount={totalAmount}
@@ -527,6 +558,7 @@ export default function StoreDetailPageClient() {
         ownerBankAccount={store.ownerBankAccount}
         minGroupHeadcount={minGroup}
         allowSameDayBooking={store.allowSameDayBooking}
+        requiredPeoplePerItem={store.menuRequiredPeoplePerItem}
       />
     </main>
   );

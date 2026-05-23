@@ -30,6 +30,8 @@ interface ReserveButtonProps {
   minGroupHeadcount?: number;
   /** 가게가 당일 예약을 허용하는지 (false/undefined 면 내일 이후만) */
   allowSameDayBooking?: boolean;
+  /** N명당 메뉴 1개 강제. 0/undefined 면 무시 */
+  requiredPeoplePerItem?: number | null;
 }
 
 export default function ReserveButton({
@@ -49,6 +51,7 @@ export default function ReserveButton({
   ownerBankAccount,
   minGroupHeadcount = 2,
   allowSameDayBooking = false,
+  requiredPeoplePerItem,
 }: ReserveButtonProps) {
   const router = useRouter();
 
@@ -78,6 +81,15 @@ export default function ReserveButton({
   );
   const noMenuSelected = hasAnyMenu && totalSelectedQty === 0;
 
+  // N명당 메뉴 1개 강제. 부족하면 차단.
+  const peoplePerItem =
+    requiredPeoplePerItem && requiredPeoplePerItem > 0 ? requiredPeoplePerItem : 0;
+  const minRequiredQty =
+    peoplePerItem > 0 && selectedHeadcount > 0
+      ? Math.ceil(selectedHeadcount / peoplePerItem)
+      : 0;
+  const menuCountShort = minRequiredQty > 0 && totalSelectedQty < minRequiredQty;
+
   const isDisabled =
     dateNotSelected ||
     timeNotSelected ||
@@ -85,6 +97,7 @@ export default function ReserveButton({
     requiredMenuNotSelected ||
     noMenuSelected ||
     sameDayBlocked ||
+    menuCountShort ||
     !!zoneRequiredButNotSelected;
 
   let validationMessage: string | null = null;
@@ -103,6 +116,8 @@ export default function ReserveButton({
     validationMessage = `필수 메뉴를 선택해주세요: ${names}`;
   } else if (noMenuSelected) {
     validationMessage = '예약 시간에 깔아둘 메뉴를 최소 하나 이상 선택해주세요';
+  } else if (menuCountShort) {
+    validationMessage = `${selectedHeadcount}명 예약은 메뉴 ${minRequiredQty}개 이상 필요해요 (현재 ${totalSelectedQty}개)`;
   }
 
   const handleClick = () => {

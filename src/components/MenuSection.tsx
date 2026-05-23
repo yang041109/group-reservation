@@ -9,6 +9,12 @@ interface MenuSectionProps {
   menus: MenuItemData[];
   quantities: Record<string, number>;
   onChange: (quantities: Record<string, number>) => void;
+  /** 가게 사장님이 정한 메뉴 안내 문구 (예: 전 인원 동일 메뉴) */
+  ownerNoticeText?: string | null;
+  /** N명당 메뉴 1개 강제. 0/undefined 면 무시 */
+  requiredPeoplePerItem?: number | null;
+  /** 현재 선택 인원 (메뉴 개수 요구 안내 계산용) */
+  selectedHeadcount?: number;
 }
 
 function MenuQuantityRow({
@@ -78,6 +84,9 @@ export default function MenuSection({
   menus,
   quantities,
   onChange,
+  ownerNoticeText,
+  requiredPeoplePerItem,
+  selectedHeadcount = 0,
 }: MenuSectionProps) {
   const sortedMenus = useMemo(() => sortMenusForDisplay(menus), [menus]);
   const categories = useMemo(() => menuCategoriesInDisplayOrder(sortedMenus), [sortedMenus]);
@@ -113,12 +122,28 @@ export default function MenuSection({
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
       ) : (
         <>
+          {/* 사장님이 정한 안내 문구 (있을 때만) */}
+          {ownerNoticeText ? (
+            <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">📣 가게 안내</p>
+              <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed">
+                {ownerNoticeText}
+              </p>
+            </div>
+          ) : null}
+
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">📌 안내</p>
             <ul className="mt-1 space-y-0.5 text-[13px] leading-relaxed">
               <li>· 여기서 선택한 메뉴는 <b>예약 시간에 맞춰 자리에 미리 준비</b>되는 기본 세팅 메뉴입니다.</li>
               <li>· 주류·추가 메뉴는 매장에 방문하셔서 자유롭게 주문하실 수 있어요.</li>
               <li>· 최소 한 개 이상의 메뉴를 선택해 주세요.</li>
+              {requiredPeoplePerItem && requiredPeoplePerItem > 0 && selectedHeadcount > 0 ? (
+                <li>
+                  · 이 가게는 <b>{requiredPeoplePerItem}명당 메뉴 1개 이상</b>이 필요해요. 현재{' '}
+                  {selectedHeadcount}명 → <b>메뉴 {Math.ceil(selectedHeadcount / requiredPeoplePerItem)}개 이상</b> 선택해야 합니다.
+                </li>
+              ) : null}
             </ul>
           </div>
           {categories.length > 1 ? (

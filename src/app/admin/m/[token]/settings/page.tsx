@@ -41,6 +41,9 @@ interface ManageStore {
   ownerName: string | null;
   ownerBankAccount: string | null;
   weeklyHoursJson: string | null;
+  menuNoticeText?: string | null;
+  depositActiveMonthRangesJson?: string | null;
+  menuRequiredPeoplePerItem?: number | null;
 }
 
 interface MenuItem {
@@ -85,6 +88,10 @@ export default function AdminSettingsPage() {
   const [tierRows, setTierRows] = useState<TierRow[]>(defaultTierRows);
   const [ownerName, setOwnerName] = useState('');
   const [ownerBankAccount, setOwnerBankAccount] = useState('');
+  const [menuNoticeText, setMenuNoticeText] = useState('');
+  const [depositRangeStart, setDepositRangeStart] = useState('');
+  const [depositRangeEnd, setDepositRangeEnd] = useState('');
+  const [menuPeoplePerItem, setMenuPeoplePerItem] = useState('');
 
   // 메뉴 추가 폼
   const [newMenuName, setNewMenuName] = useState('');
@@ -154,6 +161,27 @@ export default function AdminSettingsPage() {
         );
         setOwnerName(s.ownerName ?? '');
         setOwnerBankAccount(s.ownerBankAccount ?? '');
+        setMenuNoticeText(s.menuNoticeText ?? '');
+        try {
+          const arr = s.depositActiveMonthRangesJson
+            ? (JSON.parse(s.depositActiveMonthRangesJson) as { start?: string; end?: string }[])
+            : [];
+          if (Array.isArray(arr) && arr.length > 0) {
+            setDepositRangeStart(String(arr[0]?.start ?? ''));
+            setDepositRangeEnd(String(arr[0]?.end ?? ''));
+          } else {
+            setDepositRangeStart('');
+            setDepositRangeEnd('');
+          }
+        } catch {
+          setDepositRangeStart('');
+          setDepositRangeEnd('');
+        }
+        setMenuPeoplePerItem(
+          s.menuRequiredPeoplePerItem != null && s.menuRequiredPeoplePerItem > 0
+            ? String(s.menuRequiredPeoplePerItem)
+            : '',
+        );
       } else {
         setError(sData.message || '가게 정보를 불러올 수 없습니다.');
       }
@@ -238,6 +266,19 @@ export default function AdminSettingsPage() {
               ),
             )
           : null,
+        menuNoticeText: menuNoticeText.trim() === '' ? null : menuNoticeText.trim(),
+        depositActiveMonthRangesJson: (() => {
+          const s = depositRangeStart.trim();
+          const e = depositRangeEnd.trim();
+          if (!s || !e) return null;
+          return JSON.stringify([{ start: s, end: e }]);
+        })(),
+        menuRequiredPeoplePerItem: (() => {
+          const t = menuPeoplePerItem.trim();
+          if (!t) return null;
+          const n = parseInt(t, 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })(),
       };
 
       const res = await fetch('/api/admin/store', {
@@ -574,6 +615,87 @@ export default function AdminSettingsPage() {
             showBankFields={showBankFields}
             variant="owner"
           />
+
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-800">예약금 적용 기간</span>
+              <p className="mt-0.5 text-xs text-gray-500">
+                비워두면 연중 적용. 특정 기간(예: 3월~9월)에만 예약금을 받으려면 입력하세요.
+                <br />
+                형식: <code className="bg-gray-100 px-1">MM-DD</code> (예: 03-01 ~ 09-30)
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="03-01"
+                  maxLength={5}
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  value={depositRangeStart}
+                  onChange={(e) => setDepositRangeStart(e.target.value)}
+                />
+                <span className="text-sm text-gray-500">~</span>
+                <input
+                  type="text"
+                  placeholder="09-30"
+                  maxLength={5}
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  value={depositRangeEnd}
+                  onChange={(e) => setDepositRangeEnd(e.target.value)}
+                />
+                {(depositRangeStart || depositRangeEnd) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDepositRangeStart('');
+                      setDepositRangeEnd('');
+                    }}
+                    className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    연중 적용
+                  </button>
+                )}
+              </div>
+            </label>
+          </div>
+        </section>
+
+        {/* 메뉴 규칙 (안내 문구 + 개수 강제) */}
+        <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
+            <span className="block h-5 w-1 rounded-full bg-blue-600" /> 메뉴 규칙
+          </h2>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-gray-800">메뉴 안내 문구</span>
+            <p className="mt-0.5 text-xs text-gray-500">
+              이용자가 메뉴를 선택하는 화면 상단에 표시됩니다. (예: 전 인원 동일 메뉴로 주문 부탁드립니다)
+            </p>
+            <textarea
+              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              rows={2}
+              value={menuNoticeText}
+              onChange={(e) => setMenuNoticeText(e.target.value)}
+              placeholder="비워두면 표시되지 않습니다"
+            />
+          </label>
+
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-800">메뉴 개수 요구 (N명당 메뉴 1개)</span>
+              <p className="mt-0.5 text-xs text-gray-500">
+                비워두면 제한 없음. 예: <b>2</b> 입력 시 40명 예약하려면 메뉴 20개 이상 필요.
+              </p>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                placeholder="비워두면 제한 없음"
+                className="mt-2 w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                value={menuPeoplePerItem}
+                onChange={(e) => setMenuPeoplePerItem(e.target.value)}
+              />
+            </label>
+          </div>
         </section>
 
         {/* 저장 버튼 */}
