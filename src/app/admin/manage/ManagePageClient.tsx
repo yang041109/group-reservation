@@ -12,11 +12,14 @@ import StoreBusinessHoursFields, {
 } from '@/components/admin/StoreBusinessHoursFields';
 import {
   DAY_KEYS,
+  DAY_LABELS,
   type DayKey,
   isWeeklyHoursEnabled,
   parseClosedDatesJson,
+  parseClosedWeekdaysJson,
   parseWeeklyHoursJson,
   serializeClosedDatesForDb,
+  serializeClosedWeekdaysForDb,
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
 import { parseAutoMenuIdNumber } from '@/lib/auto-menu-id';
@@ -62,6 +65,8 @@ type ManageStore = {
   ownerBankAccount: string | null;
   weeklyHoursJson: string | null;
   closedDatesJson: string | null;
+  closedWeekdaysJson?: string | null;
+  allowSameDayBooking?: boolean;
   adminAccessToken: string | null;
   sortOrder: number;
 };
@@ -160,6 +165,8 @@ export default function ManagePageClient() {
   const [useWeeklyHours, setUseWeeklyHours] = useState(false);
   const [weeklyForm, setWeeklyForm] = useState<Record<DayKey, DayFormRow>>(() => defaultWeeklyForm());
   const [closedDatesText, setClosedDatesText] = useState('');
+  const [allowSameDay, setAllowSameDay] = useState(false);
+  const [closedWeekdaysSet, setClosedWeekdaysSet] = useState<Set<DayKey>>(() => new Set());
   const resLimit = 50;
   const [dbHealth, setDbHealth] = useState<DbHealthJson | null>(null);
 
@@ -277,6 +284,8 @@ export default function ManagePageClient() {
       setUseWeeklyHours(false);
       setWeeklyForm(defaultWeeklyForm());
       setClosedDatesText('');
+      setAllowSameDay(false);
+      setClosedWeekdaysSet(new Set());
       setMenus([]);
       return;
     }
@@ -308,6 +317,8 @@ export default function ManagePageClient() {
     }
     setWeeklyForm(wf);
     setClosedDatesText(parseClosedDatesJson(selected.closedDatesJson).join('\n'));
+    setAllowSameDay(!!selected.allowSameDayBooking);
+    setClosedWeekdaysSet(new Set(parseClosedWeekdaysJson(selected.closedWeekdaysJson ?? null)));
     setDepositFlat(String(selected.depositAmount ?? 0));
     setDepositMode(
       selected.depositMode ?? depositModeFromDb(selected.depositUseTiers ? 1 : 0),
@@ -410,6 +421,10 @@ export default function ManagePageClient() {
               )
             : null,
           closedDatesJson: serializeClosedDatesForDb(closedList),
+          allowSameDayBooking: allowSameDay,
+          closedWeekdaysJson: serializeClosedWeekdaysForDb(
+            DAY_KEYS.filter((k) => closedWeekdaysSet.has(k)),
+          ),
         }),
       });
       const data = await res.json();
@@ -1107,6 +1122,58 @@ export default function ManagePageClient() {
                             value={closedDatesText}
                             onChange={(e) => setClosedDatesText(e.target.value)}
                           />
+                        </label>
+
+                        <div className="block sm:col-span-2">
+                          <span className="text-xs text-gray-500">매주 휴무 요일 (예약 자체를 받지 않음)</span>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {DAY_KEYS.map((k) => {
+                              const checked = closedWeekdaysSet.has(k);
+                              return (
+                                <label
+                                  key={k}
+                                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm cursor-pointer transition ${
+                                    checked
+                                      ? 'border-red-300 bg-red-50 text-red-700'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="accent-red-500"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      setClosedWeekdaysSet((prev) => {
+                                        const next = new Set(prev);
+                                        if (e.target.checked) next.add(k);
+                                        else next.delete(k);
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                  {DAY_LABELS[k]}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1 text-[11px] text-gray-400">
+                            체크한 요일은 매주 휴무로 처리돼 예약을 받지 않습니다.
+                          </p>
+                        </div>
+
+                        <label className="flex items-center gap-2 sm:col-span-2">
+                          <input
+                            type="checkbox"
+                            checked={allowSameDay}
+                            onChange={(e) => setAllowSameDay(e.target.checked)}
+                            className="accent-blue-600"
+                          />
+                          <span className="text-sm text-gray-800">
+                            당일 예약 받기
+                            <span className="ml-1 text-[11px] text-gray-500">
+                              (체크 해제 시 손님은 내일 이후 날짜만 선택 가능)
+                            </span>
+                          </span>
                         </label>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">

@@ -9,6 +9,11 @@ import {
 import { suggestNextAutoMenuId } from '@/lib/auto-menu-id';
 import { suggestNextAutoStoreId } from '@/lib/auto-store-id';
 import { menuHasDescriptionColumn, menuHasSortOrderColumn } from '@/lib/menu-schema-migrate';
+import {
+  ensureStoreBookingRulesColumns,
+  storeHasAllowSameDayBookingColumn,
+  storeHasClosedWeekdaysColumn,
+} from '@/lib/store-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
@@ -53,6 +58,8 @@ export interface ManageStoreRow {
   ownerBankAccount: string | null;
   weeklyHoursJson: string | null;
   closedDatesJson: string | null;
+  closedWeekdaysJson: string | null;
+  allowSameDayBooking: boolean;
   description: string | null;
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
@@ -94,6 +101,11 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
       rec.closedDatesJson != null && String(rec.closedDatesJson).trim()
         ? String(rec.closedDatesJson)
         : null,
+    closedWeekdaysJson:
+      rec.closedWeekdaysJson != null && String(rec.closedWeekdaysJson).trim()
+        ? String(rec.closedWeekdaysJson)
+        : null,
+    allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
     description: r.description != null && String(r.description).trim() ? String(r.description) : null,
     adminAccessToken:
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
@@ -120,6 +132,8 @@ export async function manageListStores(): Promise<
   }
   try {
     const pool = getPool();
+    // 첫 호출 시 누락 컬럼 자동 추가 (allowSameDayBooking, closedWeekdaysJson)
+    await ensureStoreBookingRulesColumns(pool);
     /** SELECT * — 예약금 구간 컬럼이 아직 없는 DB에서도 목록 조회가 되도록 명시 컬럼 나열을 쓰지 않음 */
     const [rows] = await pool.query<StoreRow[]>('SELECT * FROM store ORDER BY sortOrder ASC, name ASC');
     const data = rows.map(mapStoreRow);
@@ -148,6 +162,8 @@ export async function manageUpdateStore(
     ownerBankAccount?: string | null;
     weeklyHoursJson?: string | null;
     closedDatesJson?: string | null;
+    closedWeekdaysJson?: string | null;
+    allowSameDayBooking?: boolean;
     slotStartHour?: number | null;
     slotEndHour?: number | null;
     ownerClosedSlotsJson?: string | null;
@@ -247,13 +263,36 @@ export async function manageUpdateStore(
     sets.push('ownerClosedSlotsJson = ?');
     params.push(patch.ownerClosedSlotsJson);
   }
-  if (!sets.length) {
+
+  // 새 컬럼들은 DB에 있을 때만 SET (graceful, 컬럼 없으면 조용히 무시)
+  let pendingAllowSameDay: 0 | 1 | undefined;
+  if (patch.allowSameDayBooking !== undefined) {
+    pendingAllowSameDay = patch.allowSameDayBooking ? 1 : 0;
+  }
+  let pendingClosedWeekdays: string | null | undefined;
+  if (patch.closedWeekdaysJson !== undefined) {
+    pendingClosedWeekdays = patch.closedWeekdaysJson;
+  }
+
+  if (!sets.length && pendingAllowSameDay === undefined && pendingClosedWeekdays === undefined) {
     return { success: false, message: '수정할 필드가 없습니다.' };
   }
-  params.push(sid);
 
   try {
     const pool = getPool();
+    if (pendingAllowSameDay !== undefined && (await storeHasAllowSameDayBookingColumn(pool))) {
+      sets.push('allowSameDayBooking = ?');
+      params.push(pendingAllowSameDay);
+    }
+    if (pendingClosedWeekdays !== undefined && (await storeHasClosedWeekdaysColumn(pool))) {
+      sets.push('closedWeekdaysJson = ?');
+      params.push(pendingClosedWeekdays);
+    }
+    if (!sets.length) {
+      return { success: true }; // 새 컬럼만 보낸 요청인데 컬럼이 없으면 no-op
+    }
+    params.push(sid);
+
     const [h] = await pool.execute<ResultSetHeader>(
       `UPDATE store SET ${sets.join(', ')} WHERE storeId = ?`,
       params,

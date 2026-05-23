@@ -526,6 +526,7 @@ export default function StoreDetailPageClient() {
         ownerName={store.ownerName}
         ownerBankAccount={store.ownerBankAccount}
         minGroupHeadcount={minGroup}
+        allowSameDayBooking={store.allowSameDayBooking}
       />
     </main>
   );

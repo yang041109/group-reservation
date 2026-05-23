@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool, isMysqlConfigured } from '@/lib/db';
 import { buildSlots, slotOverlapsReservation } from '@/lib/booking-slots';
 import { applyOwnerClosedBlocksToSlots, isSlotBlockedForBooking } from '@/lib/owner-closed-slots';
+import { koreaTodayYmd } from '@/lib/korea-time';
 import {
   getDefaultSlotHourRangeForStore,
   getSlotHourRangeForStoreOnDate,
@@ -429,6 +430,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         availableTimes: first?.availableTimes ?? [],
         slots: first?.slots ?? [],
         minOrderRules: [],
+        allowSameDayBooking: Number(storeRec.allowSameDayBooking ?? 0) === 1,
         zones: zonesPayload,
       },
       menus: menusPayload,
@@ -466,6 +468,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
       slots: built.timeline,
       minOrderRules: [],
+      allowSameDayBooking: Number(storeRec.allowSameDayBooking ?? 0) === 1,
     },
     menus: menusPayload,
     slots: built.timeline,
@@ -545,6 +548,22 @@ export async function insertReservationValidated(
     if (isStoreClosedOnDate(effectiveRow, date)) {
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 날짜는 휴무일입니다.');
+    }
+
+    // 당일 예약 허용 여부 (store 레벨; zone override 안 함)
+    const allowSameDay =
+      Number((store as Record<string, unknown>).allowSameDayBooking ?? 0) === 1;
+    if (!allowSameDay) {
+      const todayKr = koreaTodayYmd(new Date());
+      if (date <= todayKr) {
+        await conn.rollback();
+        throw new ReservationDbError(
+          400,
+          date === todayKr
+            ? '당일 예약은 받지 않는 가게입니다. 내일 이후 날짜를 선택해 주세요.'
+            : '지나간 날짜에는 예약할 수 없습니다.',
+        );
+      }
     }
 
     const range = getSlotHourRangeForStoreOnDate(effectiveRow, date);
@@ -858,6 +877,11 @@ export async function getAllDataFromMysql() {
         rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
           ? String(rec.ownerClosedSlotsJson).trim()
           : null,
+      closedWeekdaysJson:
+        rec.closedWeekdaysJson != null && String(rec.closedWeekdaysJson).trim()
+          ? String(rec.closedWeekdaysJson).trim()
+          : null,
+      allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
       zones: storeZones,
     };
   });

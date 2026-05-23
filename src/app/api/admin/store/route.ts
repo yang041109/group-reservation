@@ -109,6 +109,13 @@ export async function PATCH(request: Request) {
     patch.weeklyHoursJson =
       body.weeklyHoursJson === null ? null : String(body.weeklyHoursJson);
   }
+  if (body.allowSameDayBooking !== undefined) {
+    patch.allowSameDayBooking = !!body.allowSameDayBooking;
+  }
+  if (body.closedWeekdaysJson !== undefined) {
+    patch.closedWeekdaysJson =
+      body.closedWeekdaysJson === null ? null : String(body.closedWeekdaysJson);
+  }
 
   const result = await manageUpdateStore(sid, patch);
   if (!result.success) {

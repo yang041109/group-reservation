@@ -82,6 +82,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
     const n = body.slotEndHour === null ? null : Number(body.slotEndHour);
     patch.slotEndHour = n === null || Number.isNaN(n) ? null : Math.min(23, Math.max(0, Math.floor(n)));
   }
+  if (body.allowSameDayBooking !== undefined) {
+    patch.allowSameDayBooking = !!body.allowSameDayBooking;
+  }
+  if (body.closedWeekdaysJson !== undefined) {
+    patch.closedWeekdaysJson =
+      body.closedWeekdaysJson === null ? null : String(body.closedWeekdaysJson);
+  }
 
   const result = await manageUpdateStore(storeId, patch);
   if (!result.success) {

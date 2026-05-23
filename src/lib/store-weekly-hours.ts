@@ -84,6 +84,46 @@ export function parseWeeklyHoursJson(raw: unknown): WeeklyHours | null {
   return Object.keys(out).length ? out : null;
 }
 
+/** ["sun","mon"] 형태의 매주 휴무 요일 배열을 파싱. 잘못된 항목은 무시. */
+export function parseClosedWeekdaysJson(raw: unknown): DayKey[] {
+  if (raw == null || raw === '') return [];
+  let arr: unknown = raw;
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return [];
+    try {
+      arr = JSON.parse(t);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  const valid = new Set<string>(DAY_KEYS);
+  const out: DayKey[] = [];
+  const seen = new Set<DayKey>();
+  for (const v of arr) {
+    const key = String(v ?? '').trim().toLowerCase();
+    if (valid.has(key) && !seen.has(key as DayKey)) {
+      seen.add(key as DayKey);
+      out.push(key as DayKey);
+    }
+  }
+  return out;
+}
+
+export function serializeClosedWeekdaysForDb(days: DayKey[]): string | null {
+  const valid = new Set<string>(DAY_KEYS);
+  const uniq: DayKey[] = [];
+  const seen = new Set<DayKey>();
+  for (const d of days) {
+    if (valid.has(d) && !seen.has(d)) {
+      seen.add(d);
+      uniq.push(d);
+    }
+  }
+  return uniq.length ? JSON.stringify(uniq) : null;
+}
+
 export function parseClosedDatesJson(raw: unknown): string[] {
   if (raw == null || raw === '') return [];
   let arr: unknown = raw;
@@ -176,10 +216,15 @@ export function getDefaultSlotHourRangeForStore(store: Record<string, unknown>):
 export function isStoreClosedOnDate(store: Record<string, unknown>, dateYmd: string): boolean {
   const closedDates = parseClosedDatesJson(store.closedDatesJson);
   if (closedDates.includes(dateYmd)) return true;
+
+  // 매주 휴무 요일 (weeklyHoursJson 과 무관하게 단순 토글로 동작)
+  const closedWeekdays = parseClosedWeekdaysJson(store.closedWeekdaysJson);
+  const day = dayKeyFromYmd(dateYmd);
+  if (closedWeekdays.includes(day)) return true;
+
   if (!isWeeklyHoursEnabled(store)) return false;
   const weekly = parseWeeklyHoursJson(store.weeklyHoursJson);
   if (!weekly) return false;
-  const day = dayKeyFromYmd(dateYmd);
   const sched = weekly[day];
   return !!sched?.closed;
 }

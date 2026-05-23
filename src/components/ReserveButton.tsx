@@ -28,6 +28,8 @@ interface ReserveButtonProps {
   ownerName?: string | null;
   ownerBankAccount?: string | null;
   minGroupHeadcount?: number;
+  /** 가게가 당일 예약을 허용하는지 (false/undefined 면 내일 이후만) */
+  allowSameDayBooking?: boolean;
 }
 
 export default function ReserveButton({
@@ -46,12 +48,22 @@ export default function ReserveButton({
   ownerName,
   ownerBankAccount,
   minGroupHeadcount = 2,
+  allowSameDayBooking = false,
 }: ReserveButtonProps) {
   const router = useRouter();
 
   const dateNotSelected = selectedDate === null;
   const timeNotSelected = selectedTime === null;
   const belowGroupMin = selectedHeadcount < minGroupHeadcount;
+
+  // 당일 예약 차단: 가게가 명시적으로 허용하지 않은 경우.
+  // 클라이언트 시간 기준으로 판단 (서버에서도 동일하게 한 번 더 검증함).
+  const sameDayBlocked = (() => {
+    if (!selectedDate || allowSameDayBooking) return false;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return selectedDate <= todayStr;
+  })();
 
   // 필수 메뉴 미선택 여부 확인
   const requiredMenus = menus.filter((m) => m.isRequired);
@@ -72,10 +84,13 @@ export default function ReserveButton({
     belowGroupMin ||
     requiredMenuNotSelected ||
     noMenuSelected ||
+    sameDayBlocked ||
     !!zoneRequiredButNotSelected;
 
   let validationMessage: string | null = null;
-  if (zoneRequiredButNotSelected) {
+  if (sameDayBlocked) {
+    validationMessage = '당일 예약은 받지 않습니다. 내일 이후 날짜를 선택해주세요';
+  } else if (zoneRequiredButNotSelected) {
     validationMessage = '예약할 동(zone)을 선택해주세요';
   } else if (dateNotSelected) {
     validationMessage = '날짜를 선택해주세요';

@@ -24,7 +24,7 @@ function toMinutes(time: string): number {
  */
 export function validateReservationRequest(
   req: Partial<CreateReservationRequest>,
-  store: { maxCapacity: number },
+  store: { maxCapacity: number; allowSameDayBooking?: boolean },
   availableTimes: string[],
   menuData?: MenuItemData[],
 ): ValidationResult {
@@ -47,12 +47,14 @@ export function validateReservationRequest(
     errors.push('날짜를 선택해주세요.');
   }
 
-  // 당일 예약 불가
+  // 당일 예약: 가게가 명시적으로 허용한 경우에만 통과
   if (req.date) {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    if (req.date <= todayStr) {
-      errors.push('당일 예약은 불가능합니다. 내일 이후 날짜를 선택해주세요.');
+    if (req.date < todayStr) {
+      errors.push('지나간 날짜에는 예약할 수 없습니다.');
+    } else if (req.date === todayStr && !store.allowSameDayBooking) {
+      errors.push('당일 예약은 받지 않는 가게입니다. 내일 이후 날짜를 선택해 주세요.');
     }
   }
 
