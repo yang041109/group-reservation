@@ -54,6 +54,8 @@ export default function SearchPage() {
           slotEndHour: s.slotEndHour,
           weeklyHoursJson: s.weeklyHoursJson,
           closedDatesJson: s.closedDatesJson,
+          // 매주 휴무 요일도 같이 넘겨야 isStoreClosedOnDate 가 토/일 같은 요일을 휴무 처리
+          closedWeekdaysJson: s.closedWeekdaysJson,
         };
         const dayRange =
           selectedDate != null ? getSlotHourRangeForStoreOnDate(storeMeta, selectedDate) : null;
