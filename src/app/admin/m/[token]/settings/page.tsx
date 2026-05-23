@@ -8,9 +8,13 @@ import StoreBusinessHoursFields, {
 import { useAdminStore } from '../AdminStoreContext';
 import {
   DAY_KEYS,
+  DAY_LABELS,
   isWeeklyHoursEnabled,
+  parseClosedWeekdaysJson,
   parseWeeklyHoursJson,
+  serializeClosedWeekdaysForDb,
   serializeWeeklyHoursForDb,
+  type DayKey,
 } from '@/lib/store-weekly-hours';
 import { swapMenuOrderIds } from '@/lib/menu-order';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
@@ -41,6 +45,8 @@ interface ManageStore {
   ownerName: string | null;
   ownerBankAccount: string | null;
   weeklyHoursJson: string | null;
+  closedWeekdaysJson?: string | null;
+  allowSameDayBooking?: boolean;
   menuNoticeText?: string | null;
   depositActiveMonthRangesJson?: string | null;
   menuRequiredPeoplePerItem?: number | null;
@@ -92,6 +98,9 @@ export default function AdminSettingsPage() {
   const [depositRangeStart, setDepositRangeStart] = useState('');
   const [depositRangeEnd, setDepositRangeEnd] = useState('');
   const [menuPeoplePerItem, setMenuPeoplePerItem] = useState('');
+  // 매주 항상 휴무 요일 / 당일 예약 허용 — admin/manage 와 동일한 데이터로 연결
+  const [closedWeekdaysSet, setClosedWeekdaysSet] = useState<Set<DayKey>>(() => new Set());
+  const [allowSameDay, setAllowSameDay] = useState(false);
 
   // 메뉴 추가 폼
   const [newMenuName, setNewMenuName] = useState('');
@@ -182,6 +191,8 @@ export default function AdminSettingsPage() {
             ? String(s.menuRequiredPeoplePerItem)
             : '',
         );
+        setAllowSameDay(!!s.allowSameDayBooking);
+        setClosedWeekdaysSet(new Set(parseClosedWeekdaysJson(s.closedWeekdaysJson ?? null)));
       } else {
         setError(sData.message || '가게 정보를 불러올 수 없습니다.');
       }
@@ -279,6 +290,10 @@ export default function AdminSettingsPage() {
           const n = parseInt(t, 10);
           return Number.isFinite(n) && n > 0 ? n : null;
         })(),
+        allowSameDayBooking: allowSameDay,
+        closedWeekdaysJson: serializeClosedWeekdaysForDb(
+          DAY_KEYS.filter((k) => closedWeekdaysSet.has(k)),
+        ),
       };
 
       const res = await fetch('/api/admin/store', {
@@ -552,6 +567,60 @@ export default function AdminSettingsPage() {
             onWeeklyFormChange={setWeeklyForm}
             variant="owner"
           />
+
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <p className="text-sm font-semibold text-gray-800">매주 항상 휴무 요일</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              체크한 요일은 매주 휴무로 처리돼 예약을 받지 않습니다.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {DAY_KEYS.map((k) => {
+                const checked = closedWeekdaysSet.has(k);
+                return (
+                  <label
+                    key={k}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition ${
+                      checked
+                        ? 'border-red-300 bg-red-50 text-red-700'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-red-500"
+                      checked={checked}
+                      onChange={(e) => {
+                        setClosedWeekdaysSet((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(k);
+                          else next.delete(k);
+                          return next;
+                        });
+                      }}
+                    />
+                    {DAY_LABELS[k]}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={allowSameDay}
+                onChange={(e) => setAllowSameDay(e.target.checked)}
+                className="accent-blue-600"
+              />
+              <span className="text-sm font-semibold text-gray-800">
+                당일 예약 받기
+                <span className="ml-1 text-xs font-normal text-gray-500">
+                  (체크 해제 시 손님은 내일 이후 날짜만 선택 가능)
+                </span>
+              </span>
+            </label>
+          </div>
         </section>
 
         {/* 3. 단체 예약 인원 */}
