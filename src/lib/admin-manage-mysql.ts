@@ -42,6 +42,25 @@ function rowDateToYmd(d: unknown): string {
   return String(d ?? '').trim().slice(0, 10);
 }
 
+/**
+ * mysql2 는 JSON 컬럼을 자동으로 객체/배열로 파싱해서 돌려준다.
+ * 우리 코드는 컬럼 값을 "JSON 문자열" 로 다루는 곳이 많아서, 객체로 들어왔으면
+ * 다시 stringify 해서 normalize 해 줘야 한다. 문자열이면 trim 만.
+ */
+function normalizeJsonColumn(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    return t === '' ? null : t;
+  }
+  // 배열/객체 등 — mysql2 가 JSON 컬럼을 파싱해 돌려준 경우
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return null;
+  }
+}
+
 export interface ManageStoreRow {
   storeId: string;
   name: string;
@@ -99,27 +118,15 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
       rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
         ? String(rec.ownerBankAccount).trim()
         : null,
-    weeklyHoursJson:
-      rec.weeklyHoursJson != null && String(rec.weeklyHoursJson).trim()
-        ? String(rec.weeklyHoursJson)
-        : null,
-    closedDatesJson:
-      rec.closedDatesJson != null && String(rec.closedDatesJson).trim()
-        ? String(rec.closedDatesJson)
-        : null,
-    closedWeekdaysJson:
-      rec.closedWeekdaysJson != null && String(rec.closedWeekdaysJson).trim()
-        ? String(rec.closedWeekdaysJson)
-        : null,
+    weeklyHoursJson: normalizeJsonColumn(rec.weeklyHoursJson),
+    closedDatesJson: normalizeJsonColumn(rec.closedDatesJson),
+    closedWeekdaysJson: normalizeJsonColumn(rec.closedWeekdaysJson),
     allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
     menuNoticeText:
       rec.menuNoticeText != null && String(rec.menuNoticeText).trim()
         ? String(rec.menuNoticeText).trim()
         : null,
-    depositActiveMonthRangesJson:
-      rec.depositActiveMonthRangesJson != null && String(rec.depositActiveMonthRangesJson).trim()
-        ? String(rec.depositActiveMonthRangesJson)
-        : null,
+    depositActiveMonthRangesJson: normalizeJsonColumn(rec.depositActiveMonthRangesJson),
     menuRequiredPeoplePerItem:
       rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
         ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
@@ -130,10 +137,7 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
         ? String(r.adminAccessToken).trim()
         : null,
     sortOrder: parseInt(String((r as Record<string, unknown>).sortOrder ?? '0'), 10) || 0,
-    ownerClosedSlotsJson:
-      rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
-        ? String(rec.ownerClosedSlotsJson).trim()
-        : null,
+    ownerClosedSlotsJson: normalizeJsonColumn(rec.ownerClosedSlotsJson),
   };
 }
 
@@ -793,18 +797,9 @@ function mapZoneRow(r: RowDataPacket & Record<string, unknown>): ManageZoneRow {
       r.minGroupHeadcount != null ? parseInt(String(r.minGroupHeadcount), 10) || null : null,
     slotStartHour: r.slotStartHour != null ? Number(r.slotStartHour) : null,
     slotEndHour: r.slotEndHour != null ? Number(r.slotEndHour) : null,
-    weeklyHoursJson:
-      r.weeklyHoursJson != null && String(r.weeklyHoursJson).trim()
-        ? String(r.weeklyHoursJson)
-        : null,
-    closedDatesJson:
-      r.closedDatesJson != null && String(r.closedDatesJson).trim()
-        ? String(r.closedDatesJson)
-        : null,
-    ownerClosedSlotsJson:
-      r.ownerClosedSlotsJson != null && String(r.ownerClosedSlotsJson).trim()
-        ? String(r.ownerClosedSlotsJson)
-        : null,
+    weeklyHoursJson: normalizeJsonColumn(r.weeklyHoursJson),
+    closedDatesJson: normalizeJsonColumn(r.closedDatesJson),
+    ownerClosedSlotsJson: normalizeJsonColumn(r.ownerClosedSlotsJson),
   };
 }
 

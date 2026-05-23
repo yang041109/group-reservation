@@ -50,6 +50,24 @@ function assertConfigured(): void {
   }
 }
 
+/**
+ * mysql2 는 JSON 컬럼을 자동으로 객체/배열로 파싱해 돌려준다.
+ * 우리 코드는 컬럼 값을 "JSON 문자열" 로 다루는 곳이 많아서,
+ * 객체로 들어오면 다시 stringify 해 normalize. 문자열이면 trim.
+ */
+function normalizeJsonColumn(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    return t === '' ? null : t;
+  }
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return null;
+  }
+}
+
 function rowDateToYmd(d: unknown): string {
   if (d instanceof Date && !Number.isNaN(d.getTime())) {
     const y = d.getFullYear();
@@ -900,14 +918,8 @@ export async function getAllDataFromMysql() {
       imageUrl: store.imageUrl || '',
       slotStartHour: range.slotStartHour,
       slotEndHour: range.slotEndHour,
-      weeklyHoursJson:
-        rec.weeklyHoursJson != null && String(rec.weeklyHoursJson).trim()
-          ? String(rec.weeklyHoursJson)
-          : null,
-      closedDatesJson:
-        rec.closedDatesJson != null && String(rec.closedDatesJson).trim()
-          ? String(rec.closedDatesJson)
-          : null,
+      weeklyHoursJson: normalizeJsonColumn(rec.weeklyHoursJson),
+      closedDatesJson: normalizeJsonColumn(rec.closedDatesJson),
       depositAmount: depOpts.flatDepositAmount,
       depositMode: depOpts.depositMode,
       depositUseTiers: depOpts.depositUseTiers,
@@ -920,23 +932,14 @@ export async function getAllDataFromMysql() {
         rec.ownerBankAccount != null && String(rec.ownerBankAccount).trim()
           ? String(rec.ownerBankAccount).trim()
           : null,
-      ownerClosedSlotsJson:
-        rec.ownerClosedSlotsJson != null && String(rec.ownerClosedSlotsJson).trim()
-          ? String(rec.ownerClosedSlotsJson).trim()
-          : null,
-      closedWeekdaysJson:
-        rec.closedWeekdaysJson != null && String(rec.closedWeekdaysJson).trim()
-          ? String(rec.closedWeekdaysJson).trim()
-          : null,
+      ownerClosedSlotsJson: normalizeJsonColumn(rec.ownerClosedSlotsJson),
+      closedWeekdaysJson: normalizeJsonColumn(rec.closedWeekdaysJson),
       allowSameDayBooking: Number(rec.allowSameDayBooking ?? 0) === 1,
       menuNoticeText:
         rec.menuNoticeText != null && String(rec.menuNoticeText).trim()
           ? String(rec.menuNoticeText).trim()
           : null,
-      depositActiveMonthRangesJson:
-        rec.depositActiveMonthRangesJson != null && String(rec.depositActiveMonthRangesJson).trim()
-          ? String(rec.depositActiveMonthRangesJson).trim()
-          : null,
+      depositActiveMonthRangesJson: normalizeJsonColumn(rec.depositActiveMonthRangesJson),
       menuRequiredPeoplePerItem:
         rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
           ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
