@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAdminStore } from '../AdminStoreContext';
+import {
+  DAY_KEYS,
+  DAY_LABELS,
+  parseClosedWeekdaysJson,
+  type DayKey,
+} from '@/lib/store-weekly-hours';
 
 const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -44,8 +50,28 @@ export default function AdminClosedDatesPage() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [closedDates, setClosedDates] = useState<string[]>([]);
+  const [closedWeekdays, setClosedWeekdays] = useState<DayKey[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 매주 휴무 요일은 가게 설정에서 가져와 캘린더에 시각적으로만 표시 (이 페이지에선 토글 안함)
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/store?token=${encodeURIComponent(store.token)}`);
+        const data = await res.json();
+        if (!cancelled && data?.success) {
+          setClosedWeekdays(parseClosedWeekdaysJson(data.data?.closedWeekdaysJson ?? null));
+        }
+      } catch {
+        // 매주 휴무 요일은 보조 표시이므로 실패해도 페이지 작동에 영향 없음
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [store.token]);
 
   const todayStr = ymdToday();
 
@@ -75,6 +101,12 @@ export default function AdminClosedDatesPage() {
 
   const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
   const closedSet = useMemo(() => new Set(closedDates), [closedDates]);
+  const closedWeekdaysSet = useMemo(() => new Set(closedWeekdays), [closedWeekdays]);
+  /** col(0=일..6=토) → 매주 휴무 요일이면 true */
+  const isWeeklyClosedCol = (col: number): boolean => {
+    const k = DAY_KEYS[col];
+    return !!k && closedWeekdaysSet.has(k);
+  };
 
   const monthClosedDates = useMemo(() => {
     const prefix = `${viewYear}-${pad2(viewMonth)}`;
@@ -209,21 +241,25 @@ export default function AdminClosedDatesPage() {
               const isSatCol = col === 6;
               const isClosed = cell.dateStr ? closedSet.has(cell.dateStr) : false;
               const isToday = cell.dateStr === todayStr;
+              const weeklyClosed = isWeeklyClosedCol(col);
 
               return (
                 <button
                   key={cell.key}
-                  onClick={() => cell.dateStr && void toggleDate(cell.dateStr)}
-                  disabled={!cell.dateStr || loading}
+                  onClick={() => cell.dateStr && !weeklyClosed && void toggleDate(cell.dateStr)}
+                  disabled={!cell.dateStr || loading || weeklyClosed}
+                  title={weeklyClosed ? '매주 휴무 요일로 설정돼 있어 항상 휴무입니다' : undefined}
                   className={`relative min-h-[60px] border-b border-r border-gray-100 p-1 text-center transition ${
                     cell.dateStr ? 'hover:bg-emerald-50' : 'bg-gray-50'
-                  } ${isClosed ? 'bg-red-50' : ''}`}
+                  } ${isClosed || weeklyClosed ? 'bg-red-50' : ''} ${
+                    weeklyClosed ? 'cursor-not-allowed opacity-90' : ''
+                  }`}
                 >
                   {cell.dayNum !== null && (
                     <>
                       <div
                         className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                          isClosed
+                          isClosed || weeklyClosed
                             ? 'bg-red-500 text-white line-through'
                             : isToday
                               ? 'bg-blue-600 text-white'
@@ -236,8 +272,10 @@ export default function AdminClosedDatesPage() {
                       >
                         {cell.dayNum}
                       </div>
-                      {isClosed && (
-                        <p className="mt-0.5 text-[9px] font-semibold text-red-700">휴무</p>
+                      {(isClosed || weeklyClosed) && (
+                        <p className="mt-0.5 text-[9px] font-semibold text-red-700">
+                          {weeklyClosed && !isClosed ? '매주' : '휴무'}
+                        </p>
                       )}
                     </>
                   )}
@@ -245,6 +283,12 @@ export default function AdminClosedDatesPage() {
               );
             })}
           </div>
+          {closedWeekdays.length > 0 && (
+            <p className="border-t border-gray-100 bg-amber-50 px-4 py-2 text-[11px] text-amber-900">
+              매주{' '}
+              {closedWeekdays.map((k) => DAY_LABELS[k]).join('·')}요일은 가게 설정에서 항상 휴무로 지정돼 있습니다. (변경은 가게 정보 페이지에서)
+            </p>
+          )}
         </div>
 
         {/* 이번 달 휴무 요약 */}
