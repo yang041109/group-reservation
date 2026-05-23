@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { CalendarFieldIcon, FieldSectionHeader } from '@/components/icons/BookingFieldIcons';
 
 interface DateSelectorProps {
@@ -34,15 +34,23 @@ export default function DateSelector({
   fullWidth = false,
   className = '',
 }: DateSelectorProps) {
-  const today = useMemo(() => getTodayStr(), []);
-  const now = useMemo(() => new Date(), []);
-
-  const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  // 마운트 후에만 오늘 날짜를 계산해 SSR/CSR 시간대 차이로 인한
+  // hydration mismatch (#418) 를 회피한다. 초기 렌더는 빈 캘린더가 깔리고
+  // useEffect 가 한 번 돈 다음 채워진다.
+  const [today, setToday] = useState<string | null>(null);
+  const [viewYear, setViewYear] = useState<number | null>(null);
+  const [viewMonth, setViewMonth] = useState<number | null>(null);
+  useEffect(() => {
+    const n = new Date();
+    setToday(toDateStr(n.getFullYear(), n.getMonth(), n.getDate()));
+    setViewYear(n.getFullYear());
+    setViewMonth(n.getMonth());
+  }, []);
 
   const unavailableSet = useMemo(() => new Set(unavailableDates), [unavailableDates]);
 
   const calendarDays = useMemo(() => {
+    if (viewYear === null || viewMonth === null) return [];
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
@@ -85,6 +93,7 @@ export default function DateSelector({
   }, [viewYear, viewMonth]);
 
   const goToPrevMonth = () => {
+    if (viewYear === null || viewMonth === null) return;
     if (viewMonth === 0) {
       setViewYear(viewYear - 1);
       setViewMonth(11);
@@ -94,6 +103,7 @@ export default function DateSelector({
   };
 
   const goToNextMonth = () => {
+    if (viewYear === null || viewMonth === null) return;
     if (viewMonth === 11) {
       setViewYear(viewYear + 1);
       setViewMonth(0);
@@ -102,9 +112,21 @@ export default function DateSelector({
     }
   };
 
+  // 마운트 전(SSR/CSR 초기) 에는 빈 placeholder. 마운트 후 useEffect 가 today/view* 세팅.
+  if (today === null || viewYear === null || viewMonth === null) {
+    return (
+      <div
+        className={`w-full rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.06)] ${className}`}
+      >
+        <FieldSectionHeader icon={<CalendarFieldIcon />} title="날짜 선택" />
+        <div className="h-[330px]" />
+      </div>
+    );
+  }
+
   const canGoPrev =
-    viewYear > now.getFullYear() ||
-    (viewYear === now.getFullYear() && viewMonth > now.getMonth());
+    viewYear > new Date().getFullYear() ||
+    (viewYear === new Date().getFullYear() && viewMonth > new Date().getMonth());
 
   const inner = (
     <>
