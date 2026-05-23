@@ -69,6 +69,8 @@ export interface StoreCard {
   depositTiers?: DepositTier[];
   minGroupHeadcount?: number;
   closedOnDate?: boolean;
+  /** 가게가 당일 예약을 허용하는지. /search 카드에서 sameDayBlocked 계산에 사용. */
+  allowSameDayBooking?: boolean;
   /** 간략 위치 (검색 카드) */
   locationLabel?: string | null;
   /** 전역관리 목록 순서 */

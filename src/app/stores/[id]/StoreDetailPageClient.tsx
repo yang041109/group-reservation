@@ -9,6 +9,7 @@ import {
   resolveDepositForHeadcount,
 } from '@/lib/deposit-tiers';
 import type { DepositMode } from '@/types';
+import { koreaTodayYmd } from '@/lib/korea-time';
 import { DEFAULT_SLOT_END_HOUR, DEFAULT_SLOT_START_HOUR } from '@/lib/slot-hour-range';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
@@ -39,6 +40,11 @@ export default function StoreDetailPageClient() {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
   const [navigatingToSearch, setNavigatingToSearch] = useState(false);
+  // 마운트 후 KST 오늘 날짜 계산 (SSR/CSR hydration mismatch 방지)
+  const [todayKr, setTodayKr] = useState<string | null>(null);
+  useEffect(() => {
+    setTodayKr(koreaTodayYmd(new Date()));
+  }, []);
 
   const goToSearchWithPrefetch = async () => {
     if (navigatingToSearch) return;
@@ -378,12 +384,22 @@ export default function StoreDetailPageClient() {
 
   const minGroup = store.minGroupHeadcount ?? 2;
 
+  // 당일 예약 차단 여부: 가게가 명시적으로 허용하지 않았고 선택 날짜가 KST 오늘 이전(=오늘 포함)이면 차단.
+  // todayKr 은 마운트 후에야 채워지므로 그 전까지는 false 로 취급해 hydration mismatch 방지.
+  const sameDayBlocked =
+    !!selectedDate && !store.allowSameDayBooking && !!todayKr && selectedDate <= todayKr;
+
   return (
     <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
       <BackLink fallbackHref="/search" />
       {store.closedOnDate && (
         <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
           선택한 날짜는 휴무일입니다. 날짜를 변경해 주세요.
+        </p>
+      )}
+      {sameDayBlocked && !store.closedOnDate && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          이 가게는 당일 예약을 받지 않습니다. 내일 이후 날짜를 선택해 주세요.
         </p>
       )}
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gray-100">
@@ -513,13 +529,13 @@ export default function StoreDetailPageClient() {
         ) : null}
 
         <TimeSelector
-          availableTimes={availableTimes}
-          reservedTimes={reservedTimes}
-          slots={slots}
+          availableTimes={sameDayBlocked ? [] : availableTimes}
+          reservedTimes={sameDayBlocked ? [] : reservedTimes}
+          slots={sameDayBlocked ? [] : slots}
           startHour={startHour}
           endHour={endHour}
           crossesMidnight={crossesMidnight}
-          selectedTime={selectedTime}
+          selectedTime={sameDayBlocked ? null : selectedTime}
           onChange={setSelectedTime}
         />
       </div>

@@ -5,6 +5,7 @@ import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
+import { koreaTodayYmd } from '@/lib/korea-time';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { computeAvailabilityScore, isStoreBookable } from '@/lib/store-timeline-score';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
@@ -25,6 +26,11 @@ export default function SearchPage() {
   const [selectedHeadcount, setSelectedHeadcount] = useState(2);
   const [sortMode, setSortMode] = useState<SortMode>('recommended');
   const { stores, reservations, isLoading } = useAllData();
+  // 마운트 후 KST 오늘 날짜. SSR/CSR 사이 시간대 차이 회피.
+  const [todayKr, setTodayKr] = useState<string | null>(null);
+  useEffect(() => {
+    setTodayKr(koreaTodayYmd(new Date()));
+  }, []);
 
   useEffect(() => {
     const savedDate = sessionStorage.getItem('selectedDate');
@@ -81,6 +87,7 @@ export default function SearchPage() {
           slotEndHour: slotEnd,
           minGroupHeadcount: s.minGroupHeadcount ?? readMinGroupHeadcount(storeMeta),
           closedOnDate: dayRange?.closed,
+          allowSameDayBooking: s.allowSameDayBooking,
           depositAmount:
             selectedHeadcount >= 1
               ? resolveDepositForHeadcount(selectedHeadcount, {
@@ -108,6 +115,17 @@ export default function SearchPage() {
     }
   }, [storeCards, stores, reservations]);
 
+  // 가게마다 "이 카드는 당일 차단 상태인가?" 표지. 화면에는 계속 노출하되 카드에 안내 문구 표시.
+  const sameDayBlockedById = useMemo(() => {
+    const m = new Map<string, boolean>();
+    if (!selectedDate || !todayKr) return m;
+    for (const s of storeCards) {
+      const blocked = !s.allowSameDayBooking && selectedDate <= todayKr;
+      m.set(s.id, blocked);
+    }
+    return m;
+  }, [storeCards, selectedDate, todayKr]);
+
   const filteredStores = useMemo(() => {
     return storeCards.filter((store) => {
       if (selectedDate && store.closedOnDate) return false;
@@ -116,12 +134,15 @@ export default function SearchPage() {
       // selectedHeadcount=0 (미선택)도 minGroup 이상 가게는 숨겨 모호한 표시를 피한다.
       if (selectedHeadcount < minGroup) return false;
       if (store.maxCapacity > 0 && selectedHeadcount > store.maxCapacity) return false;
+      // 당일 예약 불가 가게는 시간 슬롯 가용성과 무관하게 카드는 그대로 노출.
+      // (카드 내부에서 "당일 예약 불가" 안내 문구로 안내)
+      if (sameDayBlockedById.get(store.id)) return true;
       if (selectedDate && selectedHeadcount > 0) {
         return isStoreBookable(store.timeline, selectedHeadcount, store.closedOnDate);
       }
       return true;
     });
-  }, [storeCards, selectedDate, selectedHeadcount]);
+  }, [storeCards, selectedDate, selectedHeadcount, sameDayBlockedById]);
 
   const sortedStores = useMemo(() => {
     const arr = [...filteredStores];
@@ -149,9 +170,12 @@ export default function SearchPage() {
 
   const bookableCount = useMemo(
     () =>
-      filteredStores.filter((s) => isStoreBookable(s.timeline, selectedHeadcount, s.closedOnDate))
-        .length,
-    [filteredStores, selectedHeadcount],
+      filteredStores.filter(
+        (s) =>
+          !sameDayBlockedById.get(s.id) &&
+          isStoreBookable(s.timeline, selectedHeadcount, s.closedOnDate),
+      ).length,
+    [filteredStores, selectedHeadcount, sameDayBlockedById],
   );
 
   const showStores = selectedDate !== null;
@@ -235,6 +259,7 @@ export default function SearchPage() {
                 store={store}
                 selectedHeadcount={selectedHeadcount}
                 selectedDate={selectedDate}
+                sameDayBlocked={sameDayBlockedById.get(store.id) ?? false}
               />
             ))}
           </div>

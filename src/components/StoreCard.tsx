@@ -18,12 +18,15 @@ export interface StoreCardDisplayProps {
   store: StoreCardType;
   selectedHeadcount: number;
   selectedDate: string | null;
+  /** 선택 날짜가 KST 오늘이고 가게가 당일 예약을 받지 않으면 true. /search 페이지에서 계산해 전달. */
+  sameDayBlocked?: boolean;
 }
 
 export default function StoreCard({
   store,
   selectedHeadcount,
   selectedDate,
+  sameDayBlocked = false,
 }: StoreCardDisplayProps) {
   const thumbnailUrl = store.images[0];
   const minGroup = store.minGroupHeadcount ?? 2;
@@ -118,6 +121,10 @@ export default function StoreCard({
         <div className="mt-4">
           {closedOnDate ? (
             <p className="rounded-lg bg-gray-100 px-3 py-2 text-center text-sm text-gray-500">선택한 날짜 휴무</p>
+          ) : sameDayBlocked ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-800">
+              당일 예약 불가 · 가게에서 받지 않습니다
+            </p>
           ) : (
           <>
           <div className="mb-1 flex">
