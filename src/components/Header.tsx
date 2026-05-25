@@ -42,7 +42,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 w-full max-w-full overflow-x-clip border-b border-blue-400/30 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link href="/" className="group flex items-center gap-1.5">
+        <Link href="/search" className="group flex items-center gap-1.5">
           <span className="text-lg font-bold tracking-tight text-white">우르르</span>
           <div className="ml-1 flex items-end gap-0 overflow-hidden text-blue-200">
             <RunningStickman delay={0} size={16} />
