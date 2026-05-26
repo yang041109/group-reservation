@@ -1664,8 +1664,17 @@ export default function ManagePageClient() {
                           {r.groupName ? <span className="text-gray-400"> / {r.groupName}</span> : null}
                           <div className="text-gray-400">{r.userPhone}</div>
                         </td>
-                        <td className="py-2 pr-2 whitespace-nowrap">
-                          {r.date} {r.startTime}
+                        <td className="py-2 pr-2 whitespace-nowrap leading-tight">
+                          <div>{r.date}</div>
+                          <div className="text-gray-700">
+                            {r.startTime}
+                            {r.endTime ? ` ~ ${r.endTime}` : ''}
+                          </div>
+                          {r.createdAt ? (
+                            <div className="mt-0.5 text-[10px] text-gray-400">
+                              접수 {r.createdAt}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="py-2 pr-2">
                           <select
