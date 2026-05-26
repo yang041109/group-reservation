@@ -214,6 +214,7 @@ export interface SlackReservationNotification {
   groupName: string;
   representativeName: string;
   phone: string;
+  userNote?: string;
   menuItems: { name: string; quantity: number; price: number }[];
   totalAmount: number;
   minOrderAmount: number;

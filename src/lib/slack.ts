@@ -1,7 +1,10 @@
 import type { SlackReservationNotification } from '@/types';
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const MAX_RETRIES = 3;
+
+function getSlackWebhookUrl(): string | undefined {
+  return process.env.SLACK_WEBHOOK_URL?.trim() || undefined;
+}
 
 /**
  * Slack Incoming Webhook 메시지를 구성한다.
@@ -39,7 +42,10 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
             `*날짜:* ${data.date}`,
             `*시간:* ${data.time}`,
             `*총 금액:* ${data.totalAmount.toLocaleString()}원`,
-          ].join('\n'),
+            data.userNote?.trim() ? `*요청사항:* ${data.userNote.trim()}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n'),
         },
       },
       {
@@ -62,7 +68,8 @@ export function buildSlackMessage(data: SlackReservationNotification): object {
 export async function sendSlackNotification(
   data: SlackReservationNotification,
 ): Promise<void> {
-  if (!SLACK_WEBHOOK_URL) {
+  const webhookUrl = getSlackWebhookUrl();
+  if (!webhookUrl) {
     console.warn('SLACK_WEBHOOK_URL이 설정되지 않았습니다. Slack 알림을 건너뜁니다.');
     return;
   }
@@ -71,7 +78,7 @@ export async function sendSlackNotification(
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(SLACK_WEBHOOK_URL, {
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message),
@@ -81,8 +88,10 @@ export async function sendSlackNotification(
         return;
       }
 
+      const errBody = await response.text().catch(() => '');
       console.error(
         `Slack 알림 발송 실패 (시도 ${attempt + 1}/${MAX_RETRIES}): ${response.status} ${response.statusText}`,
+        errBody.slice(0, 200),
       );
     } catch (error) {
       console.error(

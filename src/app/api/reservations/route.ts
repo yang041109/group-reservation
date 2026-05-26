@@ -57,24 +57,29 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  // Slack 알림 (백그라운드)
-  sendSlackNotification({
-    storeName: body.storeName ?? '',
-    headcount: body.headcount,
-    date: body.date ?? '',
-    time: body.time ?? '',
-    groupName: body.groupName ?? '',
-    representativeName: body.representativeName ?? '',
-    phone: body.phone ?? '',
-    menuItems: (body.menuItems ?? []).map(item => ({
-      name: item.name ?? '',
-      quantity: item.quantity,
-      price: item.price ?? 0,
-    })),
-    totalAmount: body.totalAmount ?? 0,
-    minOrderAmount: body.minOrderAmount ?? 0,
-    reservationId,
-  }).catch(() => {});
+  // Slack 알림 — 서버리스/로컬 모두 응답 전에 발송 완료
+  try {
+    await sendSlackNotification({
+      storeName: body.storeName ?? '',
+      headcount: body.headcount,
+      date: body.date ?? '',
+      time: body.time ?? '',
+      groupName: body.groupName ?? '',
+      representativeName: body.representativeName ?? '',
+      phone: body.phone ?? '',
+      userNote: body.userNote,
+      menuItems: (body.menuItems ?? []).map((item) => ({
+        name: item.name ?? '',
+        quantity: item.quantity,
+        price: item.price ?? 0,
+      })),
+      totalAmount: body.totalAmount ?? 0,
+      minOrderAmount: body.minOrderAmount ?? 0,
+      reservationId,
+    });
+  } catch (slackErr) {
+    console.error('Slack 알림 발송 중 예외:', slackErr);
+  }
 
   const response: CreateReservationResponse = { reservationId, status: 'PENDING' };
   return NextResponse.json(response, { status: 201 });
