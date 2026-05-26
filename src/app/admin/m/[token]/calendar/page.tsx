@@ -22,6 +22,7 @@ interface Reservation {
   date: string;
   startTime: string;
   endTime: string;
+  createdAt?: string;
   headcount: number;
   totalAmount: number;
   depositAmount: number;
@@ -596,6 +597,11 @@ export default function AdminCalendarByToken() {
                       ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-gray-500">{reservation.headcount}명</div>
+                    {reservation.createdAt ? (
+                      <div className="mt-0.5 text-[11px] text-gray-400">
+                        접수일시: {reservation.createdAt}
+                      </div>
+                    ) : null}
                   </div>
                 </button>
               ))}
@@ -688,6 +694,12 @@ export default function AdminCalendarByToken() {
                   {detail.date} {detail.startTime} ~ {detail.endTime}
                 </dd>
               </div>
+              {detail.createdAt ? (
+                <div>
+                  <dt className="text-gray-500">접수일시</dt>
+                  <dd className="font-medium text-gray-900">{detail.createdAt}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-gray-500">인원</dt>
                 <dd className="font-medium text-gray-900">{detail.headcount}명</dd>

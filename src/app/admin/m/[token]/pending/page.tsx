@@ -14,6 +14,7 @@ interface Reservation {
   date: string;
   startTime: string;
   endTime: string;
+  createdAt?: string;
   headcount: number;
   totalAmount: number;
   depositAmount: number;
@@ -323,6 +324,11 @@ export default function AdminPendingByToken() {
                         <p className="mt-1 text-[11px] text-gray-500">
                           예약번호 {reservation.reservationId}
                         </p>
+                        {reservation.createdAt ? (
+                          <p className="mt-0.5 text-[11px] text-gray-500">
+                            접수일시: {reservation.createdAt}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 
@@ -436,6 +442,11 @@ export default function AdminPendingByToken() {
                         <p className="mt-1 text-[11px] text-gray-500">
                           예약번호 {reservation.reservationId}
                         </p>
+                        {reservation.createdAt ? (
+                          <p className="mt-0.5 text-[11px] text-gray-500">
+                            접수일시: {reservation.createdAt}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 
