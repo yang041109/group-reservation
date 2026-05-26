@@ -16,6 +16,8 @@ import {
   storeHasDepositActiveMonthRangesColumn,
   storeHasMenuNoticeTextColumn,
   storeHasMenuRequiredPeoplePerItemColumn,
+  storeHasShiftActiveMonthRangesColumn,
+  storeHasShiftStartTimesColumn,
 } from '@/lib/store-schema-migrate';
 import { buildSlots } from '@/lib/booking-slots';
 import {
@@ -85,6 +87,8 @@ export interface ManageStoreRow {
   menuNoticeText: string | null;
   depositActiveMonthRangesJson: string | null;
   menuRequiredPeoplePerItem: number | null;
+  shiftStartTimesJson: string | null;
+  shiftActiveMonthRangesJson: string | null;
   description: string | null;
   adminAccessToken: string | null;
   /** 작을수록 고객 목록·관리 목록에서 앞에 표시 */
@@ -131,6 +135,8 @@ function mapStoreRow(r: StoreRow): ManageStoreRow {
       rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
         ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
         : null,
+    shiftStartTimesJson: normalizeJsonColumn(rec.shiftStartTimesJson),
+    shiftActiveMonthRangesJson: normalizeJsonColumn(rec.shiftActiveMonthRangesJson),
     description: r.description != null && String(r.description).trim() ? String(r.description) : null,
     adminAccessToken:
       r.adminAccessToken != null && String(r.adminAccessToken).trim()
@@ -189,6 +195,8 @@ export async function manageUpdateStore(
     menuNoticeText?: string | null;
     depositActiveMonthRangesJson?: string | null;
     menuRequiredPeoplePerItem?: number | null;
+    shiftStartTimesJson?: string | null;
+    shiftActiveMonthRangesJson?: string | null;
     slotStartHour?: number | null;
     slotEndHour?: number | null;
     ownerClosedSlotsJson?: string | null;
@@ -316,13 +324,23 @@ export async function manageUpdateStore(
       pendingMenuRequired = n > 0 ? n : null;
     }
   }
+  let pendingShiftStartTimes: string | null | undefined;
+  if (patch.shiftStartTimesJson !== undefined) {
+    pendingShiftStartTimes = patch.shiftStartTimesJson;
+  }
+  let pendingShiftRanges: string | null | undefined;
+  if (patch.shiftActiveMonthRangesJson !== undefined) {
+    pendingShiftRanges = patch.shiftActiveMonthRangesJson;
+  }
 
   const hasAnyExtra =
     pendingAllowSameDay !== undefined ||
     pendingClosedWeekdays !== undefined ||
     pendingMenuNotice !== undefined ||
     pendingDepositRanges !== undefined ||
-    pendingMenuRequired !== undefined;
+    pendingMenuRequired !== undefined ||
+    pendingShiftStartTimes !== undefined ||
+    pendingShiftRanges !== undefined;
 
   if (!sets.length && !hasAnyExtra) {
     return { success: false, message: '수정할 필드가 없습니다.' };
@@ -349,6 +367,14 @@ export async function manageUpdateStore(
     if (pendingMenuRequired !== undefined && (await storeHasMenuRequiredPeoplePerItemColumn(pool))) {
       sets.push('menuRequiredPeoplePerItem = ?');
       params.push(pendingMenuRequired);
+    }
+    if (pendingShiftStartTimes !== undefined && (await storeHasShiftStartTimesColumn(pool))) {
+      sets.push('shiftStartTimesJson = ?');
+      params.push(pendingShiftStartTimes);
+    }
+    if (pendingShiftRanges !== undefined && (await storeHasShiftActiveMonthRangesColumn(pool))) {
+      sets.push('shiftActiveMonthRangesJson = ?');
+      params.push(pendingShiftRanges);
     }
     if (!sets.length) {
       return { success: true }; // 새 컬럼만 보낸 요청인데 컬럼이 없으면 no-op

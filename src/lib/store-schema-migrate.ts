@@ -118,6 +118,68 @@ export async function ensureDepositActiveMonthRangesColumn(pool: Pool): Promise<
   return storeColumnExists(pool, 'depositActiveMonthRangesJson');
 }
 
+let shiftStartTimesEnsurePromise: Promise<void> | null = null;
+
+export async function ensureShiftStartTimesColumn(pool: Pool): Promise<boolean> {
+  if (await storeColumnExists(pool, 'shiftStartTimesJson')) return true;
+  if (shiftStartTimesEnsurePromise) {
+    await shiftStartTimesEnsurePromise;
+    return storeColumnExists(pool, 'shiftStartTimesJson');
+  }
+  shiftStartTimesEnsurePromise = (async () => {
+    if (await storeColumnExists(pool, 'shiftStartTimesJson')) return;
+    await pool.execute(
+      `ALTER TABLE store
+       ADD COLUMN shiftStartTimesJson JSON NULL
+       COMMENT '교대제(부제) 운영 시 허용되는 시작 시각 목록 ["18:00","21:00"]'`,
+    );
+  })()
+    .catch((e) => {
+      console.warn('[ensureShiftStartTimesColumn]', e);
+    })
+    .finally(() => {
+      shiftStartTimesEnsurePromise = null;
+    });
+  await shiftStartTimesEnsurePromise;
+  return storeColumnExists(pool, 'shiftStartTimesJson');
+}
+
+let shiftRangesEnsurePromise: Promise<void> | null = null;
+
+export async function ensureShiftActiveMonthRangesColumn(pool: Pool): Promise<boolean> {
+  if (await storeColumnExists(pool, 'shiftActiveMonthRangesJson')) return true;
+  if (shiftRangesEnsurePromise) {
+    await shiftRangesEnsurePromise;
+    return storeColumnExists(pool, 'shiftActiveMonthRangesJson');
+  }
+  shiftRangesEnsurePromise = (async () => {
+    if (await storeColumnExists(pool, 'shiftActiveMonthRangesJson')) return;
+    await pool.execute(
+      `ALTER TABLE store
+       ADD COLUMN shiftActiveMonthRangesJson JSON NULL
+       COMMENT '교대제 적용 기간 [{"start":"MM-DD","end":"MM-DD"}]. 비어있으면 미적용.'`,
+    );
+  })()
+    .catch((e) => {
+      console.warn('[ensureShiftActiveMonthRangesColumn]', e);
+    })
+    .finally(() => {
+      shiftRangesEnsurePromise = null;
+    });
+  await shiftRangesEnsurePromise;
+  return storeColumnExists(pool, 'shiftActiveMonthRangesJson');
+}
+
+export async function storeHasShiftStartTimesColumn(pool: Pool): Promise<boolean> {
+  if (await storeColumnExists(pool, 'shiftStartTimesJson')) return true;
+  return ensureShiftStartTimesColumn(pool);
+}
+
+export async function storeHasShiftActiveMonthRangesColumn(pool: Pool): Promise<boolean> {
+  if (await storeColumnExists(pool, 'shiftActiveMonthRangesJson')) return true;
+  return ensureShiftActiveMonthRangesColumn(pool);
+}
+
 let menuRequiredEnsurePromise: Promise<void> | null = null;
 
 export async function ensureMenuRequiredPeoplePerItemColumn(pool: Pool): Promise<boolean> {
@@ -167,6 +229,8 @@ export async function ensureStoreBookingRulesColumns(pool: Pool): Promise<void> 
     ensureMenuNoticeTextColumn(pool),
     ensureDepositActiveMonthRangesColumn(pool),
     ensureMenuRequiredPeoplePerItemColumn(pool),
+    ensureShiftStartTimesColumn(pool),
+    ensureShiftActiveMonthRangesColumn(pool),
   ]);
 }
 

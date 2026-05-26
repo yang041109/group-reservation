@@ -23,6 +23,7 @@ import {
   serializeWeeklyHoursForDb,
 } from '@/lib/store-weekly-hours';
 import { parseAutoMenuIdNumber } from '@/lib/auto-menu-id';
+import { serializeShiftStartTimesForDb } from '@/lib/shift-mode';
 import { parseAutoStoreIdNumber } from '@/lib/auto-store-id';
 import { swapMenuOrderIds } from '@/lib/menu-order';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
@@ -70,6 +71,8 @@ type ManageStore = {
   menuNoticeText?: string | null;
   depositActiveMonthRangesJson?: string | null;
   menuRequiredPeoplePerItem?: number | null;
+  shiftStartTimesJson?: string | null;
+  shiftActiveMonthRangesJson?: string | null;
   adminAccessToken: string | null;
   sortOrder: number;
 };
@@ -174,6 +177,10 @@ export default function ManagePageClient() {
   const [depositRangeStart, setDepositRangeStart] = useState('');
   const [depositRangeEnd, setDepositRangeEnd] = useState('');
   const [menuPeoplePerItem, setMenuPeoplePerItem] = useState('');
+  // 교대제(부제) 운영 — 가게 단위 옵션. 시작 시각 CSV ("18:00, 21:00") + 적용 기간 MM-DD ~ MM-DD
+  const [shiftStartTimesText, setShiftStartTimesText] = useState('');
+  const [shiftRangeStart, setShiftRangeStart] = useState('');
+  const [shiftRangeEnd, setShiftRangeEnd] = useState('');
   const resLimit = 50;
   const [dbHealth, setDbHealth] = useState<DbHealthJson | null>(null);
 
@@ -352,6 +359,30 @@ export default function ManagePageClient() {
         ? String(selected.menuRequiredPeoplePerItem)
         : '',
     );
+    // 교대제 시작 시각 (저장은 JSON 배열, UI 는 CSV 텍스트박스)
+    try {
+      const arr = selected.shiftStartTimesJson
+        ? (JSON.parse(selected.shiftStartTimesJson) as string[])
+        : [];
+      setShiftStartTimesText(Array.isArray(arr) ? arr.join(', ') : '');
+    } catch {
+      setShiftStartTimesText('');
+    }
+    try {
+      const arr = selected.shiftActiveMonthRangesJson
+        ? (JSON.parse(selected.shiftActiveMonthRangesJson) as { start?: string; end?: string }[])
+        : [];
+      if (Array.isArray(arr) && arr.length > 0) {
+        setShiftRangeStart(String(arr[0]?.start ?? ''));
+        setShiftRangeEnd(String(arr[0]?.end ?? ''));
+      } else {
+        setShiftRangeStart('');
+        setShiftRangeEnd('');
+      }
+    } catch {
+      setShiftRangeStart('');
+      setShiftRangeEnd('');
+    }
     setDepositFlat(String(selected.depositAmount ?? 0));
     setDepositMode(
       selected.depositMode ?? depositModeFromDb(selected.depositUseTiers ? 1 : 0),
@@ -470,6 +501,18 @@ export default function ManagePageClient() {
             if (!t) return null;
             const n = parseInt(t, 10);
             return Number.isFinite(n) && n > 0 ? n : null;
+          })(),
+          shiftStartTimesJson: (() => {
+            const t = shiftStartTimesText.trim();
+            if (!t) return null;
+            const times = t.split(/[,\s]+/).filter(Boolean);
+            return serializeShiftStartTimesForDb(times);
+          })(),
+          shiftActiveMonthRangesJson: (() => {
+            const s = shiftRangeStart.trim();
+            const e = shiftRangeEnd.trim();
+            if (!s || !e) return null;
+            return JSON.stringify([{ start: s, end: e }]);
           })(),
         }),
       });
@@ -1295,6 +1338,62 @@ export default function ManagePageClient() {
                             onChange={(e) => setMenuPeoplePerItem(e.target.value)}
                           />
                         </label>
+
+                        <div className="block sm:col-span-2">
+                          <span className="text-xs text-gray-500">
+                            교대제(부제) 시작 시각{' '}
+                            <span className="ml-1 text-[10px] text-gray-400">
+                              비워두면 미적용. CSV. 예: 18:00, 21:00
+                            </span>
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="예: 18:00, 21:00"
+                            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                            value={shiftStartTimesText}
+                            onChange={(e) => setShiftStartTimesText(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="block sm:col-span-2">
+                          <span className="text-xs text-gray-500">
+                            교대제 적용 기간 (MM-DD ~ MM-DD)
+                            <span className="ml-1 text-[10px] text-gray-400">
+                              비워두면 미적용. 예: 03-01 ~ 03-31 이면 3월에만 교대제 강제.
+                            </span>
+                          </span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="03-01"
+                              maxLength={5}
+                              className="w-20 rounded border border-gray-300 px-2 py-1.5 text-sm"
+                              value={shiftRangeStart}
+                              onChange={(e) => setShiftRangeStart(e.target.value)}
+                            />
+                            <span className="text-sm text-gray-500">~</span>
+                            <input
+                              type="text"
+                              placeholder="03-31"
+                              maxLength={5}
+                              className="w-20 rounded border border-gray-300 px-2 py-1.5 text-sm"
+                              value={shiftRangeEnd}
+                              onChange={(e) => setShiftRangeEnd(e.target.value)}
+                            />
+                            {(shiftRangeStart || shiftRangeEnd) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShiftRangeStart('');
+                                  setShiftRangeEnd('');
+                                }}
+                                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                              >
+                                미적용
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button

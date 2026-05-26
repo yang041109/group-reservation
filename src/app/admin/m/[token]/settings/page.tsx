@@ -27,6 +27,7 @@ import {
   depositRequiresBankInfo,
   type DepositMode,
 } from '@/lib/deposit-tiers';
+import { serializeShiftStartTimesForDb } from '@/lib/shift-mode';
 import type { DepositTier } from '@/types';
 
 interface ManageStore {
@@ -50,6 +51,8 @@ interface ManageStore {
   menuNoticeText?: string | null;
   depositActiveMonthRangesJson?: string | null;
   menuRequiredPeoplePerItem?: number | null;
+  shiftStartTimesJson?: string | null;
+  shiftActiveMonthRangesJson?: string | null;
 }
 
 interface MenuItem {
@@ -101,6 +104,10 @@ export default function AdminSettingsPage() {
   // 매주 항상 휴무 요일 / 당일 예약 허용 — admin/manage 와 동일한 데이터로 연결
   const [closedWeekdaysSet, setClosedWeekdaysSet] = useState<Set<DayKey>>(() => new Set());
   const [allowSameDay, setAllowSameDay] = useState(false);
+  // 교대제(부제) 운영 — admin/manage 와 동일 데이터
+  const [shiftStartTimesText, setShiftStartTimesText] = useState('');
+  const [shiftRangeStart, setShiftRangeStart] = useState('');
+  const [shiftRangeEnd, setShiftRangeEnd] = useState('');
 
   // 메뉴 추가 폼
   const [newMenuName, setNewMenuName] = useState('');
@@ -193,6 +200,29 @@ export default function AdminSettingsPage() {
         );
         setAllowSameDay(!!s.allowSameDayBooking);
         setClosedWeekdaysSet(new Set(parseClosedWeekdaysJson(s.closedWeekdaysJson ?? null)));
+        try {
+          const arr = s.shiftStartTimesJson
+            ? (JSON.parse(s.shiftStartTimesJson) as string[])
+            : [];
+          setShiftStartTimesText(Array.isArray(arr) ? arr.join(', ') : '');
+        } catch {
+          setShiftStartTimesText('');
+        }
+        try {
+          const arr = s.shiftActiveMonthRangesJson
+            ? (JSON.parse(s.shiftActiveMonthRangesJson) as { start?: string; end?: string }[])
+            : [];
+          if (Array.isArray(arr) && arr.length > 0) {
+            setShiftRangeStart(String(arr[0]?.start ?? ''));
+            setShiftRangeEnd(String(arr[0]?.end ?? ''));
+          } else {
+            setShiftRangeStart('');
+            setShiftRangeEnd('');
+          }
+        } catch {
+          setShiftRangeStart('');
+          setShiftRangeEnd('');
+        }
       } else {
         setError(sData.message || '가게 정보를 불러올 수 없습니다.');
       }
@@ -294,6 +324,18 @@ export default function AdminSettingsPage() {
         closedWeekdaysJson: serializeClosedWeekdaysForDb(
           DAY_KEYS.filter((k) => closedWeekdaysSet.has(k)),
         ),
+        shiftStartTimesJson: (() => {
+          const t = shiftStartTimesText.trim();
+          if (!t) return null;
+          const times = t.split(/[,\s]+/).filter(Boolean);
+          return serializeShiftStartTimesForDb(times);
+        })(),
+        shiftActiveMonthRangesJson: (() => {
+          const s = shiftRangeStart.trim();
+          const e = shiftRangeEnd.trim();
+          if (!s || !e) return null;
+          return JSON.stringify([{ start: s, end: e }]);
+        })(),
       };
 
       const res = await fetch('/api/admin/store', {
@@ -764,6 +806,60 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setMenuPeoplePerItem(e.target.value)}
               />
             </label>
+          </div>
+
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <p className="text-sm font-semibold text-gray-800">교대제(부제) 운영</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              피크 시즌에 시작 시각을 강제하고 싶을 때 사용. 두 값 다 비우면 미적용(자유 예약).
+            </p>
+            <label className="mt-2 block">
+              <span className="text-xs text-gray-600">시작 시각 (콤마로 구분)</span>
+              <input
+                type="text"
+                placeholder="예: 18:00, 21:00"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                value={shiftStartTimesText}
+                onChange={(e) => setShiftStartTimesText(e.target.value)}
+              />
+            </label>
+            <div className="mt-2">
+              <span className="text-xs text-gray-600">적용 기간 (MM-DD ~ MM-DD)</span>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="03-01"
+                  maxLength={5}
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  value={shiftRangeStart}
+                  onChange={(e) => setShiftRangeStart(e.target.value)}
+                />
+                <span className="text-sm text-gray-500">~</span>
+                <input
+                  type="text"
+                  placeholder="03-31"
+                  maxLength={5}
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  value={shiftRangeEnd}
+                  onChange={(e) => setShiftRangeEnd(e.target.value)}
+                />
+                {(shiftRangeStart || shiftRangeEnd) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShiftRangeStart('');
+                      setShiftRangeEnd('');
+                    }}
+                    className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    미적용
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-gray-400">
+                예: 03-01 ~ 03-31 입력 시 3월에만 교대제 강제. 비피크 기간은 자유 예약.
+              </p>
+            </div>
           </div>
         </section>
 

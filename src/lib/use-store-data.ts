@@ -4,6 +4,12 @@ import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { buildSlots } from '@/lib/booking-slots';
 import { applyOwnerClosedBlocksToSlots } from '@/lib/owner-closed-slots';
+import {
+  isShiftActiveOnDate,
+  isShiftStartTime,
+  parseShiftActiveMonthRanges,
+  parseShiftStartTimes,
+} from '@/lib/shift-mode';
 import type { TimeSlot, MinOrderRule, MenuItemData, DepositTier, ZoneInfo } from '@/types';
 
 // ── 타입 ────────────────────────────────────────────────────────
@@ -32,6 +38,8 @@ export interface CachedStore {
   menuNoticeText?: string | null;
   depositActiveMonthRangesJson?: string | null;
   menuRequiredPeoplePerItem?: number | null;
+  shiftStartTimesJson?: string | null;
+  shiftActiveMonthRangesJson?: string | null;
   menus: MenuItemData[];
   minOrderRules: MinOrderRule[];
   /** 가게가 동(zone) 운영 중이면 동 요약 목록. 비어있으면 단일 운영. */
@@ -164,7 +172,10 @@ export function buildSlotsForDate(
   slotStartHour?: number,
   slotEndHour?: number,
   closed?: boolean,
-  storeMeta?: Pick<CachedStore, 'ownerClosedSlotsJson'> & { zoneId?: string | null },
+  storeMeta?: Pick<
+    CachedStore,
+    'ownerClosedSlotsJson' | 'shiftStartTimesJson' | 'shiftActiveMonthRangesJson'
+  > & { zoneId?: string | null },
 ): TimeSlot[] {
   if (closed) return [];
   const startH = slotStartHour ?? 11;
@@ -191,11 +202,22 @@ export function buildSlotsForDate(
     crossesMidnight,
   );
 
-  return applyOwnerClosedBlocksToSlots(
+  let result = applyOwnerClosedBlocksToSlots(
     base,
     date,
     storeMeta?.ownerClosedSlotsJson ?? null,
     undefined,
     { slotStartHour: startH, slotEndHour: endH, crossesMidnight },
   );
+
+  // 교대제 적용 기간이면 허용 시작 시각 외 슬롯을 마감 처리
+  const shiftRanges = parseShiftActiveMonthRanges(storeMeta?.shiftActiveMonthRangesJson);
+  const shiftStartTimes = parseShiftStartTimes(storeMeta?.shiftStartTimesJson);
+  if (shiftStartTimes.length && isShiftActiveOnDate(date, shiftRanges)) {
+    result = result.map((s) =>
+      isShiftStartTime(s.timeBlock, shiftStartTimes) ? s : { ...s, isAvailable: false },
+    );
+  }
+
+  return result;
 }

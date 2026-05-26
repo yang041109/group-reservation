@@ -10,6 +10,11 @@ import {
 } from '@/lib/deposit-tiers';
 import type { DepositMode } from '@/types';
 import { koreaTodayYmd } from '@/lib/korea-time';
+import {
+  isShiftActiveOnDate,
+  parseShiftActiveMonthRanges,
+  parseShiftStartTimes,
+} from '@/lib/shift-mode';
 import { DEFAULT_SLOT_END_HOUR, DEFAULT_SLOT_START_HOUR } from '@/lib/slot-hour-range';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
@@ -142,7 +147,11 @@ export default function StoreDetailPageClient() {
                     dayRange.slotStartHour,
                     dayRange.slotEndHour,
                     false,
-                    { ownerClosedSlotsJson: found.ownerClosedSlotsJson },
+                    {
+                      ownerClosedSlotsJson: found.ownerClosedSlotsJson,
+                      shiftStartTimesJson: found.shiftStartTimesJson,
+                      shiftActiveMonthRangesJson: found.shiftActiveMonthRangesJson,
+                    },
                   )
                 : [];
 
@@ -161,6 +170,8 @@ export default function StoreDetailPageClient() {
                           false,
                           {
                             ownerClosedSlotsJson: found.ownerClosedSlotsJson,
+                            shiftStartTimesJson: found.shiftStartTimesJson,
+                            shiftActiveMonthRangesJson: found.shiftActiveMonthRangesJson,
                             zoneId: z.zoneId,
                           },
                         )
@@ -219,6 +230,8 @@ export default function StoreDetailPageClient() {
                   }
                 })(),
                 menuRequiredPeoplePerItem: found.menuRequiredPeoplePerItem ?? null,
+                shiftStartTimes: parseShiftStartTimes(found.shiftStartTimesJson),
+                shiftActiveMonthRanges: parseShiftActiveMonthRanges(found.shiftActiveMonthRangesJson),
                 ...(hasCachedZones ? { zones: zonesPayload } : {}),
               },
               menus: found.menus || [],
@@ -389,6 +402,12 @@ export default function StoreDetailPageClient() {
   const sameDayBlocked =
     !!selectedDate && !store.allowSameDayBooking && !!todayKr && selectedDate <= todayKr;
 
+  // 교대제(부제) 적용 여부 — 적용 시 손님이 선택할 수 있는 시작 시각이 제한됨
+  const shiftStartTimes = store.shiftStartTimes ?? [];
+  const shiftRanges = store.shiftActiveMonthRanges ?? [];
+  const shiftActiveOnDate =
+    !!selectedDate && shiftStartTimes.length > 0 && isShiftActiveOnDate(selectedDate, shiftRanges);
+
   return (
     <main className="mx-auto w-full max-w-3xl overflow-x-clip px-4 py-8">
       <BackLink fallbackHref="/search" />
@@ -400,6 +419,12 @@ export default function StoreDetailPageClient() {
       {sameDayBlocked && !store.closedOnDate && (
         <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
           이 가게는 당일 예약을 받지 않습니다. 내일 이후 날짜를 선택해 주세요.
+        </p>
+      )}
+      {shiftActiveOnDate && !store.closedOnDate && !sameDayBlocked && (
+        <p className="mb-4 rounded-lg bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          이 날은 <b>교대제(부제) 운영</b>입니다. 선택 가능한 시작 시각:{' '}
+          <b>{shiftStartTimes.join(', ')}</b>
         </p>
       )}
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gray-100">

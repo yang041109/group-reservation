@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS store (
   menuNoticeText TEXT NULL COMMENT '메뉴 관련 안내 문구',
   depositActiveMonthRangesJson JSON NULL COMMENT '예약금 적용 기간 [{"start":"MM-DD","end":"MM-DD"}]',
   menuRequiredPeoplePerItem INT NULL COMMENT 'N명당 메뉴 1개 강제. NULL = 제한 없음',
+  shiftStartTimesJson JSON NULL COMMENT '교대제 시작 시각 ["18:00","21:00"]',
+  shiftActiveMonthRangesJson JSON NULL COMMENT '교대제 적용 기간 [{"start":"MM-DD","end":"MM-DD"}]',
   description TEXT NULL,
   adminAccessToken VARCHAR(64) NULL UNIQUE COMMENT '사장님 전용 URL 토큰 (/admin/m/{token})',
   sortOrder INT NOT NULL DEFAULT 0 COMMENT '목록 표시 순서(작을수록 앞)'

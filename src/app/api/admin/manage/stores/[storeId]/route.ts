@@ -107,6 +107,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ st
       patch.menuRequiredPeoplePerItem = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
     }
   }
+  if (body.shiftStartTimesJson !== undefined) {
+    patch.shiftStartTimesJson =
+      body.shiftStartTimesJson === null ? null : String(body.shiftStartTimesJson);
+  }
+  if (body.shiftActiveMonthRangesJson !== undefined) {
+    patch.shiftActiveMonthRangesJson =
+      body.shiftActiveMonthRangesJson === null ? null : String(body.shiftActiveMonthRangesJson);
+  }
 
   const result = await manageUpdateStore(storeId, patch);
   if (!result.success) {

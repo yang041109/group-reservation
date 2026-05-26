@@ -125,6 +125,10 @@ export interface StoreDetail {
   depositActiveMonthRanges?: { start: string; end: string }[];
   /** N명당 메뉴 1개 강제. null/undefined 면 제한 없음. */
   menuRequiredPeoplePerItem?: number | null;
+  /** 교대제(부제) 적용 시 허용되는 시작 시각. 예: ["18:00","21:00"] */
+  shiftStartTimes?: string[];
+  /** 교대제 적용 기간. 비어있으면 미적용. MM-DD 범위. */
+  shiftActiveMonthRanges?: { start: string; end: string }[];
   /** 동(zone) 단위 운영 시 동별 세부 정보. 빈 배열이면 단일 운영. */
   zones?: ZoneDetailEntry[];
 }

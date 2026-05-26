@@ -28,6 +28,12 @@ import {
   zoneRowToSummary,
   type ZoneRow,
 } from '@/lib/zone-resolve';
+import {
+  isShiftActiveOnDate,
+  isShiftStartTime,
+  parseShiftActiveMonthRanges,
+  parseShiftStartTimes,
+} from '@/lib/shift-mode';
 import type {
   MenuItemData,
   ZoneCardEntry,
@@ -204,13 +210,22 @@ function buildTimelineForEffectiveRow(
     slotEndHour,
     crossesMidnight,
   );
-  const timeline = applyOwnerClosedBlocksToSlots(
+  let timeline = applyOwnerClosedBlocksToSlots(
     slots,
     date,
     effectiveRow.ownerClosedSlotsJson,
     undefined,
     { slotStartHour, slotEndHour, crossesMidnight },
   );
+
+  // 교대제(부제) 적용 기간이면 허용된 시작 시각 외 슬롯을 모두 마감 처리.
+  const shiftRanges = parseShiftActiveMonthRanges(effectiveRow.shiftActiveMonthRangesJson);
+  const shiftStartTimes = parseShiftStartTimes(effectiveRow.shiftStartTimesJson);
+  if (shiftStartTimes.length && isShiftActiveOnDate(date, shiftRanges)) {
+    timeline = timeline.map((s) =>
+      isShiftStartTime(s.timeBlock, shiftStartTimes) ? s : { ...s, isAvailable: false },
+    );
+  }
 
   return {
     timeline,
@@ -464,6 +479,8 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
           storeRec.menuRequiredPeoplePerItem != null && storeRec.menuRequiredPeoplePerItem !== ''
             ? parseInt(String(storeRec.menuRequiredPeoplePerItem), 10) || null
             : null,
+        shiftStartTimes: parseShiftStartTimes(storeRec.shiftStartTimesJson),
+        shiftActiveMonthRanges: parseShiftActiveMonthRanges(storeRec.shiftActiveMonthRangesJson),
         zones: zonesPayload,
       },
       menus: menusPayload,
@@ -616,6 +633,21 @@ export async function insertReservationValidated(
     const slotStartHour = range.slotStartHour;
     const slotEndHour = range.slotEndHour;
     const crossesMidnight = range.crossesMidnight;
+
+    // 교대제(부제) 적용 기간이면 startTime 이 허용 시작 시각 목록에 있어야 함
+    {
+      const shiftRanges = parseShiftActiveMonthRanges(effectiveRow.shiftActiveMonthRangesJson);
+      const shiftStartTimes = parseShiftStartTimes(effectiveRow.shiftStartTimesJson);
+      if (shiftStartTimes.length && isShiftActiveOnDate(date, shiftRanges)) {
+        if (!isShiftStartTime(startTime, shiftStartTimes)) {
+          await conn.rollback();
+          throw new ReservationDbError(
+            400,
+            `이 날은 교대제 운영입니다. 시작 시각은 ${shiftStartTimes.join(', ')} 중에서만 선택해 주세요.`,
+          );
+        }
+      }
+    }
 
     // 같은 가게·zone·날짜의 확정 예약만 카운트
     const zoneSql = zone ? ' AND zoneId = ?' : '';
@@ -944,6 +976,8 @@ export async function getAllDataFromMysql() {
         rec.menuRequiredPeoplePerItem != null && rec.menuRequiredPeoplePerItem !== ''
           ? parseInt(String(rec.menuRequiredPeoplePerItem), 10) || null
           : null,
+      shiftStartTimesJson: normalizeJsonColumn(rec.shiftStartTimesJson),
+      shiftActiveMonthRangesJson: normalizeJsonColumn(rec.shiftActiveMonthRangesJson),
       zones: storeZones,
     };
   });
