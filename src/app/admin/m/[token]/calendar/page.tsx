@@ -8,6 +8,7 @@ import HalfHourTimeSelect, {
   isHalfHourTime,
   snapToHalfHour,
 } from '@/components/admin/HalfHourTimeSelect';
+import HalfHourWheelPickerField from '@/components/admin/HalfHourWheelPicker';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -1035,15 +1036,15 @@ export default function AdminCalendarByToken() {
                 </label>
               ) : null}
 
-              <div className="space-y-3">
-                <HalfHourTimeSelect
+              <div className="space-y-2">
+                <HalfHourWheelPickerField
                   label="시작 시간"
                   value={eventStartTime}
                   onChange={setEventStartTime}
                   disabled={eventLoading}
                   defaultPeriod="PM"
                 />
-                <HalfHourTimeSelect
+                <HalfHourWheelPickerField
                   label="종료 시간"
                   value={eventEndTime}
                   onChange={setEventEndTime}
