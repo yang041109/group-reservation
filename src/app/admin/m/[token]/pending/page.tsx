@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -326,7 +327,7 @@ export default function AdminPendingByToken() {
                         </p>
                         {reservation.createdAt ? (
                           <p className="mt-0.5 text-[11px] text-gray-500">
-                            접수일시: {reservation.createdAt}
+                            접수일시: {formatReservationCreatedAt(reservation.createdAt)}
                           </p>
                         ) : null}
                       </div>
@@ -444,7 +445,7 @@ export default function AdminPendingByToken() {
                         </p>
                         {reservation.createdAt ? (
                           <p className="mt-0.5 text-[11px] text-gray-500">
-                            접수일시: {reservation.createdAt}
+                            접수일시: {formatReservationCreatedAt(reservation.createdAt)}
                           </p>
                         ) : null}
                       </div>

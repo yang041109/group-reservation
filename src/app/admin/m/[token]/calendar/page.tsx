@@ -9,6 +9,7 @@ import HalfHourTimeSelect, {
   snapToHalfHour,
 } from '@/components/admin/HalfHourTimeSelect';
 import HalfHourWheelPickerField from '@/components/admin/HalfHourWheelPicker';
+import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -599,7 +600,7 @@ export default function AdminCalendarByToken() {
                     <div className="mt-0.5 text-xs text-gray-500">{reservation.headcount}명</div>
                     {reservation.createdAt ? (
                       <div className="mt-0.5 text-[11px] text-gray-400">
-                        접수일시: {reservation.createdAt}
+                        접수일시: {formatReservationCreatedAt(reservation.createdAt)}
                       </div>
                     ) : null}
                   </div>
@@ -697,7 +698,9 @@ export default function AdminCalendarByToken() {
               {detail.createdAt ? (
                 <div>
                   <dt className="text-gray-500">접수일시</dt>
-                  <dd className="font-medium text-gray-900">{detail.createdAt}</dd>
+                  <dd className="font-medium text-gray-900">
+                    {formatReservationCreatedAt(detail.createdAt)}
+                  </dd>
                 </div>
               ) : null}
               <div>

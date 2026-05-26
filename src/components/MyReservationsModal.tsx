@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import UrrLoading from '@/components/UrrLoading';
+import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { formatReservationStatus } from '@/lib/reservation-status-labels';
 
 interface ReservationItem {
@@ -123,7 +124,9 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
           {r.date ? <p>날짜: {r.date}</p> : null}
           <p>인원: {r.headcount}명</p>
           <p>시간: {r.timeBlock}</p>
-          {r.createdAt ? <p>접수일시: {r.createdAt}</p> : null}
+          {r.createdAt ? (
+            <p>접수일시: {formatReservationCreatedAt(r.createdAt)}</p>
+          ) : null}
           <p>금액: {(r.totalAmount || 0).toLocaleString()}원</p>
         </div>
         {ownerReject

@@ -26,6 +26,7 @@ import { parseAutoMenuIdNumber } from '@/lib/auto-menu-id';
 import { serializeShiftStartTimesForDb } from '@/lib/shift-mode';
 import { parseAutoStoreIdNumber } from '@/lib/auto-store-id';
 import { swapMenuOrderIds } from '@/lib/menu-order';
+import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { invalidateAllDataCache } from '@/lib/use-store-data';
 import DepositSettingsFields, {
   defaultDepositTierRows,
@@ -1672,7 +1673,7 @@ export default function ManagePageClient() {
                           </div>
                           {r.createdAt ? (
                             <div className="mt-0.5 text-[10px] text-gray-400">
-                              접수 {r.createdAt}
+                              접수 {formatReservationCreatedAt(r.createdAt)}
                             </div>
                           ) : null}
                         </td>
