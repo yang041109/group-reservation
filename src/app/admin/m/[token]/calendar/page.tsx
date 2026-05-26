@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import HalfHourTimeSelect, {
+  DEFAULT_AFTERNOON_END,
+  DEFAULT_AFTERNOON_START,
+  isHalfHourTime,
+  snapToHalfHour,
+} from '@/components/admin/HalfHourTimeSelect';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -133,8 +139,8 @@ export default function AdminCalendarByToken() {
   const [eventGroupName, setEventGroupName] = useState('');
   const [eventUserPhone, setEventUserPhone] = useState('');
   const [eventHeadcount, setEventHeadcount] = useState('1');
-  const [eventStartTime, setEventStartTime] = useState('09:00');
-  const [eventEndTime, setEventEndTime] = useState('10:00');
+  const [eventStartTime, setEventStartTime] = useState(DEFAULT_AFTERNOON_START);
+  const [eventEndTime, setEventEndTime] = useState(DEFAULT_AFTERNOON_END);
   const [eventMemo, setEventMemo] = useState('');
   const [eventZoneId, setEventZoneId] = useState<string>('');
   const [eventLoading, setEventLoading] = useState(false);
@@ -292,8 +298,8 @@ export default function AdminCalendarByToken() {
 
   const openEdit = (r: Reservation) => {
     setEditTarget(r);
-    setEditStartTime((r.startTime ?? '').slice(0, 5));
-    setEditEndTime((r.endTime ?? '').slice(0, 5));
+    setEditStartTime(snapToHalfHour((r.startTime ?? '').slice(0, 5)));
+    setEditEndTime(snapToHalfHour((r.endTime ?? '').slice(0, 5)));
     setEditHeadcount(String(r.headcount ?? ''));
     setEditAgreed(false);
     setEditNotice('');
@@ -319,8 +325,8 @@ export default function AdminCalendarByToken() {
       alert('인원수는 1 이상 999 이하의 숫자로 입력해 주세요.');
       return;
     }
-    if (!/^\d{2}:\d{2}$/.test(editStartTime) || !/^\d{2}:\d{2}$/.test(editEndTime)) {
-      alert('시간은 HH:MM 형식으로 입력해 주세요.');
+    if (!isHalfHourTime(editStartTime) || !isHalfHourTime(editEndTime)) {
+      alert('시간은 30분 단위(00분·30분)로 선택해 주세요.');
       return;
     }
     const noticeTrimmed = editNotice.trim();
@@ -346,8 +352,8 @@ export default function AdminCalendarByToken() {
     setEventGroupName('');
     setEventUserPhone('');
     setEventHeadcount('1');
-    setEventStartTime('09:00');
-    setEventEndTime('10:00');
+    setEventStartTime(DEFAULT_AFTERNOON_START);
+    setEventEndTime(DEFAULT_AFTERNOON_END);
     setEventMemo('');
     setEventZoneId(zones.length === 1 ? zones[0].zoneId : '');
     setEventCreateOpen(true);
@@ -358,8 +364,8 @@ export default function AdminCalendarByToken() {
   };
 
   const submitEventCreate = async () => {
-    if (!/^\d{2}:\d{2}$/.test(eventStartTime) || !/^\d{2}:\d{2}$/.test(eventEndTime)) {
-      alert('시간은 HH:MM 형식으로 입력해 주세요.');
+    if (!isHalfHourTime(eventStartTime) || !isHalfHourTime(eventEndTime)) {
+      alert('시간은 30분 단위(00분·30분)로 선택해 주세요.');
       return;
     }
     if (!eventUserName.trim()) {
@@ -785,7 +791,7 @@ export default function AdminCalendarByToken() {
           onClick={closeEdit}
         >
           <div
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+            className="max-h-[90vh] w-full max-w-md overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
@@ -818,26 +824,18 @@ export default function AdminCalendarByToken() {
               </label>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs text-gray-500">시작 시간</span>
-                  <input
-                    type="time"
-                    value={editStartTime}
-                    onChange={(e) => setEditStartTime(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-gray-500">종료 시간</span>
-                  <input
-                    type="time"
-                    value={editEndTime}
-                    onChange={(e) => setEditEndTime(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  />
-                </label>
+            <div className="space-y-3 overflow-x-hidden">
+              <div className="space-y-3">
+                <HalfHourTimeSelect
+                  label="시작 시간"
+                  value={editStartTime}
+                  onChange={setEditStartTime}
+                />
+                <HalfHourTimeSelect
+                  label="종료 시간"
+                  value={editEndTime}
+                  onChange={setEditEndTime}
+                />
               </div>
               <label className="block">
                 <span className="text-xs text-gray-500">인원수</span>
@@ -987,7 +985,7 @@ export default function AdminCalendarByToken() {
       {/* 일정 등록 모달 (전화로 받은 외부 예약 추가) */}
       {eventCreateOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          className="fixed inset-0 z-[60] flex items-end justify-center overflow-x-hidden bg-black/40 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           onClick={() => {
@@ -995,7 +993,7 @@ export default function AdminCalendarByToken() {
           }}
         >
           <div
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            className="max-h-[90vh] w-full max-w-md overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
@@ -1015,7 +1013,7 @@ export default function AdminCalendarByToken() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-x-hidden">
               {zones.length > 0 ? (
                 <label className="block">
                   <span className="text-xs text-gray-500">
@@ -1037,27 +1035,21 @@ export default function AdminCalendarByToken() {
                 </label>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs text-gray-500">시작 시간</span>
-                  <input
-                    type="time"
-                    value={eventStartTime}
-                    onChange={(e) => setEventStartTime(e.target.value)}
-                    disabled={eventLoading}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-gray-500">종료 시간</span>
-                  <input
-                    type="time"
-                    value={eventEndTime}
-                    onChange={(e) => setEventEndTime(e.target.value)}
-                    disabled={eventLoading}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
-                  />
-                </label>
+              <div className="space-y-3">
+                <HalfHourTimeSelect
+                  label="시작 시간"
+                  value={eventStartTime}
+                  onChange={setEventStartTime}
+                  disabled={eventLoading}
+                  defaultPeriod="PM"
+                />
+                <HalfHourTimeSelect
+                  label="종료 시간"
+                  value={eventEndTime}
+                  onChange={setEventEndTime}
+                  disabled={eventLoading}
+                  defaultPeriod="PM"
+                />
               </div>
 
               <label className="block">
