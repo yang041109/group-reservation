@@ -202,7 +202,7 @@ export default function AdminDashboardByToken() {
           </Link>
         </section>
 
-        {/* 2. 오늘 예약 마감 설정 */}
+        {/* 2. 오늘 예약 막기 */}
         <OwnerTodayClosePanel token={store.token} storeId={store.id} />
 
         {/* 3. 대기 중인 예약 */}
