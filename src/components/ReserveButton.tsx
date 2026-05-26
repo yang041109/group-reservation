@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { trackEvent } from '@/lib/analytics';
 
 interface MenuItemInput {
   id: string;
@@ -122,6 +123,17 @@ export default function ReserveButton({
 
   const handleClick = () => {
     if (isDisabled) return;
+
+    trackEvent('clicked_reserve_button', {
+      store_id: storeId,
+      store_name: storeName,
+      zone_id: selectedZoneId ?? null,
+      zone_name: selectedZoneName ?? null,
+      headcount: selectedHeadcount,
+      date: selectedDate,
+      time: selectedTime,
+      total_amount: totalAmount,
+    });
 
     const menuItems = Object.entries(menuQuantities).map(([menuId, quantity]) => {
       const menu = menus.find((m) => m.id === menuId);

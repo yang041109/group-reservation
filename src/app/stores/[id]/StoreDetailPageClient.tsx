@@ -9,6 +9,7 @@ import {
   resolveDepositForHeadcount,
 } from '@/lib/deposit-tiers';
 import type { DepositMode } from '@/types';
+import { trackEvent } from '@/lib/analytics';
 import { koreaTodayYmd } from '@/lib/korea-time';
 import {
   isShiftActiveOnDate,
@@ -50,6 +51,17 @@ export default function StoreDetailPageClient() {
   useEffect(() => {
     setTodayKr(koreaTodayYmd(new Date()));
   }, []);
+
+  // 가게 상세를 처음 본 순간 GA 이벤트 발사 (데이터 로드 후 1회)
+  const [analyticsFiredForStore, setAnalyticsFiredForStore] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data || analyticsFiredForStore === storeId) return;
+    trackEvent('viewed_store', {
+      store_id: storeId,
+      store_name: data.store.name,
+    });
+    setAnalyticsFiredForStore(storeId);
+  }, [data, storeId, analyticsFiredForStore]);
 
   const goToSearchWithPrefetch = async () => {
     if (navigatingToSearch) return;

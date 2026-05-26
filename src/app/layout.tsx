@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ConditionalHeader from "@/components/ConditionalHeader";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="ko" className="overflow-x-clip">
       <body className="antialiased w-full max-w-full overflow-x-clip">
+        <GoogleAnalytics />
         <ConditionalHeader />
         {children}
       </body>

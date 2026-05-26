@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import StoreCard from '@/components/StoreCard';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
+import { trackEvent } from '@/lib/analytics';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { koreaTodayYmd } from '@/lib/korea-time';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
@@ -31,6 +32,18 @@ export default function SearchPage() {
   useEffect(() => {
     setTodayKr(koreaTodayYmd(new Date()));
   }, []);
+
+  // 검색 조건(날짜·인원)이 바뀐 뒤 800ms 멈추면 GA 이벤트 1회 (디바운스)
+  useEffect(() => {
+    if (!selectedDate || selectedHeadcount <= 0) return;
+    const id = window.setTimeout(() => {
+      trackEvent('searched_stores', {
+        date: selectedDate,
+        headcount: selectedHeadcount,
+      });
+    }, 800);
+    return () => window.clearTimeout(id);
+  }, [selectedDate, selectedHeadcount]);
 
   useEffect(() => {
     const savedDate = sessionStorage.getItem('selectedDate');

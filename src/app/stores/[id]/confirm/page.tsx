@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import BackLink from '@/components/BackLink';
+import { trackEvent } from '@/lib/analytics';
 
 interface PendingMenuItem {
   menuId: string;
@@ -57,6 +58,16 @@ export default function ReservationConfirmPage() {
         return;
       }
       setReservation(parsed);
+      trackEvent('started_reservation_flow', {
+        store_id: parsed.storeId,
+        store_name: parsed.storeName,
+        zone_id: parsed.zoneId ?? null,
+        zone_name: parsed.zoneName ?? null,
+        headcount: parsed.headcount,
+        date: parsed.date,
+        time: parsed.time,
+        total_amount: parsed.totalAmount,
+      });
     } catch {
       router.replace(`/stores/${storeId}`);
     }
@@ -116,6 +127,17 @@ export default function ReservationConfirmPage() {
         setSubmitting(false);
         return;
       }
+
+      trackEvent('submitted_reservation', {
+        store_id: reservation.storeId,
+        store_name: reservation.storeName,
+        zone_id: reservation.zoneId ?? null,
+        headcount: reservation.headcount,
+        date: reservation.date,
+        time: reservation.time,
+        total_amount: reservation.totalAmount,
+        deposit_amount: reservation.depositAmount ?? 0,
+      });
 
       sessionStorage.removeItem('pendingReservation');
       router.push(`/stores/${storeId}/complete`);
