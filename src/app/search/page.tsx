@@ -9,6 +9,12 @@ import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { koreaTodayYmd } from '@/lib/korea-time';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
 import { compareStoresByDisplayOrder } from '@/lib/store-display-order';
+import {
+  PLATFORM_DEFAULT_HEADCOUNT,
+  PLATFORM_MAX_HEADCOUNT,
+  PLATFORM_MIN_HEADCOUNT,
+  clampPlatformHeadcount,
+} from '@/lib/platform-headcount';
 import { computeAvailabilityScore, isStoreBookable } from '@/lib/store-timeline-score';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
 import SameDayBookingNotice from '@/components/SameDayBookingNotice';
@@ -25,8 +31,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 export default function SearchPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  /** 기본 2명 — 단체예약 최소치. 가게 minGroup 필터를 즉시 작동시키기 위함. */
-  const [selectedHeadcount, setSelectedHeadcount] = useState(2);
+  const [selectedHeadcount, setSelectedHeadcount] = useState(PLATFORM_DEFAULT_HEADCOUNT);
   const [sortMode, setSortMode] = useState<SortMode>('recommended');
   const { stores, reservations, isLoading } = useAllData();
   // 마운트 후 KST 오늘 날짜. SSR/CSR 사이 시간대 차이 회피.
@@ -51,7 +56,10 @@ export default function SearchPage() {
     const savedDate = sessionStorage.getItem('selectedDate');
     const savedHeadcount = sessionStorage.getItem('selectedHeadcount');
     if (savedDate) setSelectedDate(savedDate);
-    if (savedHeadcount) setSelectedHeadcount(parseInt(savedHeadcount, 10));
+    if (savedHeadcount) {
+      const n = parseInt(savedHeadcount, 10);
+      if (Number.isFinite(n)) setSelectedHeadcount(clampPlatformHeadcount(n));
+    }
   }, []);
 
   useEffect(() => {
@@ -147,8 +155,7 @@ export default function SearchPage() {
     return storeCards.filter((store) => {
       if (selectedDate && store.closedOnDate) return false;
       const minGroup = store.minGroupHeadcount ?? 2;
-      // 사용자 선택 인원이 가게 단체예약 최소 인원 미만이면 항상 제외.
-      // selectedHeadcount=0 (미선택)도 minGroup 이상 가게는 숨겨 모호한 표시를 피한다.
+      // 사용자 선택 인원이 가게 단체예약 최소 인원 미만이면 제외.
       if (selectedHeadcount < minGroup) return false;
       if (store.maxCapacity > 0 && selectedHeadcount > store.maxCapacity) return false;
       // 당일 예약 불가 가게는 시간 슬롯 가용성과 무관하게 카드는 그대로 노출.
@@ -229,8 +236,8 @@ export default function SearchPage() {
           className="w-full"
         />
         <HeadcountSelector
-          maxCapacity={999}
-          minCapacity={1}
+          maxCapacity={PLATFORM_MAX_HEADCOUNT}
+          minCapacity={PLATFORM_MIN_HEADCOUNT}
           selectedHeadcount={selectedHeadcount}
           onChange={setSelectedHeadcount}
           className="w-full"

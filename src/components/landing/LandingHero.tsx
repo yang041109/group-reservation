@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import { Icon, URRMark } from '@/components/landing/icons';
+import {
+  PLATFORM_DEFAULT_HEADCOUNT,
+  PLATFORM_MAX_HEADCOUNT,
+  PLATFORM_MIN_HEADCOUNT,
+} from '@/lib/platform-headcount';
 import { prefetchAllDataIntoCache } from '@/lib/use-store-data';
 
 function getTodayYmd(): string {
@@ -17,7 +22,7 @@ export default function LandingHero() {
   // SSR 와 클라이언트의 시간대 차이로 인한 hydration mismatch 방지:
   // 서버 첫 render 에선 null, 마운트 후 useEffect 에서 오늘 날짜 세팅.
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [people, setPeople] = useState(0);
+  const [people, setPeople] = useState(PLATFORM_DEFAULT_HEADCOUNT);
   const [urrSize, setUrrSize] = useState(72);
   const [going, setGoing] = useState(false);
 
@@ -124,8 +129,8 @@ export default function LandingHero() {
               className="w-full"
             />
             <HeadcountSelector
-              maxCapacity={999}
-              minCapacity={0}
+              maxCapacity={PLATFORM_MAX_HEADCOUNT}
+              minCapacity={PLATFORM_MIN_HEADCOUNT}
               selectedHeadcount={people}
               onChange={setPeople}
               className="w-full"
@@ -144,7 +149,7 @@ export default function LandingHero() {
         </div>
 
         <div className="mt-2.5 text-[13px] text-[var(--ink-4)] sm:mt-[18px] sm:text-[13.5px]">
-          날짜와 인원을 정한 뒤 버튼을 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel}{people > 0 ? ` · ${people}명` : ' · 인원 미선택'}
+          날짜와 인원을 정한 뒤 버튼을 누르면 예약 가능한 가게 목록으로 이동해요. {dateLabel} · {people}명
         </div>
       </div>
     </section>

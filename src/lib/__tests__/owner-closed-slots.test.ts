@@ -3,6 +3,7 @@ import {
   applyOwnerClosedBlocksToSlots,
   formatOwnerClosedRangeLabel,
   groupOwnerClosedBlocks,
+  isSlotPastForSelectedDate,
   isSlotPastForToday,
   timeBlocksInRange,
 } from '@/lib/owner-closed-slots';
@@ -41,6 +42,30 @@ describe('owner-closed-slots', () => {
     expect(isSlotPastForToday('00:00', now, hours)).toBe(false);
     expect(isSlotPastForToday('01:00', now, hours)).toBe(false);
     expect(isSlotPastForToday('03:30', now, hours)).toBe(false);
+  });
+
+  it('at 29th 01:00: 28th dawn is past, 29th dawn is next calendar day (future)', () => {
+    const now = new Date('2026-05-29T01:00:00+09:00');
+    const hours = { crossesMidnight: true, slotStartHour: 17, slotEndHour: 4 };
+
+    expect(isSlotPastForSelectedDate('00:30', '2026-05-28', now, hours)).toBe(true);
+    expect(isSlotPastForSelectedDate('01:30', '2026-05-28', now, hours)).toBe(false);
+    expect(isSlotPastForSelectedDate('00:30', '2026-05-29', now, hours)).toBe(false);
+    expect(isSlotPastForSelectedDate('03:30', '2026-05-29', now, hours)).toBe(false);
+    expect(isSlotPastForSelectedDate('20:00', '2026-05-29', now, hours)).toBe(false);
+  });
+
+  it('applyOwnerClosedBlocks on 29th 01:00 keeps 29th overnight slots bookable', () => {
+    const now = new Date('2026-05-29T01:00:00+09:00');
+    const hours = { crossesMidnight: true, slotStartHour: 17, slotEndHour: 4 };
+    const out = applyOwnerClosedBlocksToSlots(
+      [slot('00:00'), slot('01:00'), slot('03:30'), slot('20:00')],
+      '2026-05-29',
+      null,
+      now,
+      hours,
+    );
+    expect(out.every((s) => s.isAvailable)).toBe(true);
   });
 
   it('applyOwnerClosedBlocks keeps overnight future slots open at night', () => {
