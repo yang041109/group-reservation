@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import BackLink from '@/components/BackLink';
+import SameDayBookingNotice from '@/components/SameDayBookingNotice';
 import { trackEvent } from '@/lib/analytics';
+import { koreaTodayYmd } from '@/lib/korea-time';
 
 interface PendingMenuItem {
   menuId: string;
@@ -161,6 +163,10 @@ export default function ReservationConfirmPage() {
     <main className="mx-auto max-w-3xl px-4 py-8">
       <BackLink fallbackHref={`/stores/${storeId}`} />
       <h1 className="text-2xl font-bold text-gray-900">예약 확인</h1>
+
+      {reservation.date === koreaTodayYmd() ? (
+        <SameDayBookingNotice className="mt-4" />
+      ) : null}
 
       {/* 예약 정보 요약 카드 */}
       <div className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

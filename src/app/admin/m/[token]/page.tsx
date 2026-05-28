@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import OwnerTodayClosePanel from '@/components/admin/OwnerTodayClosePanel';
 import { useAdminStore } from './AdminStoreContext';
@@ -33,9 +33,26 @@ function formatTodayLabel(): string {
   return `${yyyy}.${mm}.${dd} (${days[d.getDay()]}) ${hh}:${mi} 기준`;
 }
 
-function todayYmd(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+function formatBusinessDateShort(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(y, m - 1, d);
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${m}/${d}(${days[dt.getDay()]})`;
+}
+
+function formatReservationTimeLine(
+  r: Reservation,
+  businessDate: string,
+  crossesMidnight: boolean,
+): string {
+  const time = `${r.startTime}${r.endTime ? ` – ${r.endTime}` : ''}`;
+  if (!crossesMidnight) return time;
+  const resDate = r.date.slice(0, 10);
+  if (resDate !== businessDate) {
+    const [, mo, da] = resDate.split('-');
+    return `${mo}/${da} ${time}`;
+  }
+  return time;
 }
 
 function todayStatusLabel(status: string): string {
@@ -62,10 +79,11 @@ export default function AdminDashboardByToken() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [depositPendingCount, setDepositPendingCount] = useState<number>(0);
   const [todayReservations, setTodayReservations] = useState<Reservation[]>([]);
+  const [businessDate, setBusinessDate] = useState('');
+  const [crossesMidnight, setCrossesMidnight] = useState(false);
+  const [closedOnBusinessDay, setClosedOnBusinessDay] = useState(false);
   const [loading, setLoading] = useState(true);
   const [todayLabel, setTodayLabel] = useState<string>('');
-
-  const today = useMemo(() => todayYmd(), []);
 
   const reload = useCallback(async () => {
     try {
@@ -73,25 +91,31 @@ export default function AdminDashboardByToken() {
         fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
         fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
         fetch(
-          `/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&from=${today}&to=${today}&calendarConfirmed=1`,
+          `/api/admin/store/today-business-reservations?token=${encodeURIComponent(store.token)}`,
         ),
       ]);
       const [pJson, dJson, tJson] = await Promise.all([pRes.json(), dRes.json(), tRes.json()]);
       if (pJson.success) setPendingCount((pJson.data || []).length);
       if (dJson.success) setDepositPendingCount((dJson.data || []).length);
-      if (tJson.success) {
-        const list = (tJson.data || []) as Reservation[];
-        const visible = list
-          .filter((r) => r.status !== 'CANCELED')
-          .sort((a, b) => a.startTime.localeCompare(b.startTime));
-        setTodayReservations(visible);
+      if (tJson.success && tJson.data) {
+        const d = tJson.data as {
+          businessDate: string;
+          crossesMidnight: boolean;
+          closedOnBusinessDay: boolean;
+          reservations: Reservation[];
+        };
+        setBusinessDate(d.businessDate ?? '');
+        setCrossesMidnight(!!d.crossesMidnight);
+        setClosedOnBusinessDay(!!d.closedOnBusinessDay);
+        const list = (d.reservations || []) as Reservation[];
+        setTodayReservations(list.filter((r) => r.status !== 'CANCELED'));
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [store.id, today]);
+  }, [store.id, store.token]);
 
   useEffect(() => {
     setTodayLabel(formatTodayLabel());
@@ -139,7 +163,12 @@ export default function AdminDashboardByToken() {
               <span className="block h-4 w-1 rounded-full bg-orange-500" />
               <h2 className="text-base font-bold text-gray-900">오늘의 예약 현황</h2>
             </div>
-            <p className="text-xs text-gray-400">{todayLabel}</p>
+            <div className="text-right text-xs text-gray-400">
+              <p>{todayLabel}</p>
+              {businessDate ? (
+                <p className="mt-0.5 text-gray-500">{formatBusinessDateShort(businessDate)} 영업 기준</p>
+              ) : null}
+            </div>
           </div>
 
           <div className="mb-4 flex items-baseline gap-1">
@@ -149,9 +178,13 @@ export default function AdminDashboardByToken() {
 
           {loading ? (
             <p className="text-sm text-gray-400">불러오는 중…</p>
+          ) : closedOnBusinessDay ? (
+            <p className="rounded-xl bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
+              오늘은 휴무일입니다.
+            </p>
           ) : todayCount === 0 ? (
             <p className="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-              오늘 확정된 단체 예약이 없습니다.
+              이번 영업일 확정 예약이 없습니다.
               <br />
               전화 예약은 캘린더에서 일정을 등록하세요.
             </p>
@@ -161,8 +194,7 @@ export default function AdminDashboardByToken() {
                 <li key={r.reservationId} className="flex items-start justify-between gap-2 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900">
-                      {r.startTime}
-                      {r.endTime ? ` – ${r.endTime}` : ''}
+                      {formatReservationTimeLine(r, businessDate, crossesMidnight)}
                       {r.zoneName ? (
                         <span className="ml-2 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
                           {r.zoneName}

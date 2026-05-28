@@ -632,6 +632,7 @@ export default function ManagePageClient() {
       }
       setMsg('목록 순서를 저장했습니다.');
       await loadStores();
+      void invalidateAllDataCache();
     } catch {
       setErr('목록 순서 저장 중 오류');
       await loadStores();

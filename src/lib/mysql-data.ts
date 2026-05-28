@@ -20,6 +20,7 @@ import {
   type DepositTier,
 } from '@/lib/deposit-tiers';
 import { sortMenusForDisplay } from '@/lib/menu-order';
+import { compareStoresByDisplayOrder } from '@/lib/store-display-order';
 import {
   buildEffectiveStoreRow,
   fetchZonesByStoreId,
@@ -151,14 +152,12 @@ function todayYmdLocal(): string {
 }
 
 function sortStoreRows(storeRows: StoreRow[]): StoreRow[] {
-  return [...storeRows].sort((a, b) => {
-    const ao = parseInt(String((a as Record<string, unknown>).sortOrder ?? '0'), 10);
-    const bo = parseInt(String((b as Record<string, unknown>).sortOrder ?? '0'), 10);
-    const oa = Number.isFinite(ao) ? ao : 0;
-    const ob = Number.isFinite(bo) ? bo : 0;
-    if (oa !== ob) return oa - ob;
-    return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'ko');
-  });
+  return [...storeRows].sort((a, b) =>
+    compareStoresByDisplayOrder(
+      { sortOrder: (a as Record<string, unknown>).sortOrder as number, name: a.name },
+      { sortOrder: (b as Record<string, unknown>).sortOrder as number, name: b.name },
+    ),
+  );
 }
 
 async function fetchStoresMenusRules(): Promise<{

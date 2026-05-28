@@ -8,8 +8,10 @@ import { trackEvent } from '@/lib/analytics';
 import { resolveDepositForHeadcount } from '@/lib/deposit-tiers';
 import { koreaTodayYmd } from '@/lib/korea-time';
 import { getSlotHourRangeForStoreOnDate, readMinGroupHeadcount } from '@/lib/store-weekly-hours';
+import { compareStoresByDisplayOrder } from '@/lib/store-display-order';
 import { computeAvailabilityScore, isStoreBookable } from '@/lib/store-timeline-score';
 import { useAllData, buildSlotsForDate } from '@/lib/use-store-data';
+import SameDayBookingNotice from '@/components/SameDayBookingNotice';
 import UrrLoading from '@/components/UrrLoading';
 import type { StoreCard as StoreCardType } from '@/types';
 
@@ -163,21 +165,21 @@ export default function SearchPage() {
     const arr = [...filteredStores];
     const hc = selectedHeadcount;
     if (sortMode === 'recommended') {
-      // '기본순' = 가게 이름 한글 가나다순. 동률이면 admin의 sortOrder 로 보조 정렬.
-      arr.sort((a, b) => a.name.localeCompare(b.name, 'ko') || (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      // 기본순 = 전역 관리(/admin/manage) sortOrder 와 동일
+      arr.sort(compareStoresByDisplayOrder);
     } else if (sortMode === 'availability') {
       arr.sort((a, b) => {
         const sb = computeAvailabilityScore(b.timeline, hc);
         const sa = computeAvailabilityScore(a.timeline, hc);
         if (sb !== sa) return sb - sa;
-        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        return compareStoresByDisplayOrder(a, b);
       });
     } else {
       arr.sort((a, b) => {
         const da = a.depositAmount ?? 0;
         const db = b.depositAmount ?? 0;
         if (da !== db) return da - db;
-        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        return compareStoresByDisplayOrder(a, b);
       });
     }
     return arr;
@@ -209,7 +211,11 @@ export default function SearchPage() {
     <main className="mx-auto w-full max-w-5xl overflow-x-clip px-4 py-8">
       <p className="text-sm text-gray-500">날짜와 인원수를 선택하면 예약 가능한 가게를 보여드립니다</p>
 
-      {showStores && !isLoading && updateTimeMessage && (
+      {showStores && !isLoading && selectedDate && todayKr && selectedDate === todayKr && (
+        <SameDayBookingNotice className="mt-4" />
+      )}
+
+      {showStores && !isLoading && updateTimeMessage && selectedDate !== todayKr && (
         <div className="mt-4 rounded-lg bg-blue-50 px-4 py-2">
           <p className="text-xs text-blue-600">⏰ {updateTimeMessage}</p>
         </div>

@@ -25,6 +25,7 @@ import MenuSection from '@/components/MenuSection';
 import TotalPrice from '@/components/TotalPrice';
 import ReserveButton from '@/components/ReserveButton';
 import BackLink from '@/components/BackLink';
+import SameDayBookingNotice from '@/components/SameDayBookingNotice';
 
 function isYmd(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -414,6 +415,9 @@ export default function StoreDetailPageClient() {
   const sameDayBlocked =
     !!selectedDate && !store.allowSameDayBooking && !!todayKr && selectedDate <= todayKr;
 
+  const isSameDayBooking =
+    !!selectedDate && !!todayKr && selectedDate === todayKr && !sameDayBlocked;
+
   // 교대제(부제) 적용 여부 — 적용 시 손님이 선택할 수 있는 시작 시각이 제한됨
   const shiftStartTimes = store.shiftStartTimes ?? [];
   const shiftRanges = store.shiftActiveMonthRanges ?? [];
@@ -432,6 +436,9 @@ export default function StoreDetailPageClient() {
         <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
           이 가게는 당일 예약을 받지 않습니다. 내일 이후 날짜를 선택해 주세요.
         </p>
+      )}
+      {isSameDayBooking && !store.closedOnDate && (
+        <SameDayBookingNotice className="mb-4" />
       )}
       {shiftActiveOnDate && !store.closedOnDate && !sameDayBlocked && (
         <p className="mb-4 rounded-lg bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
