@@ -1251,8 +1251,9 @@ function resolveStoreBusinessYmd(
   rec: Record<string, unknown>,
   explicitYmd?: string,
 ): { businessYmd: string; calendarYmd: string } {
-  const calendarYmd = koreaTodayYmd();
-  const { hour } = getKoreaDateParts();
+  const now = new Date();
+  const calendarYmd = koreaTodayYmd(now);
+  const { hour } = getKoreaDateParts(now);
   const businessYmd =
     explicitYmd?.trim().slice(0, 10) ??
     resolveOwnerBusinessDayYmd(calendarYmd, hour, businessDayLookupForStore(rec));
