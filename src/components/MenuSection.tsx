@@ -17,6 +17,15 @@ interface MenuSectionProps {
   selectedHeadcount?: number;
 }
 
+/** 가게별 안내·입력 문구 앞의 `·` 제거 */
+function formatMenuNoticeText(raw: string): string {
+  return raw
+    .split('\n')
+    .map((line) => line.replace(/^\s*·\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
 function MenuQuantityRow({
   menu,
   qty,
@@ -127,24 +136,28 @@ export default function MenuSection({
             <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <p className="font-semibold">📣 가게 안내</p>
               <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed">
-                {ownerNoticeText}
+                {formatMenuNoticeText(ownerNoticeText)}
               </p>
             </div>
           ) : null}
 
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">📌 안내</p>
-            <ul className="mt-1 space-y-0.5 text-[13px] leading-relaxed">
-              <li>· 여기서 선택한 메뉴는 <b>예약 시간에 맞춰 자리에 미리 준비</b>되는 기본 세팅 메뉴입니다.</li>
-              <li>· 주류·추가 메뉴는 매장에 방문하셔서 자유롭게 주문하실 수 있어요.</li>
-              <li>· 최소 한 개 이상의 메뉴를 선택해 주세요.</li>
+            <div className="mt-1 space-y-1.5 text-[13px] leading-relaxed">
+              <p>
+                여기서 선택한 메뉴는 예약 시간에 맞춰 자리에 미리 준비되는 기본 세팅 메뉴입니다.
+              </p>
+              <p>주류·추가 메뉴는 매장에 방문하셔서 자유롭게 주문하실 수 있습니다.</p>
+              <p>최소 한 개 이상의 메뉴를 선택해 주셔야 합니다.</p>
               {requiredPeoplePerItem && requiredPeoplePerItem > 0 && selectedHeadcount > 0 ? (
-                <li>
-                  · 이 가게는 <b>{requiredPeoplePerItem}명당 메뉴 1개 이상</b>이 필요해요. 현재{' '}
-                  {selectedHeadcount}명 → <b>메뉴 {Math.ceil(selectedHeadcount / requiredPeoplePerItem)}개 이상</b> 선택해야 합니다.
-                </li>
+                <p>
+                  이 가게는 <b>{requiredPeoplePerItem}명당 메뉴 1개 이상</b>이 필요합니다. 현재{' '}
+                  {selectedHeadcount}명 기준으로{' '}
+                  <b>메뉴 {Math.ceil(selectedHeadcount / requiredPeoplePerItem)}개 이상</b> 선택하셔야
+                  합니다.
+                </p>
               ) : null}
-            </ul>
+            </div>
           </div>
           {categories.length > 1 ? (
             <div className="flex flex-wrap gap-2">
