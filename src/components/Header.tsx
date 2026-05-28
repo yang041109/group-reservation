@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import MyReservationsModal from '@/components/MyReservationsModal';
+import { KAKAO_INQUIRY_OPEN_CHAT_URL, openKakaoInquiryChat } from '@/lib/kakao-open-chat';
 
 /** 달리는 졸라맨 SVG */
 function RunningStickman({ delay, size = 18 }: { delay: number; size?: number }) {
@@ -55,6 +56,19 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-4">
+          <a
+            href={KAKAO_INQUIRY_OPEN_CHAT_URL}
+            onClick={(e) => {
+              e.preventDefault();
+              openKakaoInquiryChat();
+            }}
+            className="text-sm text-white/90 transition hover:text-white"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="카카오톡 오픈채팅으로 문의하기"
+          >
+            문의하기
+          </a>
           <button
             type="button"
             onClick={() => setReservationsOpen(true)}

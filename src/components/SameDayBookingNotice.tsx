@@ -2,18 +2,31 @@
 export default function SameDayBookingNotice({ className = '' }: { className?: string }) {
   return (
     <div
-      className={`rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 ${className}`}
+      className={`flex gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-relaxed text-gray-700 ${className}`}
       role="note"
     >
-      <p className="font-semibold">오늘 날짜로 예약하시나요?</p>
-      <ul className="mt-2 list-disc space-y-1.5 pl-4 text-amber-900">
-        <li>
-          표시되는 잔여 시간은 <span className="font-medium">사전 예약 현황</span> 기준이에요. 매장에
-          바로 들어온 손님은 반영되지 않을 수 있어요.
-        </li>
-        <li>그래서 화면과 실제 여유가 100% 같지는 않을 수 있어요.</li>
-        <li>당일 예약은 가게 확인·응답이 다소 늦을 수 있어요.</li>
-      </ul>
+      <svg
+        className="mt-0.5 h-5 w-5 shrink-0 text-gray-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      <div className="min-w-0">
+        <p className="font-semibold text-gray-900">당일 예약 현황 안내</p>
+        <p className="mt-1 text-gray-600">
+          실시간 잔여석이 아닌, 사전 예약 현황 기준으로 표시됩니다.
+          <br />
+          당일 예약의 경우 빠른 응답이 어려울 수 있습니다.
+        </p>
+      </div>
     </div>
   );
 }
