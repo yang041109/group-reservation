@@ -10,7 +10,7 @@ export interface BusinessDayRange {
 export type BusinessDayRangeLookup = (ymd: string) => BusinessDayRange;
 
 function parseTimeToMinutes(t: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim());
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t).trim());
   if (!m) return null;
   const h = parseInt(m[1], 10);
   const min = parseInt(m[2], 10);

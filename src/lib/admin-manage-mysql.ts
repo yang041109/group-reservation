@@ -27,12 +27,13 @@ import {
 } from '@/lib/owner-closed-slots';
 import { adminListReservationsByStore } from '@/lib/admin-mysql';
 import {
-  filterReservationsForBusinessDay,
   reservationBelongsToBusinessDay,
   reservationQueryRangeForBusinessDay,
-  resolveOwnerBusinessDayYmd,
 } from '@/lib/business-day-reservations';
-import { getKoreaDateParts, koreaTodayYmd } from '@/lib/korea-time';
+import {
+  listOwnerBusinessDayReservations,
+  resolveOwnerBusinessDayContext,
+} from '@/lib/owner-business-day';
 import { readMinGroupHeadcount, getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import type { DepositTier, TimeSlot } from '@/types';
@@ -1243,26 +1244,10 @@ export async function manageListReservations(options: {
 }
 
 
-function businessDayLookupForStore(rec: Record<string, unknown>) {
-  return (ymd: string) => getSlotHourRangeForStoreOnDate(rec, ymd);
-}
-
-function resolveStoreBusinessYmd(
-  rec: Record<string, unknown>,
-  explicitYmd?: string,
-): { businessYmd: string; calendarYmd: string } {
-  const now = new Date();
-  const calendarYmd = koreaTodayYmd(now);
-  const { hour } = getKoreaDateParts(now);
-  const businessYmd =
-    explicitYmd?.trim().slice(0, 10) ??
-    resolveOwnerBusinessDayYmd(calendarYmd, hour, businessDayLookupForStore(rec));
-  return { businessYmd, calendarYmd };
-}
-
-/** 사장님 홈 「오늘의 예약」— 영업일(시작~마감) 기준 확정 예약 */
+/** 사장님 홈·캘린더 — 영업일(시작~마감) 기준 예약 (캘린더 표시 상태와 동일) */
 export async function manageGetOwnerBusinessDayReservations(
   storeId: string,
+  explicitBusinessYmd?: string,
 ): Promise<
   | {
       success: true;
@@ -1291,43 +1276,19 @@ export async function manageGetOwnerBusinessDayReservations(
     if (!store) return { success: false, message: '가게를 찾을 수 없습니다.' };
 
     const rec = store as Record<string, unknown>;
-    const { businessYmd, calendarYmd } = resolveStoreBusinessYmd(rec);
-    const range = getSlotHourRangeForStoreOnDate(rec, businessYmd);
-
-    if (range.closed) {
-      return {
-        success: true,
-        businessDate: businessYmd,
-        calendarDate: calendarYmd,
-        closedOnBusinessDay: true,
-        slotStartHour: range.slotStartHour,
-        slotEndHour: range.slotEndHour,
-        crossesMidnight: range.crossesMidnight,
-        reservations: [],
-      };
-    }
-
-    const { from, to } = reservationQueryRangeForBusinessDay(businessYmd, range);
-    const listed = await adminListReservationsByStore(sid, null, null, from, to, {
-      calendarConfirmed: true,
-    });
+    const ctx = resolveOwnerBusinessDayContext(rec, explicitBusinessYmd);
+    const listed = await listOwnerBusinessDayReservations(sid, ctx);
     if (!listed.success) return listed;
-
-    const reservations = filterReservationsForBusinessDay(
-      listed.data as { date: string; startTime: string }[],
-      businessYmd,
-      range,
-    );
 
     return {
       success: true,
-      businessDate: businessYmd,
-      calendarDate: calendarYmd,
-      closedOnBusinessDay: false,
-      slotStartHour: range.slotStartHour,
-      slotEndHour: range.slotEndHour,
-      crossesMidnight: range.crossesMidnight,
-      reservations,
+      businessDate: ctx.businessDate,
+      calendarDate: ctx.calendarDate,
+      closedOnBusinessDay: ctx.closedOnBusinessDay,
+      slotStartHour: ctx.range.slotStartHour,
+      slotEndHour: ctx.range.slotEndHour,
+      crossesMidnight: ctx.range.crossesMidnight,
+      reservations: listed.reservations,
     };
   } catch (e) {
     console.error('[manageGetOwnerBusinessDayReservations]', e);
@@ -1368,7 +1329,7 @@ export async function manageGetOwnerTodayTimeline(
 
     const rec = store as Record<string, unknown>;
     const date = (
-      dateYmd?.trim().slice(0, 10) ?? resolveStoreBusinessYmd(rec).businessYmd
+      dateYmd?.trim().slice(0, 10) ?? resolveOwnerBusinessDayContext(rec).businessDate
     ).trim();
     const range = getSlotHourRangeForStoreOnDate(rec, date);
     if (range.closed) {

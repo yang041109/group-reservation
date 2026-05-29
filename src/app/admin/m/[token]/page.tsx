@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import OwnerTodayClosePanel from '@/components/admin/OwnerTodayClosePanel';
+import { fetchOwnerBusinessDayReservations } from '@/lib/owner-business-day-client';
 import { useAdminStore } from './AdminStoreContext';
 
 interface Reservation {
@@ -58,6 +59,8 @@ function formatReservationTimeLine(
 function todayStatusLabel(status: string): string {
   const s = status.toUpperCase();
   if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return '예약확정';
+  if (s === 'CHECKED_IN') return '방문완료';
+  if (s === 'NO_SHOW') return '노쇼';
   if (s === 'DEPOSIT_PENDING') return '입금대기';
   if (s === 'PENDING') return '승인대기';
   if (s === 'CANCELED') return '취소';
@@ -67,6 +70,8 @@ function todayStatusLabel(status: string): string {
 function todayStatusClass(status: string): string {
   const s = status.toUpperCase();
   if (s === 'CONFIRMED' || s === 'DEPOSIT_CONFIRMED') return 'bg-green-100 text-green-800';
+  if (s === 'CHECKED_IN') return 'bg-purple-100 text-purple-800';
+  if (s === 'NO_SHOW') return 'bg-red-100 text-red-800';
   if (s === 'DEPOSIT_PENDING') return 'bg-amber-100 text-amber-800';
   if (s === 'PENDING') return 'bg-blue-100 text-blue-800';
   return 'bg-gray-100 text-gray-600';
@@ -83,35 +88,34 @@ export default function AdminDashboardByToken() {
   const [crossesMidnight, setCrossesMidnight] = useState(false);
   const [closedOnBusinessDay, setClosedOnBusinessDay] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [todayLabel, setTodayLabel] = useState<string>('');
 
   const reload = useCallback(async () => {
+    setLoadError(null);
     try {
-      const [pRes, dRes, tRes] = await Promise.all([
+      const [pRes, dRes, todayResult] = await Promise.all([
         fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=PENDING`),
         fetch(`/api/admin/reservations?storeId=${encodeURIComponent(store.id)}&status=DEPOSIT_PENDING`),
-        fetch(
-          `/api/admin/store/today-business-reservations?token=${encodeURIComponent(store.token)}`,
-        ),
+        fetchOwnerBusinessDayReservations(store.token),
       ]);
-      const [pJson, dJson, tJson] = await Promise.all([pRes.json(), dRes.json(), tRes.json()]);
+      const [pJson, dJson] = await Promise.all([pRes.json(), dRes.json()]);
       if (pJson.success) setPendingCount((pJson.data || []).length);
       if (dJson.success) setDepositPendingCount((dJson.data || []).length);
-      if (tJson.success && tJson.data) {
-        const d = tJson.data as {
-          businessDate: string;
-          crossesMidnight: boolean;
-          closedOnBusinessDay: boolean;
-          reservations: Reservation[];
-        };
-        setBusinessDate(d.businessDate ?? '');
-        setCrossesMidnight(!!d.crossesMidnight);
-        setClosedOnBusinessDay(!!d.closedOnBusinessDay);
-        const list = (d.reservations || []) as Reservation[];
-        setTodayReservations(list.filter((r) => r.status !== 'CANCELED'));
+
+      if (!todayResult.success) {
+        setLoadError(todayResult.message);
+        setTodayReservations([]);
+        return;
       }
+      const d = todayResult.data;
+      setBusinessDate(d.businessDate ?? '');
+      setCrossesMidnight(!!d.crossesMidnight);
+      setClosedOnBusinessDay(!!d.closedOnBusinessDay);
+      setTodayReservations((d.reservations || []) as unknown as Reservation[]);
     } catch (e) {
       console.error(e);
+      setLoadError('예약 현황을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -178,6 +182,8 @@ export default function AdminDashboardByToken() {
 
           {loading ? (
             <p className="text-sm text-gray-400">불러오는 중…</p>
+          ) : loadError ? (
+            <p className="rounded-xl bg-red-50 px-4 py-6 text-center text-sm text-red-700">{loadError}</p>
           ) : closedOnBusinessDay ? (
             <p className="rounded-xl bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
               오늘은 휴무일입니다.
@@ -224,7 +230,11 @@ export default function AdminDashboardByToken() {
           ) : null}
 
           <Link
-            href={`${base}/calendar`}
+            href={
+              businessDate
+                ? `${base}/calendar?date=${encodeURIComponent(businessDate)}`
+                : `${base}/calendar`
+            }
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
           >
             캘린더에서 자세히 보기

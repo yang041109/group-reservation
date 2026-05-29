@@ -1,4 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
+import { normalizeReservationDateTimes, normalizeTimeHHmm } from '@/lib/reservation-calendar-date';
 import { formatMysqlUserError, getPool, isMysqlConfigured } from '@/lib/db';
 import { ensureReservationOwnerColumns } from '@/lib/reservation-schema-migrate';
 import { fetchZonesByStoreId, findZoneInStore } from '@/lib/zone-resolve';
@@ -622,8 +624,8 @@ export async function adminCreateManualReservation(
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(stRaw) || !/^\d{2}:\d{2}(:\d{2})?$/.test(etRaw)) {
     return { success: false, message: '시간 형식이 올바르지 않습니다. (HH:MM)' };
   }
-  const startTime = stRaw.length === 5 ? `${stRaw}:00` : stRaw;
-  const endTime = etRaw.length === 5 ? `${etRaw}:00` : etRaw;
+  const normStart = normalizeTimeHHmm(stRaw);
+  const normEnd = normalizeTimeHHmm(etRaw);
 
   let userName = (payload.userName ?? '').trim();
   if (mode === 'phone') {
@@ -649,6 +651,22 @@ export async function adminCreateManualReservation(
 
   try {
     const pool = getPool();
+
+    const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store WHERE storeId = ? LIMIT 1', [
+      sid,
+    ]);
+    const storeRow = storeRows[0];
+    if (!storeRow) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    const range = getSlotHourRangeForStoreOnDate(storeRow as Record<string, unknown>, date);
+    const {
+      date: calendarDate,
+      startTime,
+      endTime,
+    } = normalizeReservationDateTimes(date, normStart, normEnd, range);
+    const dbStart = startTime.length === 5 ? `${startTime}:00` : startTime;
+    const dbEnd = endTime.length === 5 ? `${endTime}:00` : endTime;
 
     // 동 운영 가게면 zoneId 필수·유효성 확인
     const storeZones = await fetchZonesByStoreId(pool, sid);
@@ -679,9 +697,9 @@ export async function adminCreateManualReservation(
         userPhone,
         userNote,
         headcount,
-        date,
-        startTime,
-        endTime,
+        calendarDate,
+        dbStart,
+        dbEnd,
         '[]', // menuItems 빈 배열
         0,    // totalAmount
         0,    // depositAmount (사장님이 직접 처리하므로 우리가 받지 않음)

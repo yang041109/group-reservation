@@ -10,6 +10,7 @@ import HalfHourTimeSelect, {
 } from '@/components/admin/HalfHourTimeSelect';
 import HalfHourWheelPickerField from '@/components/admin/HalfHourWheelPicker';
 import { formatReservationCreatedAt } from '@/lib/korea-time';
+import { fetchOwnerBusinessDayReservations } from '@/lib/owner-business-day-client';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -44,6 +45,20 @@ function pad2(n: number) {
 function ymdToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function applyBusinessDateToView(
+  ymd: string,
+  setSelectedDate: (d: string) => void,
+  setViewYear: (y: number) => void,
+  setViewMonth: (m: number) => void,
+) {
+  const d = ymd.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+  setSelectedDate(d);
+  const [y, m] = d.split('-').map((x) => parseInt(x, 10));
+  setViewYear(y);
+  setViewMonth(m);
 }
 
 function buildMonthCells(
@@ -115,7 +130,10 @@ export default function AdminCalendarByToken() {
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState<string>(ymdToday());
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDateReservations, setSelectedDateReservations] = useState<Reservation[]>([]);
+  const [dayListLoading, setDayListLoading] = useState(false);
+  const [dateInitDone, setDateInitDone] = useState(false);
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -150,19 +168,70 @@ export default function AdminCalendarByToken() {
 
   // 동(zone) 목록 — zone 운영 가게에서만 사용. 빈 배열이면 단일 운영.
   const [zones, setZones] = useState<{ zoneId: string; name: string; maxCapacity: number }[]>([]);
+
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch(
+        const zRes = await fetch(
           `/api/admin/store/zones?token=${encodeURIComponent(store.token)}`,
         );
-        const data = await res.json();
-        if (data.success) setZones(data.data || []);
+        const zJson = await zRes.json();
+        if (zJson.success) setZones(zJson.data || []);
       } catch {
         // ignore
       }
     })();
   }, [store.token]);
+
+  useEffect(() => {
+    void (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const paramDate = params.get('date')?.trim().slice(0, 10);
+      if (paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate)) {
+        applyBusinessDateToView(paramDate, setSelectedDate, setViewYear, setViewMonth);
+        setDateInitDone(true);
+        return;
+      }
+      const result = await fetchOwnerBusinessDayReservations(store.token);
+      if (result.success && result.data.businessDate) {
+        applyBusinessDateToView(
+          result.data.businessDate,
+          setSelectedDate,
+          setViewYear,
+          setViewMonth,
+        );
+      } else {
+        const d = new Date();
+        applyBusinessDateToView(
+          `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+          setSelectedDate,
+          setViewYear,
+          setViewMonth,
+        );
+      }
+      setDateInitDone(true);
+    })();
+  }, [store.token]);
+
+  const fetchDayReservations = useCallback(
+    async (businessYmd: string) => {
+      if (!businessYmd) return;
+      setDayListLoading(true);
+      const result = await fetchOwnerBusinessDayReservations(store.token, businessYmd);
+      if (result.success) {
+        setSelectedDateReservations((result.data.reservations || []) as unknown as Reservation[]);
+      } else {
+        setSelectedDateReservations([]);
+      }
+      setDayListLoading(false);
+    },
+    [store.token],
+  );
+
+  useEffect(() => {
+    if (!dateInitDone || !selectedDate) return;
+    void fetchDayReservations(selectedDate);
+  }, [dateInitDone, selectedDate, fetchDayReservations]);
 
   const monthRange = useMemo(() => {
     const mi = viewMonth - 1;
@@ -215,10 +284,6 @@ export default function AdminCalendarByToken() {
 
   const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const selectedDateReservations = useMemo(() => {
-    return byDate.get(selectedDate) ?? [];
-  }, [byDate, selectedDate]);
-
   const callAction = useCallback(
     async (reservationId: string, body: Record<string, unknown>, confirmMessage?: string) => {
       if (confirmMessage && !confirm(confirmMessage)) return false;
@@ -232,6 +297,7 @@ export default function AdminCalendarByToken() {
         const data = await res.json();
         if (data.success) {
           await fetchMonthReservations();
+          await fetchDayReservations(selectedDate);
           return true;
         }
         alert(data.message || '처리에 실패했습니다.');
@@ -243,7 +309,7 @@ export default function AdminCalendarByToken() {
         setActionLoading(null);
       }
     },
-    [fetchMonthReservations],
+    [fetchMonthReservations, fetchDayReservations, selectedDate],
   );
 
   const handleCheckIn = async (id: string) => {
@@ -407,6 +473,7 @@ export default function AdminCalendarByToken() {
       const data = await res.json();
       if (data.success) {
         await fetchMonthReservations();
+        await fetchDayReservations(selectedDate);
         closeEventCreate();
       } else {
         alert(data.message || '일정 등록에 실패했습니다.');
@@ -548,10 +615,18 @@ export default function AdminCalendarByToken() {
         <div className="p-4">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-base font-bold text-gray-900">
-              {selectedDate.slice(5, 7)}월 {selectedDate.slice(8, 10)}일 (
-              {WEEK_LABELS[new Date(selectedDate).getDay()]}) 예약
+              {selectedDate ? (
+                <>
+                  {selectedDate.slice(5, 7)}월 {selectedDate.slice(8, 10)}일 (
+                  {WEEK_LABELS[new Date(`${selectedDate}T12:00:00`).getDay()]}) 영업 예약
+                </>
+              ) : (
+                '영업 예약'
+              )}
             </h3>
-            {loading && <span className="text-xs text-gray-400">로딩…</span>}
+            {(loading || dayListLoading) && (
+              <span className="text-xs text-gray-400">로딩…</span>
+            )}
           </div>
 
           {error && (
@@ -560,9 +635,11 @@ export default function AdminCalendarByToken() {
             </div>
           )}
 
-          {selectedDateReservations.length === 0 ? (
+          {!dateInitDone || dayListLoading ? (
+            <div className="py-12 text-center text-gray-400 text-sm">불러오는 중…</div>
+          ) : selectedDateReservations.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
-              <p>예약이 없습니다</p>
+              <p>이 영업일 예약이 없습니다</p>
             </div>
           ) : (
             <div className="space-y-3">

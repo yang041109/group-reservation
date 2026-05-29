@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { buildSlots } from '@/lib/booking-slots';
+import { filterReservationsForBusinessDayList } from '@/lib/reservation-calendar-date';
 import { applyOwnerClosedBlocksToSlots } from '@/lib/owner-closed-slots';
 import {
   isShiftActiveOnDate,
@@ -184,11 +185,21 @@ export function buildSlotsForDate(
 
   // zoneId 가 명시되면 해당 동의 예약만 카운트. 명시 안하면 store 전체.
   const targetZoneId = storeMeta?.zoneId ?? null;
-  const matching = reservations.filter((r) => {
-    if (r.storeId !== storeId || r.date !== date) return false;
-    if (targetZoneId === null) return true;
-    return String(r.zoneId ?? '') === targetZoneId;
-  });
+  const dayRange = {
+    slotStartHour: startH,
+    slotEndHour: endH,
+    crossesMidnight,
+    closed: !!closed,
+  };
+  const matching = filterReservationsForBusinessDayList(
+    reservations.filter((r) => {
+      if (r.storeId !== storeId) return false;
+      if (targetZoneId === null) return true;
+      return String(r.zoneId ?? '') === targetZoneId;
+    }),
+    date,
+    dayRange,
+  );
 
   const base = buildSlots(
     maxPeople,

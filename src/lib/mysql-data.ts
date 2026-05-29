@@ -20,6 +20,12 @@ import {
   type DepositTier,
 } from '@/lib/deposit-tiers';
 import { sortMenusForDisplay } from '@/lib/menu-order';
+import { reservationQueryRangeForBusinessDay } from '@/lib/business-day-reservations';
+import {
+  filterReservationsForBusinessDayList,
+  normalizeReservationDateTimes,
+  normalizeTimeHHmm,
+} from '@/lib/reservation-calendar-date';
 import { compareStoresByDisplayOrder } from '@/lib/store-display-order';
 import {
   buildEffectiveStoreRow,
@@ -280,13 +286,26 @@ export async function getStoresFromMysql(date: string, headcount: number) {
     const minGroupHeadcount = readMinGroupHeadcount(storeRec);
     const storeZones = zonesByStoreId.get(sid) ?? [];
 
-    const confirmedAll = reservations.filter(
-      (r) =>
-        String(r.storeId ?? '').trim() === sid &&
-        rowDateToYmd(r.date) === date &&
-        (String(r.status ?? '').trim() === 'CONFIRMED' ||
-          String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED'),
-    );
+    const dayRange = getSlotHourRangeForStoreOnDate(storeRec, date);
+    const { from: resFrom, to: resTo } = reservationQueryRangeForBusinessDay(date, dayRange);
+    const confirmedAll = filterReservationsForBusinessDayList(
+      reservations
+        .filter(
+          (r) =>
+            String(r.storeId ?? '').trim() === sid &&
+            rowDateToYmd(r.date) >= resFrom &&
+            rowDateToYmd(r.date) <= resTo &&
+            (String(r.status ?? '').trim() === 'CONFIRMED' ||
+              String(r.status ?? '').trim() === 'DEPOSIT_CONFIRMED'),
+        )
+        .map((r) => ({
+          row: r,
+          date: rowDateToYmd(r.date),
+          startTime: String(r.startTime ?? '').trim(),
+        })),
+      date,
+      dayRange,
+    ).map((x) => x.row) as ReservationRow[];
 
     const depOpts = readStoreDepositOpts(store);
     const resolvedDeposit = resolveDepositForHeadcount(headcount, {
@@ -391,20 +410,28 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
   const [storeMenus] = await pool.query<MenuRow[]>('SELECT * FROM menu WHERE storeId = ?', [id]);
   const storeZones = await fetchZonesByStoreId(pool, id);
 
-  const confirmed: ReservationRow[] = dateYmd
-    ? (
-        await pool.query<ReservationRow[]>(
-          `SELECT reservationId, storeId, zoneId, headcount, \`date\`, startTime, endTime, status
-           FROM reservation
-           WHERE storeId = ?
-             AND DATE(\`date\`) = ?
-             AND status IN ('CONFIRMED', 'DEPOSIT_CONFIRMED')`,
-          [id, dateYmd],
-        )
-      )[0]
-    : [];
-
   const storeRec = store as Record<string, unknown>;
+  const dayRange = getSlotHourRangeForStoreOnDate(storeRec, dateYmd);
+  const { from: resFrom, to: resTo } = reservationQueryRangeForBusinessDay(dateYmd, dayRange);
+  const [resInRange] = await pool.query<ReservationRow[]>(
+    `SELECT reservationId, storeId, zoneId, headcount, \`date\`, startTime, endTime, status
+     FROM reservation
+     WHERE storeId = ?
+       AND DATE(\`date\`) >= ?
+       AND DATE(\`date\`) <= ?
+       AND status IN ('CONFIRMED', 'DEPOSIT_CONFIRMED')`,
+    [id, resFrom, resTo],
+  );
+  const confirmed = filterReservationsForBusinessDayList(
+    resInRange.map((r) => ({
+      ...r,
+      date: rowDateToYmd(r.date),
+      startTime: String(r.startTime ?? '').trim(),
+    })),
+    dateYmd,
+    dayRange,
+  ) as ReservationRow[];
+
   const minGroupHeadcount = readMinGroupHeadcount(storeRec);
   const ownerName =
     storeRec.ownerName != null && String(storeRec.ownerName).trim()
@@ -632,13 +659,21 @@ export async function insertReservationValidated(
     const slotStartHour = range.slotStartHour;
     const slotEndHour = range.slotEndHour;
     const crossesMidnight = range.crossesMidnight;
+    const businessDate = date;
+    const normStart = normalizeTimeHHmm(startTime);
+    const normEnd = normalizeTimeHHmm(endTime);
+    const {
+      date: calendarDate,
+      startTime: dbStartTime,
+      endTime: dbEndTime,
+    } = normalizeReservationDateTimes(businessDate, normStart, normEnd, range);
 
     // 교대제(부제) 적용 기간이면 startTime 이 허용 시작 시각 목록에 있어야 함
     {
       const shiftRanges = parseShiftActiveMonthRanges(effectiveRow.shiftActiveMonthRangesJson);
       const shiftStartTimes = parseShiftStartTimes(effectiveRow.shiftStartTimesJson);
       if (shiftStartTimes.length && isShiftActiveOnDate(date, shiftRanges)) {
-        if (!isShiftStartTime(startTime, shiftStartTimes)) {
+        if (!isShiftStartTime(normStart, shiftStartTimes)) {
           await conn.rollback();
           throw new ReservationDbError(
             400,
@@ -648,36 +683,58 @@ export async function insertReservationValidated(
       }
     }
 
-    // 같은 가게·zone·날짜의 확정 예약만 카운트
+    // 같은 가게·zone·영업일(달력일 범위) 확정 예약
+    const { from: resFrom, to: resTo } = reservationQueryRangeForBusinessDay(businessDate, range);
     const zoneSql = zone ? ' AND zoneId = ?' : '';
-    const existingParams: unknown[] = zone ? [storeId, zone.zoneId, date] : [storeId, date];
+    const existingParams: unknown[] = zone
+      ? [storeId, zone.zoneId, resFrom, resTo]
+      : [storeId, resFrom, resTo];
     const [existingRows] = await conn.query<ReservationRow[]>(
       `SELECT * FROM reservation
-       WHERE storeId = ?${zoneSql} AND date = ? AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
+       WHERE storeId = ?${zoneSql}
+         AND DATE(\`date\`) >= ? AND DATE(\`date\`) <= ?
+         AND status IN ('CONFIRMED','DEPOSIT_CONFIRMED')`,
       existingParams,
+    );
+    const existingForDay = filterReservationsForBusinessDayList(
+      existingRows.map((r) => ({
+        date: rowDateToYmd(r.date),
+        startTime: String(r.startTime ?? '').trim(),
+        endTime: String(r.endTime ?? '').trim(),
+        headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
+      })),
+      businessDate,
+      range,
     );
 
     const ownerJson = effectiveRow.ownerClosedSlotsJson;
     const slots = applyOwnerClosedBlocksToSlots(
       buildSlots(
         cap,
-        existingRows.map((r) => ({
-          headcount: parseInt(String(r.headcount ?? '0'), 10) || 0,
-          startTime: String(r.startTime ?? '').trim(),
-          endTime: String(r.endTime ?? '').trim(),
+        existingForDay.map((r) => ({
+          headcount: r.headcount,
+          startTime: r.startTime,
+          endTime: r.endTime,
         })),
         slotStartHour,
         slotEndHour,
         crossesMidnight,
       ),
-      date,
+      businessDate,
       ownerJson,
       undefined,
       { slotStartHour, slotEndHour, crossesMidnight },
     );
 
     const targetSlots = slots.filter((s) =>
-      slotOverlapsReservation(s.timeBlock, startTime, endTime, crossesMidnight, slotStartHour, slotEndHour),
+      slotOverlapsReservation(
+        s.timeBlock,
+        normStart,
+        normEnd,
+        crossesMidnight,
+        slotStartHour,
+        slotEndHour,
+      ),
     );
     if (!targetSlots.length) {
       await conn.rollback();
@@ -686,7 +743,7 @@ export async function insertReservationValidated(
     const blocked = targetSlots.some(
       (s) =>
         !s.isAvailable ||
-        isSlotBlockedForBooking(s.timeBlock, date, ownerJson, undefined, {
+        isSlotBlockedForBooking(s.timeBlock, businessDate, ownerJson, undefined, {
           slotStartHour,
           slotEndHour,
           crossesMidnight,
@@ -764,9 +821,9 @@ export async function insertReservationValidated(
         payload.userPhone || '',
         payload.userNote || '',
         headcount,
-        date,
-        startTime,
-        endTime,
+        calendarDate,
+        dbStartTime,
+        dbEndTime,
         JSON.stringify(selectedMenus),
         totalAmount,
         depositAmount,

@@ -7,10 +7,14 @@ export const runtime = 'nodejs';
 const pickStatus = (msg: string, fallback = 400) =>
   msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : fallback;
 
-/** 하위 호환 — `business-day-reservations` 와 동일 (오늘 영업일) */
+/**
+ * GET /api/admin/store/business-day-reservations?token=xxx
+ * GET …&date=2026-05-29 — 해당 영업일(캘린더 날짜 칸과 동일 기준)
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token') ?? '';
+  const date = searchParams.get('date')?.trim().slice(0, 10) || undefined;
   const sid = await getStoreIdFromToken(token);
   if (!sid) {
     return NextResponse.json(
@@ -19,7 +23,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const result = await manageGetOwnerBusinessDayReservations(sid);
+  const result = await manageGetOwnerBusinessDayReservations(sid, date);
   if (!result.success) {
     return NextResponse.json(result, { status: pickStatus(result.message) });
   }
