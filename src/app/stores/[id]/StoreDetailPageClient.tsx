@@ -248,6 +248,26 @@ export default function StoreDetailPageClient() {
                 menuRequiredPeoplePerItem: found.menuRequiredPeoplePerItem ?? null,
                 shiftStartTimes: parseShiftStartTimes(found.shiftStartTimesJson),
                 shiftActiveMonthRanges: parseShiftActiveMonthRanges(found.shiftActiveMonthRangesJson),
+                // 사장님이 "시작 시간만 차단" 으로 막은 슬롯 (캐시된 ownerClosedSlotsJson 에서 추출).
+                // 선택 날짜와 차단 설정 날짜가 일치할 때만 의미 있음.
+                noStartTimes: (() => {
+                  try {
+                    const raw = found.ownerClosedSlotsJson;
+                    if (!raw || !dateVal) return [];
+                    const parsed =
+                      typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if (!parsed || typeof parsed !== 'object') return [];
+                    const rec = parsed as { date?: string; noStartBlocks?: unknown };
+                    if (rec.date !== dateVal) return [];
+                    return Array.isArray(rec.noStartBlocks)
+                      ? rec.noStartBlocks
+                          .map((b) => String(b).trim())
+                          .filter((b) => /^\d{1,2}:\d{2}$/.test(b))
+                      : [];
+                  } catch {
+                    return [];
+                  }
+                })(),
                 ...(hasCachedZones ? { zones: zonesPayload } : {}),
               },
               menus: found.menus || [],
