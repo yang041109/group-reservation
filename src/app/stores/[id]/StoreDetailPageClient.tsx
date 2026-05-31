@@ -69,6 +69,7 @@ export default function StoreDetailPageClient() {
   const goToSearchWithPrefetch = async () => {
     if (navigatingToSearch) return;
     setNavigatingToSearch(true);
+    trackEvent('clicked_back_to_search', { from_store_id: storeId });
     try {
       await prefetchAllDataIntoCache();
     } catch {

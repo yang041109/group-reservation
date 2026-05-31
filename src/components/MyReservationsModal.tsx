@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import UrrLoading from '@/components/UrrLoading';
+import { trackEvent } from '@/lib/analytics';
 import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { formatReservationStatus } from '@/lib/reservation-status-labels';
 
@@ -51,10 +52,16 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
       );
       if (res.ok) {
         const data = await res.json();
-        setReservations(data.reservations ?? []);
+        const list = data.reservations ?? [];
+        setReservations(list);
+        trackEvent('searched_my_reservations', {
+          result_count: list.length,
+        });
+      } else {
+        trackEvent('searched_my_reservations', { result_count: 0, http_status: res.status });
       }
     } catch {
-      // ignore
+      trackEvent('searched_my_reservations', { result_count: 0, network_error: true });
     } finally {
       setLoading(false);
     }
@@ -67,6 +74,7 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
 
   async function handleCancel(id: string) {
     if (!confirm('예약을 취소하시겠습니까?')) return;
+    trackEvent('clicked_cancel_reservation', { reservation_id: id });
     setCancellingId(id);
     try {
       const res = await fetch(`/api/reservations/${id}/cancel`, { method: 'PATCH' });
@@ -76,12 +84,15 @@ export function MyReservationsPanel({ onClose }: { onClose?: () => void }) {
             r.id === id || r.reservationId === id ? { ...r, status: 'CANCELED' } : r,
           ),
         );
+        trackEvent('cancelled_reservation', { reservation_id: id });
       } else {
         const data = await res.json();
         alert(data.error || '취소 처리 중 오류가 발생했습니다.');
+        trackEvent('cancel_reservation_failed', { reservation_id: id, http_status: res.status });
       }
     } catch {
       alert('네트워크 오류가 발생했습니다.');
+      trackEvent('cancel_reservation_failed', { reservation_id: id, network_error: true });
     } finally {
       setCancellingId(null);
     }

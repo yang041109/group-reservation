@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import MyReservationsModal from '@/components/MyReservationsModal';
+import { trackEvent } from '@/lib/analytics';
 import { KAKAO_INQUIRY_OPEN_CHAT_URL, openKakaoInquiryChat } from '@/lib/kakao-open-chat';
 
 /** 달리는 졸라맨 SVG */
@@ -60,6 +61,7 @@ export default function Header() {
             href={KAKAO_INQUIRY_OPEN_CHAT_URL}
             onClick={(e) => {
               e.preventDefault();
+              trackEvent('clicked_inquiry', { source: 'header' });
               openKakaoInquiryChat();
             }}
             className="text-sm text-white/90 transition hover:text-white"
@@ -71,7 +73,10 @@ export default function Header() {
           </a>
           <button
             type="button"
-            onClick={() => setReservationsOpen(true)}
+            onClick={() => {
+              trackEvent('clicked_my_reservations', { source: 'header' });
+              setReservationsOpen(true);
+            }}
             className="text-sm text-white/90 transition hover:text-white"
           >
             내 예약

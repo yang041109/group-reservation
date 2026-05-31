@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import DateSelector from '@/components/DateSelector';
 import HeadcountSelector from '@/components/HeadcountSelector';
 import { Icon, URRMark } from '@/components/landing/icons';
+import { trackEvent } from '@/lib/analytics';
 import {
   PLATFORM_DEFAULT_HEADCOUNT,
   PLATFORM_MAX_HEADCOUNT,
@@ -48,6 +49,10 @@ export default function LandingHero() {
   const goSearch = async () => {
     if (!selectedDate || going) return;
     setGoing(true);
+    trackEvent('clicked_landing_cta', {
+      date: selectedDate,
+      headcount: people,
+    });
     try {
       await prefetchAllDataIntoCache();
       sessionStorage.setItem('landingPrefetchedAllData', '1');
