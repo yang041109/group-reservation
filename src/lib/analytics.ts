@@ -38,13 +38,26 @@ export function trackEvent(name: string, params?: GtagParams): void {
   }
 }
 
+/**
+ * GA 에 보내기 전에 민감 토큰을 마스킹.
+ *  - /admin/m/adm_xxx... → /admin/m/:token  (사장님 토큰)
+ *  - /admin/m/adm_xxx/calendar → /admin/m/:token/calendar
+ * 그 외 경로는 변형 없이 그대로.
+ */
+export function sanitizePathForAnalytics(path: string): string {
+  if (!path) return path;
+  // /admin/m/<token>(/...)?  →  /admin/m/:token(/...)?
+  return path.replace(/\/admin\/m\/[^/?#]+/g, '/admin/m/:token');
+}
+
 export function trackPageView(url: string): void {
   if (typeof window === 'undefined') return;
   if (typeof window.gtag !== 'function') return;
   if (!GA_MEASUREMENT_ID) return;
   try {
+    const safeUrl = sanitizePathForAnalytics(url);
     window.gtag('config', GA_MEASUREMENT_ID, {
-      page_path: url,
+      page_path: safeUrl,
     });
   } catch {
     // ignore

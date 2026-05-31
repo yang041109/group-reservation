@@ -46,6 +46,8 @@ export default function StoreDetailPageClient() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [menuQuantities, setMenuQuantities] = useState<Record<string, number>>({});
+  // 메뉴 첫 인터랙션 1회만 GA 에 알림 (funnel 분석용). 이후 +/- 는 추적 안함.
+  const [menuInteractionFired, setMenuInteractionFired] = useState(false);
   const [navigatingToSearch, setNavigatingToSearch] = useState(false);
   // 마운트 후 KST 오늘 날짜 계산 (SSR/CSR hydration mismatch 방지)
   const [todayKr, setTodayKr] = useState<string | null>(null);
@@ -536,6 +538,12 @@ export default function StoreDetailPageClient() {
                       if (z.zoneId !== selectedZoneId) {
                         setSelectedZoneId(z.zoneId);
                         setSelectedTime(null);
+                        trackEvent('selected_zone', {
+                          store_id: storeId,
+                          store_name: store.name,
+                          zone_id: z.zoneId,
+                          zone_name: z.name,
+                        });
                       }
                     }}
                     className={`rounded-full px-4 py-2 text-sm font-medium transition ${
@@ -580,14 +588,33 @@ export default function StoreDetailPageClient() {
           endHour={endHour}
           crossesMidnight={crossesMidnight}
           selectedTime={sameDayBlocked ? null : selectedTime}
-          onChange={setSelectedTime}
+          onChange={(t) => {
+            setSelectedTime(t);
+            trackEvent('selected_time', {
+              store_id: storeId,
+              store_name: store.name,
+              zone_id: activeZone?.zoneId ?? null,
+              date: selectedDate,
+              time: t,
+              headcount: selectedHeadcount,
+            });
+          }}
         />
       </div>
 
       <MenuSection
         menus={menus}
         quantities={menuQuantities}
-        onChange={setMenuQuantities}
+        onChange={(next) => {
+          setMenuQuantities(next);
+          if (!menuInteractionFired) {
+            setMenuInteractionFired(true);
+            trackEvent('interacted_menu', {
+              store_id: storeId,
+              store_name: store.name,
+            });
+          }
+        }}
         ownerNoticeText={store.menuNoticeText}
         requiredPeoplePerItem={store.menuRequiredPeoplePerItem}
         selectedHeadcount={selectedHeadcount}

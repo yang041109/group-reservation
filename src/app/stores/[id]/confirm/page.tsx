@@ -79,12 +79,25 @@ export default function ReservationConfirmPage() {
     if (!reservation || submitting) return;
 
     // Validate required fields
-    if (!groupName.trim()) { setError('단체명(행사명)을 입력해주세요.'); return; }
-    if (!representativeName.trim()) { setError('예약자 이름을 입력해주세요.'); return; }
-    if (!phone.trim()) { setError('전화번호를 입력해주세요.'); return; }
+    if (!groupName.trim()) {
+      setError('단체명(행사명)을 입력해주세요.');
+      trackEvent('reservation_failed', { stage: 'validation', reason: 'group_name_missing', store_id: reservation.storeId });
+      return;
+    }
+    if (!representativeName.trim()) {
+      setError('예약자 이름을 입력해주세요.');
+      trackEvent('reservation_failed', { stage: 'validation', reason: 'rep_name_missing', store_id: reservation.storeId });
+      return;
+    }
+    if (!phone.trim()) {
+      setError('전화번호를 입력해주세요.');
+      trackEvent('reservation_failed', { stage: 'validation', reason: 'phone_missing', store_id: reservation.storeId });
+      return;
+    }
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length !== 11 || !phoneDigits.startsWith('010')) {
       setError('전화번호 11자리를 정확히 입력해주세요. (예: 010-0000-0000)');
+      trackEvent('reservation_failed', { stage: 'validation', reason: 'phone_format', store_id: reservation.storeId });
       return;
     }
 
@@ -126,6 +139,15 @@ export default function ReservationConfirmPage() {
         } else {
           setError(msg);
         }
+        trackEvent('reservation_failed', {
+          stage: 'api',
+          status: res.status,
+          reason: msg.slice(0, 100),
+          store_id: reservation.storeId,
+          date: reservation.date,
+          time: reservation.time,
+          headcount: reservation.headcount,
+        });
         setSubmitting(false);
         return;
       }
@@ -145,6 +167,11 @@ export default function ReservationConfirmPage() {
       router.push(`/stores/${storeId}/complete`);
     } catch {
       setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+      trackEvent('reservation_failed', {
+        stage: 'network',
+        reason: 'fetch_threw',
+        store_id: reservation.storeId,
+      });
       setSubmitting(false);
     }
   };

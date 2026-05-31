@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { StoreCard as StoreCardType, TimeSlot } from '@/types';
+import { trackEvent } from '@/lib/analytics';
 import { PinIcon } from '@/components/icons/BookingFieldIcons';
 import {
   DEFAULT_SLOT_END_HOUR,
@@ -43,6 +44,14 @@ export default function StoreCard({
     if (selectedHeadcount > 0) {
       sessionStorage.setItem('selectedHeadcount', String(selectedHeadcount));
     }
+    trackEvent('clicked_store_card', {
+      store_id: store.id,
+      store_name: store.name,
+      date: selectedDate ?? null,
+      headcount: selectedHeadcount,
+      closed_on_date: store.closedOnDate === true,
+      same_day_blocked: sameDayBlocked,
+    });
   };
 
   const fromSheet = slotHourRangeFromSheet(store.slotStartHour, store.slotEndHour);
