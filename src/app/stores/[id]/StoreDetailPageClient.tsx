@@ -375,6 +375,10 @@ export default function StoreDetailPageClient() {
   const reservedTimes = activeZone
     ? activeZone.reservedTimes
     : data.reservedTimes;
+  // 시작 시간만 차단된 슬롯 (사장님의 "시작 차단" 마감 설정 반영)
+  const noStartTimes = activeZone
+    ? activeZone.noStartTimes ?? []
+    : store.noStartTimes ?? [];
   const startHour = activeZone
     ? activeZone.slotStartHour
     : store.slotStartHour ?? DEFAULT_SLOT_START_HOUR;
@@ -585,6 +589,7 @@ export default function StoreDetailPageClient() {
           availableTimes={sameDayBlocked ? [] : availableTimes}
           reservedTimes={sameDayBlocked ? [] : reservedTimes}
           slots={sameDayBlocked ? [] : slots}
+          noStartTimes={sameDayBlocked ? [] : noStartTimes}
           startHour={startHour}
           endHour={endHour}
           crossesMidnight={crossesMidnight}

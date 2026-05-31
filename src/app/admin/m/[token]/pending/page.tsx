@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatReservationCreatedAt } from '@/lib/korea-time';
+import {
+  buildAcceptMessage,
+  buildRejectMessage,
+} from '@/lib/reservation-message-templates';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -55,6 +59,12 @@ export default function AdminPendingByToken() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonDraft, setRejectReasonDraft] = useState('');
   const [rejectAlternativeDraft, setRejectAlternativeDraft] = useState('');
+  // 수락 모달 — 사장님이 손님에게 추가로 전할 안내 문구(선택)
+  const [acceptTargetId, setAcceptTargetId] = useState<string | null>(null);
+  const [acceptNoteDraft, setAcceptNoteDraft] = useState('');
+  // 처리 완료 후 자동 생성된 메시지 표시 (복사용)
+  const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
+  const [messageCopied, setMessageCopied] = useState(false);
 
   const reloadLists = useCallback(async () => {
     const zoneQp = zoneFilter ? `&zoneId=${encodeURIComponent(zoneFilter)}` : '';
@@ -154,6 +164,58 @@ export default function AdminPendingByToken() {
     }
   };
 
+  const closeAcceptModal = () => {
+    setAcceptTargetId(null);
+    setAcceptNoteDraft('');
+  };
+
+  /** 수락 모달에서 "수락" 누름 → API 호출 후 자동 생성 메시지 표시 */
+  const submitAccept = async (reservation: Reservation) => {
+    setActionLoading(reservation.reservationId);
+    try {
+      const res = await fetch(`/api/admin/reservations/${reservation.reservationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'accept' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const msg = buildAcceptMessage(
+          {
+            storeName: store.name,
+            date: reservation.date,
+            startTime: reservation.startTime,
+            endTime: reservation.endTime,
+            headcount: reservation.headcount,
+          },
+          acceptNoteDraft.trim() || undefined,
+        );
+        setGeneratedMessage(msg);
+        setMessageCopied(false);
+        closeAcceptModal();
+        await reloadLists();
+      } else {
+        alert(data.message || '처리 실패');
+      }
+    } catch {
+      alert('서버 오류가 발생했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const copyGeneratedMessage = async () => {
+    if (!generatedMessage) return;
+    try {
+      await navigator.clipboard.writeText(generatedMessage);
+      setMessageCopied(true);
+      setTimeout(() => setMessageCopied(false), 2500);
+    } catch {
+      // fallback: 사용자가 직접 드래그 복사
+      setMessageCopied(false);
+    }
+  };
+
   const closeRejectModal = () => {
     setRejectTargetId(null);
     setRejectReasonDraft('');
@@ -177,6 +239,9 @@ export default function AdminPendingByToken() {
       return;
     }
     setActionLoading(rejectTargetId);
+    // 메시지 생성을 위해 현재 거절 대상 예약 정보 보관 (await 중 reloadLists 후 목록 비워질 수 있음)
+    const targetResv =
+      pendingReservations.find((r) => r.reservationId === rejectTargetId) ?? null;
     try {
       const res = await fetch(`/api/admin/reservations/${rejectTargetId}`, {
         method: 'PATCH',
@@ -189,6 +254,21 @@ export default function AdminPendingByToken() {
       });
       const data = await res.json();
       if (data.success) {
+        if (targetResv) {
+          const msg = buildRejectMessage(
+            {
+              storeName: store.name,
+              date: targetResv.date,
+              startTime: targetResv.startTime,
+              endTime: targetResv.endTime,
+              headcount: targetResv.headcount,
+            },
+            trimmed,
+            altTrimmed || undefined,
+          );
+          setGeneratedMessage(msg);
+          setMessageCopied(false);
+        }
         closeRejectModal();
         await reloadLists();
       } else {
@@ -503,7 +583,10 @@ export default function AdminPendingByToken() {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => void handleAction(reservation.reservationId, 'accept')}
+                        onClick={() => {
+                          setAcceptTargetId(reservation.reservationId);
+                          setAcceptNoteDraft('');
+                        }}
                         disabled={isLoading}
                         className="rounded-xl bg-blue-600 py-3 text-sm font-bold leading-tight text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
                       >
@@ -658,6 +741,142 @@ export default function AdminPendingByToken() {
                 className="flex-1 rounded-lg bg-gray-900 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
               >
                 {actionLoading === rejectTargetId ? '처리 중...' : '완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수락 모달 — 선택적으로 손님에게 보낼 추가 안내 문구 입력 */}
+      {acceptTargetId &&
+        (() => {
+          const target = pendingReservations.find(
+            (r) => r.reservationId === acceptTargetId,
+          );
+          if (!target) return null;
+          const busy = actionLoading === acceptTargetId;
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="accept-dialog-title"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 cursor-default"
+                aria-label="닫기"
+                onClick={() => {
+                  if (!busy) closeAcceptModal();
+                }}
+              />
+              <div className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+                <h2 id="accept-dialog-title" className="text-lg font-bold text-gray-900">
+                  예약 수락
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  수락 후 손님에게 보낼 안내 문구가 자동으로 생성됩니다. 추가로 전할 메시지가 있으면 아래에
+                  입력해 주세요. (선택)
+                </p>
+
+                <div className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
+                  <p>
+                    <span className="font-semibold">예약자:</span> {target.userName}
+                    {target.groupName ? ` / ${target.groupName}` : ''}
+                  </p>
+                  <p>
+                    <span className="font-semibold">일시:</span> {target.date}{' '}
+                    {target.startTime}
+                    {target.endTime && target.endTime !== target.startTime
+                      ? ` ~ ${target.endTime}`
+                      : ''}
+                  </p>
+                  <p>
+                    <span className="font-semibold">인원:</span> {target.headcount}명
+                  </p>
+                </div>
+
+                <label
+                  htmlFor="accept-note"
+                  className="mt-4 block text-sm font-medium text-gray-700"
+                >
+                  추가 안내 문구 (선택)
+                </label>
+                <textarea
+                  id="accept-note"
+                  rows={3}
+                  maxLength={500}
+                  value={acceptNoteDraft}
+                  onChange={(e) => setAcceptNoteDraft(e.target.value)}
+                  disabled={busy}
+                  placeholder="예: 가게 입구가 헷갈리실 수 있어 안내드립니다. 골목 안쪽에 있어요."
+                  className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+                <p className="mt-1 text-right text-xs text-gray-400">
+                  {acceptNoteDraft.length} / 500
+                </p>
+
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeAcceptModal}
+                    disabled={busy}
+                    className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitAccept(target)}
+                    disabled={busy}
+                    className="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {busy ? '처리 중...' : '수락'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* 처리 완료 후 — 손님에게 보낼 메시지 자동 생성 + 복사 */}
+      {generatedMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="generated-message-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="닫기"
+            onClick={() => setGeneratedMessage(null)}
+          />
+          <div className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <h2 id="generated-message-title" className="text-lg font-bold text-gray-900">
+              손님에게 보낼 안내 문구
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              아래 문구를 복사해 카톡·문자로 손님에게 전달하세요.
+            </p>
+            <pre className="mt-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed text-gray-800">
+              {generatedMessage}
+            </pre>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setGeneratedMessage(null)}
+                className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyGeneratedMessage()}
+                className="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                {messageCopied ? '복사됨 ✓' : '문구 복사'}
               </button>
             </div>
           </div>

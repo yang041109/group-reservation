@@ -1,7 +1,11 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool, isMysqlConfigured } from '@/lib/db';
 import { buildSlots, slotOverlapsReservation } from '@/lib/booking-slots';
-import { applyOwnerClosedBlocksToSlots, isSlotBlockedForBooking } from '@/lib/owner-closed-slots';
+import {
+  applyOwnerClosedBlocksToSlots,
+  isSlotBlockedForBooking,
+  ownerNoStartBlockSet,
+} from '@/lib/owner-closed-slots';
 import { koreaTodayYmd } from '@/lib/korea-time';
 import {
   getDefaultSlotHourRangeForStore,
@@ -469,6 +473,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
         slots: built.timeline,
         availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
         reservedTimes: built.timeline.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+        noStartTimes: [...ownerNoStartBlockSet(effectiveRow.ownerClosedSlotsJson, date)],
       };
     });
 
@@ -543,6 +548,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
       closedOnDate: built.closed,
       availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
       slots: built.timeline,
+      noStartTimes: [...ownerNoStartBlockSet(storeRec.ownerClosedSlotsJson, date)],
       minOrderRules: [],
       allowSameDayBooking: Number(storeRec.allowSameDayBooking ?? 0) === 1,
       menuNoticeText:
@@ -559,6 +565,7 @@ export async function getStoreDetailFromMysql(storeId: string, date: string) {
     slots: built.timeline,
     availableTimes: built.timeline.filter((s) => s.isAvailable).map((s) => s.timeBlock),
     reservedTimes: built.timeline.filter((s) => !s.isAvailable).map((s) => s.timeBlock),
+    noStartTimes: [...ownerNoStartBlockSet(storeRec.ownerClosedSlotsJson, date)],
   };
 }
 
@@ -739,6 +746,16 @@ export async function insertReservationValidated(
     if (!targetSlots.length) {
       await conn.rollback();
       throw new ReservationDbError(400, '선택한 시간이 예약 가능한 슬롯에 없습니다.');
+    }
+    // "시작 시간만 차단" 슬롯 체크: 예약 startTime 이 noStart 셋에 있으면 거부.
+    // 단, 거쳐가는(span) 슬롯이 noStart 면 거부 안 함 → 9시-11시 예약시 10시가 noStart 여도 OK.
+    const noStartSet = ownerNoStartBlockSet(ownerJson, businessDate);
+    if (noStartSet.has(normStart)) {
+      await conn.rollback();
+      throw new ReservationDbError(
+        400,
+        '선택한 시간에는 새 예약을 시작할 수 없습니다. 다른 시작 시각을 선택해 주세요.',
+      );
     }
     const blocked = targetSlots.some(
       (s) =>

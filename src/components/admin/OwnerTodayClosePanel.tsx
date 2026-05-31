@@ -13,9 +13,12 @@ type Props = {
   storeId: string;
 };
 
+type BlockMode = 'full' | 'noStart';
+
 export default function OwnerTodayClosePanel({ token, storeId }: Props) {
   const [allBlocks, setAllBlocks] = useState<string[]>([]);
   const [ownerClosed, setOwnerClosed] = useState<string[]>([]);
+  const [ownerNoStart, setOwnerNoStart] = useState<string[]>([]);
   const [closedOnDate, setClosedOnDate] = useState(false);
   const [date, setDate] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,10 +26,15 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
+  const [mode, setMode] = useState<BlockMode>('full');
 
   const closedRanges = useMemo(
     () => groupOwnerClosedBlocks(ownerClosed, allBlocks),
     [ownerClosed, allBlocks],
+  );
+  const noStartRanges = useMemo(
+    () => groupOwnerClosedBlocks(ownerNoStart, allBlocks),
+    [ownerNoStart, allBlocks],
   );
 
   const load = useCallback(async () => {
@@ -44,6 +52,7 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
       setDate(d.date);
       setAllBlocks(blocks);
       setOwnerClosed(d.ownerClosedBlocks || []);
+      setOwnerNoStart(d.ownerNoStartBlocks || []);
       setClosedOnDate(d.closedOnDate);
       if (blocks.length) {
         setRangeStart((prev) => (prev && blocks.includes(prev) ? prev : blocks[0]));
@@ -62,7 +71,7 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
     void load();
   }, [load]);
 
-  const persistBlocks = async (nextBlocks: string[]) => {
+  const persistBlocks = async (nextBlocks: string[], nextNoStart: string[]) => {
     setSaving(true);
     setErr(null);
     try {
@@ -74,6 +83,7 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
           storeId,
           date,
           blocks: nextBlocks,
+          noStartBlocks: nextNoStart,
         }),
       });
       const data = await res.json();
@@ -82,6 +92,7 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
         return false;
       }
       setOwnerClosed(nextBlocks);
+      setOwnerNoStart(nextNoStart);
       await load();
       void invalidateAllDataCache();
       return true;
@@ -97,14 +108,25 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
     if (!rangeStart || !rangeEnd) return;
     const inRange = timeBlocksInRange(rangeStart, rangeEnd, allBlocks);
     if (!inRange.length) return;
-    const next = [...new Set([...ownerClosed, ...inRange])];
-    await persistBlocks(next);
+    if (mode === 'full') {
+      const next = [...new Set([...ownerClosed, ...inRange])];
+      await persistBlocks(next, ownerNoStart);
+    } else {
+      const next = [...new Set([...ownerNoStart, ...inRange])];
+      await persistBlocks(ownerClosed, next);
+    }
   };
 
-  const releaseRange = async (blocks: string[]) => {
+  const releaseRangeFull = async (blocks: string[]) => {
     const remove = new Set(blocks);
     const next = ownerClosed.filter((b) => !remove.has(b));
-    await persistBlocks(next);
+    await persistBlocks(next, ownerNoStart);
+  };
+
+  const releaseRangeNoStart = async (blocks: string[]) => {
+    const remove = new Set(blocks);
+    const next = ownerNoStart.filter((b) => !remove.has(b));
+    await persistBlocks(ownerClosed, next);
   };
 
   return (
@@ -119,66 +141,124 @@ export default function OwnerTodayClosePanel({ token, storeId }: Props) {
         <p className="mt-3 text-sm text-gray-500">오늘 예약 가능한 시간이 없습니다.</p>
       ) : (
         <>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <select
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-900"
-              value={rangeStart}
-              onChange={(e) => setRangeStart(e.target.value)}
-              disabled={saving}
-              aria-label="마감 시작 시간"
-            >
-              {allBlocks.map((t) => (
-                <option key={`s-${t}`} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <span className="text-sm text-gray-600">부터</span>
-            <select
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-900"
-              value={rangeEnd}
-              onChange={(e) => setRangeEnd(e.target.value)}
-              disabled={saving}
-              aria-label="마감 종료 시간"
-            >
-              {allBlocks.map((t) => (
-                <option key={`e-${t}`} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <span className="text-sm text-gray-600">까지</span>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void closeRange()}
-              className="rounded-xl bg-[#f29da6] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-            >
-              마감하기
-            </button>
+          <div className="mt-4">
+            <div className="mb-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setMode('full')}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  mode === 'full'
+                    ? 'bg-rose-500 text-white shadow'
+                    : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                전체 차단
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setMode('noStart')}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  mode === 'noStart'
+                    ? 'bg-amber-500 text-white shadow'
+                    : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                시작 시간만 차단
+              </button>
+            </div>
+            <p className="mb-2 text-[11px] text-gray-500">
+              {mode === 'full'
+                ? '이 시간을 거치는 모든 예약 차단. (지나가는 예약도 막힘)'
+                : '이 시간을 시작 시각으로 가진 새 예약만 차단. 예약이 거쳐가는 건 OK.'}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-900"
+                value={rangeStart}
+                onChange={(e) => setRangeStart(e.target.value)}
+                disabled={saving}
+                aria-label="마감 시작 시간"
+              >
+                {allBlocks.map((t) => (
+                  <option key={`s-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-600">부터</span>
+              <select
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-900"
+                value={rangeEnd}
+                onChange={(e) => setRangeEnd(e.target.value)}
+                disabled={saving}
+                aria-label="마감 종료 시간"
+              >
+                {allBlocks.map((t) => (
+                  <option key={`e-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-600">까지</span>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void closeRange()}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 ${
+                  mode === 'full' ? 'bg-[#f29da6]' : 'bg-amber-500'
+                }`}
+              >
+                {mode === 'full' ? '마감하기' : '시작 차단'}
+              </button>
+            </div>
           </div>
 
-          {closedRanges.length > 0 ? (
-            <div className="mt-4 border-t border-gray-100 pt-4">
-              <p className="text-sm text-gray-700">
-                <span className="font-medium text-gray-800">차단된 시간:</span>{' '}
-                {closedRanges.map((range, i) => (
-                  <span key={`${range.start}-${range.endBlock}`}>
-                    {i > 0 ? ' / ' : null}
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 align-middle text-sm">
-                      {formatOwnerClosedRangeLabel(range.start, range.endBlock)}
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => void releaseRange(range.blocks)}
-                        className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
-                      >
-                        해제
-                      </button>
+          {closedRanges.length > 0 || noStartRanges.length > 0 ? (
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+              {closedRanges.length > 0 && (
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium text-gray-800">전체 차단:</span>{' '}
+                  {closedRanges.map((range, i) => (
+                    <span key={`f-${range.start}-${range.endBlock}`}>
+                      {i > 0 ? ' / ' : null}
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 align-middle text-sm text-rose-800">
+                        {formatOwnerClosedRangeLabel(range.start, range.endBlock)}
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void releaseRangeFull(range.blocks)}
+                          className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
+                        >
+                          해제
+                        </button>
+                      </span>
                     </span>
-                  </span>
-                ))}
-              </p>
+                  ))}
+                </p>
+              )}
+              {noStartRanges.length > 0 && (
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium text-gray-800">시작 시간 차단:</span>{' '}
+                  {noStartRanges.map((range, i) => (
+                    <span key={`n-${range.start}-${range.endBlock}`}>
+                      {i > 0 ? ' / ' : null}
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 align-middle text-sm text-amber-800">
+                        {formatOwnerClosedRangeLabel(range.start, range.endBlock)}
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void releaseRangeNoStart(range.blocks)}
+                          className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
+                        >
+                          해제
+                        </button>
+                      </span>
+                    </span>
+                  ))}
+                </p>
+              )}
             </div>
           ) : (
             <p className="mt-3 text-xs text-gray-400">차단된 시간이 없습니다.</p>

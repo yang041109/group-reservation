@@ -129,6 +129,8 @@ export interface StoreDetail {
   shiftStartTimes?: string[];
   /** 교대제 적용 기간. 비어있으면 미적용. MM-DD 범위. */
   shiftActiveMonthRanges?: { start: string; end: string }[];
+  /** 시작 시간만 차단된 슬롯 — 거쳐가는 예약은 OK, 시작은 X */
+  noStartTimes?: string[];
   /** 동(zone) 단위 운영 시 동별 세부 정보. 빈 배열이면 단일 운영. */
   zones?: ZoneDetailEntry[];
 }
@@ -145,6 +147,8 @@ export interface ZoneDetailEntry {
   slots: TimeSlot[];
   availableTimes: string[];
   reservedTimes: string[];
+  /** 시작 시간만 차단된 슬롯 (사장님이 "시작 차단" 으로 설정한 슬롯) */
+  noStartTimes?: string[];
 }
 
 export interface MenuItemData {

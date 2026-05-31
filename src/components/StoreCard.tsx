@@ -136,7 +136,7 @@ export default function StoreCard({
             {hours.map((hour) => (
               <div
                 key={hour}
-                className="text-center text-sm font-bold text-gray-800"
+                className="text-left text-sm font-bold text-gray-800"
                 style={{ width: `${(1 / hours.length) * 100}%` }}
               >
                 {hour}

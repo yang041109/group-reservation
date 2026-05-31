@@ -11,8 +11,17 @@ export type SlotBusinessHours = {
 
 export type OwnerClosedSlotsPayload = {
   date: string;
+  /** 강제 차단: 이 슬롯을 차지하는 모든 예약 거부 (예약 시간이 지나가기만 해도 안됨) */
   blocks: string[];
+  /** 시작 시간만 차단: 이 슬롯을 시작 시간으로 가진 예약만 거부.
+   *  거쳐가는(span) 예약은 허용. 예) noStartBlocks=[10:00] 이면 9시-11시 예약은 OK, 10시 시작은 X. */
+  noStartBlocks?: string[];
 };
+
+function sanitizeTimeArray(arr: unknown): string[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.map((b) => String(b).trim()).filter((b) => /^\d{1,2}:\d{2}$/.test(b));
+}
 
 export function parseOwnerClosedSlotsJson(raw: unknown): OwnerClosedSlotsPayload | null {
   if (raw == null || raw === '') return null;
@@ -28,15 +37,24 @@ export function parseOwnerClosedSlotsJson(raw: unknown): OwnerClosedSlotsPayload
   const rec = parsed as Record<string, unknown>;
   const date = String(rec.date ?? '').trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const blocks = Array.isArray(rec.blocks)
-    ? rec.blocks.map((b) => String(b).trim()).filter((b) => /^\d{1,2}:\d{2}$/.test(b))
-    : [];
-  return { date, blocks };
+  const blocks = sanitizeTimeArray(rec.blocks);
+  const noStartBlocks = sanitizeTimeArray(rec.noStartBlocks);
+  return { date, blocks, noStartBlocks };
 }
 
-export function serializeOwnerClosedSlotsForDb(date: string, blocks: string[]): string {
-  const unique = [...new Set(blocks.map((b) => b.trim()).filter(Boolean))].sort();
-  return JSON.stringify({ date: date.slice(0, 10), blocks: unique });
+export function serializeOwnerClosedSlotsForDb(
+  date: string,
+  blocks: string[],
+  noStartBlocks: string[] = [],
+): string {
+  const uniqB = [...new Set(blocks.map((b) => b.trim()).filter(Boolean))].sort();
+  const uniqN = [...new Set(noStartBlocks.map((b) => b.trim()).filter(Boolean))].sort();
+  const payload: OwnerClosedSlotsPayload = {
+    date: date.slice(0, 10),
+    blocks: uniqB,
+  };
+  if (uniqN.length) payload.noStartBlocks = uniqN;
+  return JSON.stringify(payload);
 }
 
 export function ownerClosedBlockSet(
@@ -46,6 +64,16 @@ export function ownerClosedBlockSet(
   const parsed = parseOwnerClosedSlotsJson(raw);
   if (!parsed || parsed.date !== dateYmd) return new Set();
   return new Set(parsed.blocks);
+}
+
+/** 시작 시간만 차단된 슬롯 집합 */
+export function ownerNoStartBlockSet(
+  raw: unknown,
+  dateYmd: string,
+): Set<string> {
+  const parsed = parseOwnerClosedSlotsJson(raw);
+  if (!parsed || parsed.date !== dateYmd) return new Set();
+  return new Set(parsed.noStartBlocks ?? []);
 }
 
 function minutesFromTimeBlock(tb: string): number {

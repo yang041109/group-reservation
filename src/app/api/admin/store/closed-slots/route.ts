@@ -43,8 +43,17 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
+  // 시작 시간만 차단 (선택 — 빈 배열도 허용). 지정 안 하면 [] 로 처리.
+  const noStartBlocks = Array.isArray(body.noStartBlocks)
+    ? body.noStartBlocks.map((b) => String(b).trim()).filter(Boolean)
+    : [];
 
-  const result = await manageSetOwnerClosedSlots(sid, date ?? koreaTodayYmd(), blocks);
+  const result = await manageSetOwnerClosedSlots(
+    sid,
+    date ?? koreaTodayYmd(),
+    blocks,
+    noStartBlocks,
+  );
   if (!result.success) {
     return NextResponse.json(result, { status: pickStatus(result.message) });
   }
@@ -53,5 +62,6 @@ export async function PATCH(request: Request) {
     success: true,
     ownerClosedSlotsJson: result.ownerClosedSlotsJson,
     blocks,
+    noStartBlocks,
   });
 }

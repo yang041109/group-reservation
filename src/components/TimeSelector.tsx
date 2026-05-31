@@ -21,6 +21,8 @@ interface TimeSelectorProps {
   reservedTimes?: string[];
   /** slots 테이블 기반 타임슬롯 (있으면 히트맵 모드) */
   slots?: TimeSlot[];
+  /** 시작 시간만 차단된 슬롯 — 이 슬롯을 거치는 예약은 OK, 시작은 X */
+  noStartTimes?: string[];
   selectedTime: string | null;
   onChange: (time: string) => void;
   startHour?: number;
@@ -47,12 +49,14 @@ export default function TimeSelector({
   availableTimes,
   reservedTimes = [],
   slots,
+  noStartTimes = [],
   selectedTime,
   onChange,
   startHour = 11,
   endHour = 20,
   crossesMidnight = false,
 }: TimeSelectorProps) {
+  const noStartSet = useMemo(() => new Set(noStartTimes), [noStartTimes]);
   const { startTime, endTime } = useMemo(() => {
     if (!selectedTime) return { startTime: null, endTime: null };
     if (selectedTime.includes(' - ')) {
@@ -128,6 +132,8 @@ export default function TimeSelector({
     if (info.status !== 'available') return;
 
     if (!startTime || endTime) {
+      // 첫 클릭(시작 시각). noStart 슬롯은 시작 시각으로 쓸 수 없음.
+      if (noStartSet.has(time)) return;
       onChange(time);
     } else {
       const e1 = ext(startTime);
@@ -201,12 +207,20 @@ export default function TimeSelector({
               const info = getSlotInfo(time);
               const inRange = isInRange(time);
               const isStart = time === startTime;
+              const isNoStart = noStartSet.has(time);
+              // 시작 시간만 차단 슬롯은 (시작 시각 선택 안 된 동안에만) 클릭 불가.
+              // 시작 시각 선택 후엔 종료 시각으로 사용 가능.
+              const blockedAsStart = isNoStart && !startTime;
 
               let bgClass: string;
               if (isStart && !endTime) {
                 bgClass = 'bg-blue-600';
               } else if (inRange) {
                 bgClass = 'bg-blue-500';
+              } else if (isNoStart && info.status === 'available' && !startTime) {
+                // 시작 시각으로 못 쓰는 슬롯: 노란빛 hatched 느낌
+                bgClass =
+                  'bg-amber-100 cursor-not-allowed [background-image:repeating-linear-gradient(45deg,transparent_0_4px,rgba(0,0,0,0.05)_4px_8px)]';
               } else {
                 bgClass = getOccupancyBg(info.ratio, info.status);
               }
@@ -218,13 +232,14 @@ export default function TimeSelector({
               if (info.status === 'full') titleText = `${time} (마감)`;
               else if (info.status === 'reserved') titleText = `${time} (마감)`;
               else if (info.status === 'unavailable') titleText = `${time} (마감)`;
+              else if (blockedAsStart) titleText = `${time} (이 시각엔 새 예약 시작 불가)`;
               else if (showCount) titleText = `${time} — 잔여 ${remaining}명 / 최대 ${info.maxPeople}명`;
 
               return (
                 <button
                   key={time}
                   type="button"
-                  disabled={info.status !== 'available'}
+                  disabled={info.status !== 'available' || blockedAsStart}
                   onClick={() => handleSlotClick(time)}
                   title={titleText}
                   style={{ width: SLOT_CELL_PX, minWidth: SLOT_CELL_PX }}

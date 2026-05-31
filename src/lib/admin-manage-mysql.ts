@@ -23,6 +23,7 @@ import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
   ownerClosedBlockSet,
+  ownerNoStartBlockSet,
   serializeOwnerClosedSlotsForDb,
 } from '@/lib/owner-closed-slots';
 import { adminListReservationsByStore } from '@/lib/admin-mysql';
@@ -1310,6 +1311,7 @@ export async function manageGetOwnerTodayTimeline(
       crossesMidnight: boolean;
       slots: TimeSlot[];
       ownerClosedBlocks: string[];
+      ownerNoStartBlocks: string[];
     }
   | { success: false; message: string }
 > {
@@ -1342,6 +1344,7 @@ export async function manageGetOwnerTodayTimeline(
         crossesMidnight: range.crossesMidnight,
         slots: [],
         ownerClosedBlocks: [],
+        ownerNoStartBlocks: [],
       };
     }
 
@@ -1388,6 +1391,7 @@ export async function manageGetOwnerTodayTimeline(
       crossesMidnight: range.crossesMidnight,
     });
     const ownerClosedBlocks = [...ownerClosedBlockSet(ownerJson, date)];
+    const ownerNoStartBlocks = [...ownerNoStartBlockSet(ownerJson, date)];
 
     return {
       success: true,
@@ -1398,6 +1402,7 @@ export async function manageGetOwnerTodayTimeline(
       crossesMidnight: range.crossesMidnight,
       slots,
       ownerClosedBlocks,
+      ownerNoStartBlocks,
     };
   } catch (e) {
     const err = e as { errno?: number; message?: string };
@@ -1421,6 +1426,7 @@ export async function manageSetOwnerClosedSlots(
   storeId: string,
   dateYmd: string,
   blocks: string[],
+  noStartBlocks: string[] = [],
 ): Promise<{ success: true; ownerClosedSlotsJson: string } | { success: false; message: string }> {
   if (!isMysqlConfigured()) {
     return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
@@ -1429,7 +1435,7 @@ export async function manageSetOwnerClosedSlots(
   const date = dateYmd.trim().slice(0, 10);
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
 
-  const json = serializeOwnerClosedSlotsForDb(date, blocks);
+  const json = serializeOwnerClosedSlotsForDb(date, blocks, noStartBlocks);
   try {
     const pool = getPool();
     const [h] = await pool.execute<ResultSetHeader>(
