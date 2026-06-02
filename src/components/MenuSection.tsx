@@ -125,7 +125,7 @@ export default function MenuSection({
 
   return (
     <section className="mt-6 space-y-4">
-      <h2 className="text-3xl font-extrabold tracking-tight text-gray-800">🍽️ 메뉴 선택</h2>
+      <h2 className="text-[13px] font-bold tracking-tight text-gray-800">🍽️ 메뉴 선택</h2>
 
       {menus.length === 0 ? (
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
@@ -142,8 +142,8 @@ export default function MenuSection({
           ) : null}
 
           <div className="rounded-3xl border border-gray-100 bg-white p-5 text-gray-700 shadow-sm">
-            <p className="flex items-center gap-2 text-2xl font-bold text-gray-700">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-2xl font-bold text-white">
+            <p className="flex items-center gap-2 text-[13px] font-bold text-gray-700">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-blue-500 text-[13px] font-bold text-white">
                 i
               </span>
               안내
