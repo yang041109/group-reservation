@@ -125,7 +125,7 @@ export default function MenuSection({
 
   return (
     <section className="mt-6 space-y-4">
-      <h2 className="text-[13px] font-bold tracking-tight text-gray-800">🍽️ 메뉴 선택</h2>
+      <h2 className="text-4xl font-extrabold tracking-tight text-gray-800">🍽️ 메뉴 선택</h2>
 
       {menus.length === 0 ? (
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
@@ -133,11 +133,18 @@ export default function MenuSection({
         <>
           {/* 사장님이 정한 안내 문구 (있을 때만) */}
           {ownerNoticeText ? (
-            <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <p className="font-semibold">📣 가게 안내</p>
-              <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed">
-                {formatMenuNoticeText(ownerNoticeText)}
-              </p>
+            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center gap-4">
+                <span className="inline-flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-3xl bg-orange-400 text-4xl">
+                  📢
+                </span>
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold text-orange-500">가게 안내</p>
+                  <p className="mt-1 whitespace-pre-line text-5xl font-bold leading-tight text-gray-900">
+                    {formatMenuNoticeText(ownerNoticeText)}
+                  </p>
+                </div>
+              </div>
             </div>
           ) : null}
 

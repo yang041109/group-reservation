@@ -43,7 +43,7 @@ export default function LandingPageClient() {
               X
             </button>
             <Image
-              src="/images/landing-promo-popup.png"
+              src="/images/landing-promo-popup.png?v=20260602-1"
               alt="우르르 단체 예약 안내 프로모션"
               width={720}
               height={1024}

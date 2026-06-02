@@ -7,7 +7,7 @@ import { scrollToLandingId } from '@/components/landing/landing-scroll';
 import { openKakaoInquiryChat } from '@/lib/kakao-open-chat';
 
 type LandingNavLink =
-  | { kind: 'scroll'; label: string; id: 'how' | 'restaurants' | 'pricing' | 'faq' }
+  | { kind: 'scroll'; label: string; id: 'how' | 'restaurants' | 'faq' }
   | { kind: 'kakao'; label: string };
 
 export default function LandingNav() {
@@ -21,7 +21,6 @@ export default function LandingNav() {
   const links: LandingNavLink[] = [
     { kind: 'scroll', label: '서비스 소개', id: 'how' },
     { kind: 'scroll', label: '제휴 매장', id: 'restaurants' },
-    { kind: 'scroll', label: '요금 안내', id: 'pricing' },
     { kind: 'scroll', label: 'QNA', id: 'faq' },
     // 고객센터는 카카오 오픈채팅으로 연결
     { kind: 'kakao', label: '문의하기' },
