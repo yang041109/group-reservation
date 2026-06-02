@@ -124,8 +124,8 @@ export default function MenuSection({
   };
 
   return (
-    <div className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-gray-900">🍽️ 메뉴 선택</h2>
+    <section className="mt-6 space-y-4">
+      <h2 className="text-3xl font-extrabold tracking-tight text-gray-800">🍽️ 메뉴 선택</h2>
 
       {menus.length === 0 ? (
         <p className="text-sm text-gray-400">등록된 메뉴가 없습니다</p>
@@ -141,14 +141,20 @@ export default function MenuSection({
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-            <p className="font-semibold">📌 안내</p>
-            <div className="mt-1 space-y-1.5 text-[13px] leading-relaxed">
+          <div className="rounded-3xl border border-gray-100 bg-white p-5 text-gray-700 shadow-sm">
+            <p className="flex items-center gap-2 text-2xl font-bold text-gray-700">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-2xl font-bold text-white">
+                i
+              </span>
+              안내
+            </p>
+            <div className="mt-4 space-y-1.5 text-[13px] leading-relaxed text-gray-500">
               <p>
-                여기서 선택한 메뉴는 예약 시간에 맞춰 자리에 미리 준비되는 기본 세팅 메뉴입니다.
+                선택한 메뉴는 예약 시간에 맞춰 자리에 미리 준비되는 기본 세팅 메뉴예요.
               </p>
-              <p>주류·추가 메뉴는 매장에 방문하셔서 자유롭게 주문하실 수 있습니다.</p>
-              <p>최소 한 개 이상의 메뉴를 선택해 주셔야 합니다.</p>
+              <p>
+                주류·추가 메뉴는 매장에서 자유롭게 주문 가능해요. 최소 한 개 이상 선택해 주세요.
+              </p>
               {requiredPeoplePerItem && requiredPeoplePerItem > 0 && selectedHeadcount > 0 ? (
                 <p>
                   이 가게는 <b>{requiredPeoplePerItem}명당 메뉴 1개 이상</b>이 필요합니다. 현재{' '}
@@ -166,7 +172,7 @@ export default function MenuSection({
                 onClick={() => setSelectedCategory(null)}
                 className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   selectedCategory === null
-                    ? 'border-gray-900 bg-white text-gray-900 shadow-sm'
+                    ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                 }`}
               >
@@ -181,7 +187,7 @@ export default function MenuSection({
                     onClick={() => setSelectedCategory(cat)}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                       active
-                        ? 'border-gray-900 bg-white text-gray-900 shadow-sm'
+                        ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
                         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                     }`}
                   >
@@ -209,6 +215,6 @@ export default function MenuSection({
           </ul>
         </>
       )}
-    </div>
+    </section>
   );
 }

@@ -22,8 +22,9 @@ export default function LandingNav() {
     { kind: 'scroll', label: '서비스 소개', id: 'how' },
     { kind: 'scroll', label: '제휴 매장', id: 'restaurants' },
     { kind: 'scroll', label: '요금 안내', id: 'pricing' },
+    { kind: 'scroll', label: 'QNA', id: 'faq' },
     // 고객센터는 카카오 오픈채팅으로 연결
-    { kind: 'kakao', label: '고객센터' },
+    { kind: 'kakao', label: '문의하기' },
   ];
 
   return (
