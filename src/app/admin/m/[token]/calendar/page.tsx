@@ -3,11 +3,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import HalfHourTimeSelect, {
-  DEFAULT_AFTERNOON_END,
   DEFAULT_AFTERNOON_START,
   isHalfHourTime,
   snapToHalfHour,
 } from '@/components/admin/HalfHourTimeSelect';
+
+/** "HH:MM" 24h 시간에 N시간을 더한다. 23:30 초과 시 23:30 으로 클램프. */
+function addHoursToHalfHourTime(hhmm: string, hours: number): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) return hhmm;
+  let h = parseInt(m[1], 10) + Math.floor(hours);
+  const min = parseInt(m[2], 10);
+  if (h >= 24) {
+    // 자정 넘어가면 그냥 23:30 으로 멈춤 (사장님이 직접 조정 가능)
+    return '23:30';
+  }
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+/** 전화 예약 등록 시 기본 예약 시간 (시간). 사장님이 시작시간 고르면 자동으로 +N시간으로 종료시간 세팅. */
+const DEFAULT_EVENT_DURATION_HOURS = 3;
 import HalfHourWheelPickerField from '@/components/admin/HalfHourWheelPicker';
 import { formatReservationCreatedAt } from '@/lib/korea-time';
 import { fetchOwnerBusinessDayReservations } from '@/lib/owner-business-day-client';
@@ -161,7 +176,9 @@ export default function AdminCalendarByToken() {
   const [eventUserPhone, setEventUserPhone] = useState('');
   const [eventHeadcount, setEventHeadcount] = useState('1');
   const [eventStartTime, setEventStartTime] = useState(DEFAULT_AFTERNOON_START);
-  const [eventEndTime, setEventEndTime] = useState(DEFAULT_AFTERNOON_END);
+  const [eventEndTime, setEventEndTime] = useState(() =>
+    addHoursToHalfHourTime(DEFAULT_AFTERNOON_START, DEFAULT_EVENT_DURATION_HOURS),
+  );
   const [eventMemo, setEventMemo] = useState('');
   const [eventZoneId, setEventZoneId] = useState<string>('');
   const [eventLoading, setEventLoading] = useState(false);
@@ -422,7 +439,9 @@ export default function AdminCalendarByToken() {
     setEventUserPhone('');
     setEventHeadcount('1');
     setEventStartTime(DEFAULT_AFTERNOON_START);
-    setEventEndTime(DEFAULT_AFTERNOON_END);
+    setEventEndTime(
+      addHoursToHalfHourTime(DEFAULT_AFTERNOON_START, DEFAULT_EVENT_DURATION_HOURS),
+    );
     setEventMemo('');
     setEventZoneId(zones.length === 1 ? zones[0].zoneId : '');
     setEventCreateOpen(true);
@@ -1132,7 +1151,11 @@ export default function AdminCalendarByToken() {
                 <HalfHourWheelPickerField
                   label="시작 시간"
                   value={eventStartTime}
-                  onChange={setEventStartTime}
+                  onChange={(next) => {
+                    setEventStartTime(next);
+                    // 시작 시간 바꾸면 종료 시간을 자동으로 +3시간으로 세팅 (사장님이 원하면 따로 조정 가능)
+                    setEventEndTime(addHoursToHalfHourTime(next, DEFAULT_EVENT_DURATION_HOURS));
+                  }}
                   disabled={eventLoading}
                   defaultPeriod="PM"
                 />
