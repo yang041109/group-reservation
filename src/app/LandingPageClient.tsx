@@ -48,6 +48,7 @@ export default function LandingPageClient() {
               width={720}
               height={1024}
               priority
+              unoptimized
               className="h-auto w-full rounded-xl shadow-2xl"
             />
           </div>
