@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { URRMark } from '@/components/landing/icons';
 import { scrollToLandingId } from '@/components/landing/landing-scroll';
+import { openKakaoInquiryChat } from '@/lib/kakao-open-chat';
+
+type LandingNavLink =
+  | { kind: 'scroll'; label: string; id: 'how' | 'restaurants' | 'pricing' | 'faq' }
+  | { kind: 'kakao'; label: string };
 
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
@@ -13,11 +18,12 @@ export default function LandingNav() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const links = [
-    { label: '서비스 소개', id: 'how' as const },
-    { label: '제휴 매장', id: 'restaurants' as const },
-    { label: '요금 안내', id: 'pricing' as const },
-    { label: '고객센터', id: 'faq' as const },
+  const links: LandingNavLink[] = [
+    { kind: 'scroll', label: '서비스 소개', id: 'how' },
+    { kind: 'scroll', label: '제휴 매장', id: 'restaurants' },
+    { kind: 'scroll', label: '요금 안내', id: 'pricing' },
+    // 고객센터는 카카오 오픈채팅으로 연결
+    { kind: 'kakao', label: '고객센터' },
   ];
 
   return (
@@ -40,10 +46,16 @@ export default function LandingNav() {
         <nav className="landing-nav-links ml-auto hidden flex-wrap items-center justify-end gap-1 min-[881px]:flex">
           {links.map((l) => (
             <button
-              key={l.id}
+              key={l.label}
               type="button"
               className="rounded-lg px-3.5 py-2 text-[14.5px] font-medium text-[var(--ink-2)] hover:bg-[var(--bg-2)]"
-              onClick={() => scrollToLandingId(l.id)}
+              onClick={() => {
+                if (l.kind === 'kakao') {
+                  openKakaoInquiryChat();
+                } else {
+                  scrollToLandingId(l.id);
+                }
+              }}
             >
               {l.label}
             </button>
