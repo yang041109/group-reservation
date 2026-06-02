@@ -74,6 +74,7 @@ export default function TotalPrice({
           )}
         </div>
       )}
+      <p className="mt-3 text-sm text-gray-500">메뉴 결제는 현장에서 부탁드립니다.</p>
     </div>
   );
 }
