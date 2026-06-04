@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireOwnerStoreId } from '@/lib/admin-token-guard';
 import { koreaTodayYmd } from '@/lib/korea-time';
-import { manageSetOwnerClosedSlots } from '@/lib/admin-manage-mysql';
+import { manageApplyOwnerCloseRange, manageSetOwnerClosedSlots } from '@/lib/admin-manage-mysql';
 
 export const runtime = 'nodejs';
 
@@ -33,6 +33,34 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const action = String(body.action ?? 'set').trim();
+
+  if (action === 'applyRange') {
+    const startDate = String(body.startDate ?? '').trim().slice(0, 10);
+    const endDate = String(body.endDate ?? '').trim().slice(0, 10);
+    const startTime = String(body.startTime ?? '').trim();
+    const endTime = String(body.endTime ?? '').trim();
+    const mode = body.mode === 'noStart' ? 'noStart' : 'full';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return NextResponse.json(
+        { success: false, message: '시작·종료 날짜가 필요합니다.' },
+        { status: 400 },
+      );
+    }
+    const result = await manageApplyOwnerCloseRange(
+      sid,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      mode,
+    );
+    if (!result.success) {
+      return NextResponse.json(result, { status: pickStatus(result.message) });
+    }
+    return NextResponse.json({ success: true, ownerClosedSlotsJson: result.ownerClosedSlotsJson });
+  }
+
   const date = body.date != null ? String(body.date).trim().slice(0, 10) : undefined;
   const blocks = Array.isArray(body.blocks)
     ? body.blocks.map((b) => String(b).trim()).filter(Boolean)
@@ -43,7 +71,6 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
-  // 시작 시간만 차단 (선택 — 빈 배열도 허용). 지정 안 하면 [] 로 처리.
   const noStartBlocks = Array.isArray(body.noStartBlocks)
     ? body.noStartBlocks.map((b) => String(b).trim()).filter(Boolean)
     : [];

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import OwnerTodayClosePanel from '@/components/admin/OwnerTodayClosePanel';
+import OwnerClosePanel from '@/components/admin/OwnerClosePanel';
 import { fetchOwnerBusinessDayReservations } from '@/lib/owner-business-day-client';
 import { useAdminStore } from './AdminStoreContext';
 
@@ -245,7 +245,7 @@ export default function AdminDashboardByToken() {
         </section>
 
         {/* 2. 오늘 예약 막기 */}
-        <OwnerTodayClosePanel token={store.token} storeId={store.id} />
+        <OwnerClosePanel token={store.token} storeId={store.id} />
 
         {/* 3. 대기 중인 예약 */}
         <Link

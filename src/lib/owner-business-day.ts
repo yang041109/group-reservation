@@ -5,7 +5,7 @@ import {
   type BusinessDayRange,
 } from '@/lib/business-day-reservations';
 import { getKoreaDateParts, koreaTodayYmd } from '@/lib/korea-time';
-import { filterReservationsForBusinessDayList } from '@/lib/reservation-calendar-date';
+import { filterReservationsForOwnerCalendarDay } from '@/lib/reservation-calendar-date';
 import { getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
 
 export type OwnerBusinessDayContext = {
@@ -60,7 +60,7 @@ export async function listOwnerBusinessDayReservations(
   });
   if (!listed.success) return listed;
 
-  const reservations = filterReservationsForBusinessDayList(
+  const reservations = filterReservationsForOwnerCalendarDay(
     (listed.data as { date: string; startTime: string }[]).map((r) => ({
       ...r,
       date: String(r.date ?? '').slice(0, 10),

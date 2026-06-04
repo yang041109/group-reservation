@@ -25,7 +25,9 @@ function addHoursToHalfHourTime(hhmm: string, hours: number): string {
 const DEFAULT_EVENT_DURATION_HOURS = 3;
 import HalfHourWheelPickerField from '@/components/admin/HalfHourWheelPicker';
 import { formatReservationCreatedAt } from '@/lib/korea-time';
+import { reservationShowsOnOwnerCalendarDay } from '@/lib/reservation-calendar-date';
 import { fetchOwnerBusinessDayReservations } from '@/lib/owner-business-day-client';
+import { getSlotHourRangeForStoreOnDate } from '@/lib/store-weekly-hours';
 import { useAdminStore } from '../AdminStoreContext';
 
 interface Reservation {
@@ -185,15 +187,19 @@ export default function AdminCalendarByToken() {
 
   // 동(zone) 목록 — zone 운영 가게에서만 사용. 빈 배열이면 단일 운영.
   const [zones, setZones] = useState<{ zoneId: string; name: string; maxCapacity: number }[]>([]);
+  const [storeRecord, setStoreRecord] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
-        const zRes = await fetch(
-          `/api/admin/store/zones?token=${encodeURIComponent(store.token)}`,
-        );
+        const [zRes, sRes] = await Promise.all([
+          fetch(`/api/admin/store/zones?token=${encodeURIComponent(store.token)}`),
+          fetch(`/api/admin/store?token=${encodeURIComponent(store.token)}`),
+        ]);
         const zJson = await zRes.json();
         if (zJson.success) setZones(zJson.data || []);
+        const sJson = await sRes.json();
+        if (sJson.success && sJson.data) setStoreRecord(sJson.data as Record<string, unknown>);
       } catch {
         // ignore
       }
@@ -284,22 +290,39 @@ export default function AdminCalendarByToken() {
     void fetchMonthReservations();
   }, [fetchMonthReservations]);
 
+  const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
+
   const byDate = useMemo(() => {
     const map = new Map<string, Reservation[]>();
-    for (const r of reservations) {
-      const d = r.date?.slice(0, 10) ?? '';
-      if (!d) continue;
-      const list = map.get(d) ?? [];
-      list.push(r);
-      map.set(d, list);
+    const assign = (ymd: string, r: Reservation) => {
+      const list = map.get(ymd) ?? [];
+      if (!list.some((x) => x.reservationId === r.reservationId)) list.push(r);
+      map.set(ymd, list);
+    };
+
+    if (!storeRecord) {
+      for (const r of reservations) {
+        const d = r.date?.slice(0, 10) ?? '';
+        if (!d) continue;
+        assign(d, r);
+      }
+    } else {
+      for (const r of reservations) {
+        for (const cell of cells) {
+          if (!cell.dateStr) continue;
+          const range = getSlotHourRangeForStoreOnDate(storeRecord, cell.dateStr);
+          if (reservationShowsOnOwnerCalendarDay(r, cell.dateStr, range)) {
+            assign(cell.dateStr, r);
+          }
+        }
+      }
     }
+
     for (const [, list] of map) {
       list.sort((a, b) => a.startTime.localeCompare(b.startTime));
     }
     return map;
-  }, [reservations]);
-
-  const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
+  }, [reservations, cells, storeRecord]);
 
   const callAction = useCallback(
     async (reservationId: string, body: Record<string, unknown>, confirmMessage?: string) => {
@@ -433,15 +456,22 @@ export default function AdminCalendarByToken() {
     }
   };
 
+  const defaultEventStartForDate = (ymd: string): string => {
+    if (!storeRecord || !ymd) return DEFAULT_AFTERNOON_START;
+    const range = getSlotHourRangeForStoreOnDate(storeRecord, ymd);
+    if (range.closed) return DEFAULT_AFTERNOON_START;
+    const h = Math.min(23, Math.max(0, range.slotStartHour));
+    return snapToHalfHour(`${String(h).padStart(2, '0')}:00`);
+  };
+
   const openEventCreate = () => {
+    const start = defaultEventStartForDate(selectedDate);
     setEventUserName('');
     setEventGroupName('');
     setEventUserPhone('');
     setEventHeadcount('1');
-    setEventStartTime(DEFAULT_AFTERNOON_START);
-    setEventEndTime(
-      addHoursToHalfHourTime(DEFAULT_AFTERNOON_START, DEFAULT_EVENT_DURATION_HOURS),
-    );
+    setEventStartTime(start);
+    setEventEndTime(addHoursToHalfHourTime(start, DEFAULT_EVENT_DURATION_HOURS));
     setEventMemo('');
     setEventZoneId(zones.length === 1 ? zones[0].zoneId : '');
     setEventCreateOpen(true);

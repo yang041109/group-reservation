@@ -1,6 +1,7 @@
 import type { TimeSlot } from '@/types';
 import { addDaysYmd } from '@/lib/business-day-reservations';
 import { getKoreaDateParts, koreaTodayYmd } from '@/lib/korea-time';
+import { generateSlotTimeBlocks } from '@/lib/slot-hour-range';
 
 /** 자정 넘김 영업 시 “지난 슬롯” 판별용 */
 export type SlotBusinessHours = {
@@ -18,28 +19,113 @@ export type OwnerClosedSlotsPayload = {
   noStartBlocks?: string[];
 };
 
+export type OwnerClosedSlotsStore = {
+  entries: OwnerClosedSlotsPayload[];
+};
+
+/** 30분 단위 시각 선택지 (00:00~23:30) */
+export function allHalfHourTimeOptions(): string[] {
+  const out: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    out.push(`${String(h).padStart(2, '0')}:00`, `${String(h).padStart(2, '0')}:30`);
+  }
+  return out;
+}
+
+function enumerateYmdRange(fromYmd: string, toYmd: string): string[] {
+  const from = fromYmd.trim().slice(0, 10);
+  const to = toYmd.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return [];
+  const out: string[] = [];
+  let cur = from;
+  for (let i = 0; i < 400; i++) {
+    out.push(cur);
+    if (cur === to) break;
+    cur = addDaysYmd(cur, 1);
+    if (cur < from) break;
+  }
+  return out;
+}
+
+/** 달력일+시각 → 비교용 키 (분 단위) */
+export function calendarInstantKey(ymd: string, hhmm: string): number {
+  const d = ymd.trim().slice(0, 10);
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm).trim());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !m) return 0;
+  const [y, mo, day] = d.split('-').map((x) => parseInt(x, 10));
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  return Date.UTC(y, mo - 1, day, h, min) / 60_000;
+}
+
 function sanitizeTimeArray(arr: unknown): string[] {
   if (!Array.isArray(arr)) return [];
   return arr.map((b) => String(b).trim()).filter((b) => /^\d{1,2}:\d{2}$/.test(b));
 }
 
-export function parseOwnerClosedSlotsJson(raw: unknown): OwnerClosedSlotsPayload | null {
-  if (raw == null || raw === '') return null;
+function normalizeEntry(rec: Record<string, unknown>): OwnerClosedSlotsPayload | null {
+  const date = String(rec.date ?? '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const blocks = sanitizeTimeArray(rec.blocks);
+  const noStartBlocks = sanitizeTimeArray(rec.noStartBlocks);
+  const payload: OwnerClosedSlotsPayload = { date, blocks };
+  if (noStartBlocks.length) payload.noStartBlocks = noStartBlocks;
+  return payload;
+}
+
+export function parseOwnerClosedSlotsStore(raw: unknown): OwnerClosedSlotsStore {
+  if (raw == null || raw === '') return { entries: [] };
   let parsed: unknown = raw;
   if (typeof raw === 'string') {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      return null;
+      return { entries: [] };
     }
   }
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== 'object') return { entries: [] };
   const rec = parsed as Record<string, unknown>;
-  const date = String(rec.date ?? '').trim().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const blocks = sanitizeTimeArray(rec.blocks);
-  const noStartBlocks = sanitizeTimeArray(rec.noStartBlocks);
-  return { date, blocks, noStartBlocks };
+  if (Array.isArray(rec.entries)) {
+    const entries: OwnerClosedSlotsPayload[] = [];
+    for (const item of rec.entries) {
+      if (!item || typeof item !== 'object') continue;
+      const e = normalizeEntry(item as Record<string, unknown>);
+      if (e) entries.push(e);
+    }
+    return { entries };
+  }
+  const legacy = normalizeEntry(rec);
+  return legacy ? { entries: [legacy] } : { entries: [] };
+}
+
+/** 하위 호환 — 단일 날짜 payload */
+export function parseOwnerClosedSlotsJson(raw: unknown): OwnerClosedSlotsPayload | null {
+  const store = parseOwnerClosedSlotsStore(raw);
+  return store.entries[0] ?? null;
+}
+
+export function upsertOwnerClosedEntry(
+  entries: OwnerClosedSlotsPayload[],
+  date: string,
+  blocks: string[],
+  noStartBlocks: string[] = [],
+): OwnerClosedSlotsPayload[] {
+  const ymd = date.trim().slice(0, 10);
+  const uniqB = [...new Set(blocks.map((b) => b.trim()).filter(Boolean))].sort();
+  const uniqN = [...new Set(noStartBlocks.map((b) => b.trim()).filter(Boolean))].sort();
+  const next: OwnerClosedSlotsPayload = { date: ymd, blocks: uniqB };
+  if (uniqN.length) next.noStartBlocks = uniqN;
+  const rest = entries.filter((e) => e.date !== ymd);
+  if (!uniqB.length && !uniqN.length) return rest;
+  return [...rest, next].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function serializeOwnerClosedSlotsStore(store: OwnerClosedSlotsStore): string {
+  let entries: OwnerClosedSlotsPayload[] = [];
+  for (const e of store.entries) {
+    entries = upsertOwnerClosedEntry(entries, e.date, e.blocks, e.noStartBlocks ?? []);
+  }
+  return JSON.stringify({ entries });
 }
 
 export function serializeOwnerClosedSlotsForDb(
@@ -47,23 +133,17 @@ export function serializeOwnerClosedSlotsForDb(
   blocks: string[],
   noStartBlocks: string[] = [],
 ): string {
-  const uniqB = [...new Set(blocks.map((b) => b.trim()).filter(Boolean))].sort();
-  const uniqN = [...new Set(noStartBlocks.map((b) => b.trim()).filter(Boolean))].sort();
-  const payload: OwnerClosedSlotsPayload = {
-    date: date.slice(0, 10),
-    blocks: uniqB,
-  };
-  if (uniqN.length) payload.noStartBlocks = uniqN;
-  return JSON.stringify(payload);
+  return serializeOwnerClosedSlotsStore({
+    entries: upsertOwnerClosedEntry([], date, blocks, noStartBlocks),
+  });
 }
 
 export function ownerClosedBlockSet(
   raw: unknown,
   dateYmd: string,
 ): Set<string> {
-  const parsed = parseOwnerClosedSlotsJson(raw);
-  if (!parsed || parsed.date !== dateYmd) return new Set();
-  return new Set(parsed.blocks);
+  const entry = parseOwnerClosedSlotsStore(raw).entries.find((e) => e.date === dateYmd);
+  return new Set(entry?.blocks ?? []);
 }
 
 /** 시작 시간만 차단된 슬롯 집합 */
@@ -71,9 +151,8 @@ export function ownerNoStartBlockSet(
   raw: unknown,
   dateYmd: string,
 ): Set<string> {
-  const parsed = parseOwnerClosedSlotsJson(raw);
-  if (!parsed || parsed.date !== dateYmd) return new Set();
-  return new Set(parsed.noStartBlocks ?? []);
+  const entry = parseOwnerClosedSlotsStore(raw).entries.find((e) => e.date === dateYmd);
+  return new Set(entry?.noStartBlocks ?? []);
 }
 
 function minutesFromTimeBlock(tb: string): number {
@@ -82,7 +161,7 @@ function minutesFromTimeBlock(tb: string): number {
 }
 
 /** 슬롯의 실제 달력일·시각 (자정 넘김 새벽은 영업일+1일) */
-function slotCalendarYmdAndMinutes(
+export function slotCalendarYmdAndMinutes(
   slotTime: string,
   businessDateYmd: string,
   hours: SlotBusinessHours,
@@ -242,4 +321,87 @@ export function groupOwnerClosedBlocks(
   }
   flush();
   return ranges;
+}
+
+export type OwnerCloseRangeInput = {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+};
+
+/**
+ * 날짜·시각 구간에 해당하는 슬롯을 영업일별로 묶어 반환.
+ * `lookupHours(businessDate)` 로 요일별 영업시간 제공.
+ */
+export function blocksToCloseForRange(
+  input: OwnerCloseRangeInput,
+  lookupHours: (businessDateYmd: string) => SlotBusinessHours & { closed?: boolean },
+): Map<string, string[]> {
+  const startKey = calendarInstantKey(input.startDate, input.startTime);
+  const endKey = calendarInstantKey(input.endDate, input.endTime);
+  const lo = Math.min(startKey, endKey);
+  const hi = Math.max(startKey, endKey);
+  const byDate = new Map<string, Set<string>>();
+
+  for (const businessDate of enumerateYmdRange(input.startDate, input.endDate)) {
+    const range = lookupHours(businessDate);
+    if (range.closed) continue;
+    const hours: SlotBusinessHours = {
+      crossesMidnight: range.crossesMidnight,
+      slotStartHour: range.slotStartHour,
+      slotEndHour: range.slotEndHour,
+    };
+    const slotTimes = generateSlotTimeBlocks(
+      range.slotStartHour,
+      range.slotEndHour,
+      range.crossesMidnight,
+    );
+    for (const tb of slotTimes) {
+      const cal = slotCalendarYmdAndMinutes(tb, businessDate, hours);
+      const key = calendarInstantKey(cal.ymd, tb);
+      if (key < lo || key > hi) continue;
+      const bucket = byDate.get(businessDate) ?? new Set<string>();
+      bucket.add(tb);
+      byDate.set(businessDate, bucket);
+    }
+  }
+
+  const out = new Map<string, string[]>();
+  for (const [date, bucket] of byDate) {
+    out.set(date, [...bucket].sort());
+  }
+  return out;
+}
+
+/** 기존 entries에 구간 마감 병합 (mode: full | noStart) */
+export function mergeCloseRangeIntoEntries(
+  entries: OwnerClosedSlotsPayload[],
+  input: OwnerCloseRangeInput,
+  mode: 'full' | 'noStart',
+  lookupHours: (businessDateYmd: string) => SlotBusinessHours & { closed?: boolean },
+): OwnerClosedSlotsPayload[] {
+  const toAdd = blocksToCloseForRange(input, lookupHours);
+  let next = [...entries];
+  for (const [date, blocks] of toAdd) {
+    const existing = next.find((e) => e.date === date);
+    const prevFull = existing?.blocks ?? [];
+    const prevNo = existing?.noStartBlocks ?? [];
+    if (mode === 'full') {
+      next = upsertOwnerClosedEntry(
+        next,
+        date,
+        [...new Set([...prevFull, ...blocks])],
+        prevNo,
+      );
+    } else {
+      next = upsertOwnerClosedEntry(
+        next,
+        date,
+        prevFull,
+        [...new Set([...prevNo, ...blocks])],
+      );
+    }
+  }
+  return next;
 }

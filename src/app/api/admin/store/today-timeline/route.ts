@@ -7,10 +7,11 @@ export const runtime = 'nodejs';
 const pickStatus = (msg: string, fallback = 400) =>
   msg.includes('MySQL') || msg.includes('DB ') || msg.includes('데이터베이스') ? 503 : fallback;
 
-/** GET /api/admin/store/today-timeline?token=xxx */
+/** GET /api/admin/store/today-timeline?token=xxx&date=YYYY-MM-DD */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token') ?? '';
+  const date = searchParams.get('date')?.trim().slice(0, 10) || undefined;
   const sid = await getStoreIdFromToken(token);
   if (!sid) {
     return NextResponse.json(
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const result = await manageGetOwnerTodayTimeline(sid);
+  const result = await manageGetOwnerTodayTimeline(sid, date);
   if (!result.success) {
     return NextResponse.json(result, { status: pickStatus(result.message) });
   }

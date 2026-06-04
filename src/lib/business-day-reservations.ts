@@ -28,7 +28,7 @@ export function addDaysYmd(ymd: string, deltaDays: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
-function isStartTimeInBusinessWindow(startMins: number, range: BusinessDayRange): boolean {
+export function isStartTimeInBusinessWindow(startMins: number, range: BusinessDayRange): boolean {
   const h = Math.floor(startMins / 60);
   const { slotStartHour: sh, slotEndHour: eh, crossesMidnight: cross } = range;
   if (!cross) return h >= sh && h < eh;
@@ -55,8 +55,10 @@ export function reservationBelongsToBusinessDay(
 
   const nextYmd = addDaysYmd(businessYmd, 1);
   const h = Math.floor(startMins / 60);
+  // 같은 달력일 저녁(영업 시작~23시)
   if (resDate === businessYmd && h >= sh) return true;
-  if (resDate === businessYmd && h < eh) return true;
+  // 다음 달력일 새벽(0~마감 전) — 전날 영업일 꼬리만 해당 영업일에 포함
+  // (6/3 01:00 은 6/2 영업일 O, 6/3 영업일 X)
   if (resDate === nextYmd && h < eh) return true;
   return false;
 }

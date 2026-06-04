@@ -22,9 +22,13 @@ import {
 import { buildSlots } from '@/lib/booking-slots';
 import {
   applyOwnerClosedBlocksToSlots,
+  mergeCloseRangeIntoEntries,
   ownerClosedBlockSet,
   ownerNoStartBlockSet,
-  serializeOwnerClosedSlotsForDb,
+  parseOwnerClosedSlotsStore,
+  serializeOwnerClosedSlotsStore,
+  upsertOwnerClosedEntry,
+  type OwnerClosedSlotsPayload,
 } from '@/lib/owner-closed-slots';
 import { adminListReservationsByStore } from '@/lib/admin-mysql';
 import {
@@ -1312,6 +1316,7 @@ export async function manageGetOwnerTodayTimeline(
       slots: TimeSlot[];
       ownerClosedBlocks: string[];
       ownerNoStartBlocks: string[];
+      closedEntries: OwnerClosedSlotsPayload[];
     }
   | { success: false; message: string }
 > {
@@ -1345,6 +1350,7 @@ export async function manageGetOwnerTodayTimeline(
         slots: [],
         ownerClosedBlocks: [],
         ownerNoStartBlocks: [],
+        closedEntries: [],
       };
     }
 
@@ -1392,6 +1398,7 @@ export async function manageGetOwnerTodayTimeline(
     });
     const ownerClosedBlocks = [...ownerClosedBlockSet(ownerJson, date)];
     const ownerNoStartBlocks = [...ownerNoStartBlockSet(ownerJson, date)];
+    const closedEntries = parseOwnerClosedSlotsStore(ownerJson).entries;
 
     return {
       success: true,
@@ -1403,6 +1410,7 @@ export async function manageGetOwnerTodayTimeline(
       slots,
       ownerClosedBlocks,
       ownerNoStartBlocks,
+      closedEntries,
     };
   } catch (e) {
     const err = e as { errno?: number; message?: string };
@@ -1435,9 +1443,14 @@ export async function manageSetOwnerClosedSlots(
   const date = dateYmd.trim().slice(0, 10);
   if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
 
-  const json = serializeOwnerClosedSlotsForDb(date, blocks, noStartBlocks);
   try {
     const pool = getPool();
+    const [storeRows] = await pool.query<StoreRow[]>('SELECT ownerClosedSlotsJson FROM store WHERE storeId = ? LIMIT 1', [
+      sid,
+    ]);
+    const existing = parseOwnerClosedSlotsStore(storeRows[0]?.ownerClosedSlotsJson);
+    const merged = upsertOwnerClosedEntry(existing.entries, date, blocks, noStartBlocks);
+    const json = serializeOwnerClosedSlotsStore({ entries: merged });
     const [h] = await pool.execute<ResultSetHeader>(
       'UPDATE store SET ownerClosedSlotsJson = ? WHERE storeId = ?',
       [json, sid],
@@ -1460,6 +1473,69 @@ export async function manageSetOwnerClosedSlots(
       };
     }
     console.error('[manageSetOwnerClosedSlots]', e);
+    return { success: false, message: formatMysqlUserError(e) };
+  }
+}
+
+/** 날짜·시각 구간으로 예약 막기 (여러 영업일 entries 병합) */
+export async function manageApplyOwnerCloseRange(
+  storeId: string,
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string,
+  mode: 'full' | 'noStart',
+): Promise<{ success: true; ownerClosedSlotsJson: string } | { success: false; message: string }> {
+  if (!isMysqlConfigured()) {
+    return { success: false, message: 'MySQL(MYSQL_*) 설정이 필요합니다.' };
+  }
+  const sid = storeId.trim();
+  if (!sid) return { success: false, message: '가게 ID가 필요합니다.' };
+  const sd = startDate.trim().slice(0, 10);
+  const ed = endDate.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || !/^\d{4}-\d{2}-\d{2}$/.test(ed)) {
+    return { success: false, message: '날짜 형식이 올바르지 않습니다.' };
+  }
+
+  try {
+    const pool = getPool();
+    const [storeRows] = await pool.query<StoreRow[]>('SELECT * FROM store WHERE storeId = ? LIMIT 1', [sid]);
+    const store = storeRows[0];
+    if (!store) return { success: false, message: '가게를 찾을 수 없습니다.' };
+    const rec = store as Record<string, unknown>;
+    const existing = parseOwnerClosedSlotsStore(rec.ownerClosedSlotsJson);
+    const merged = mergeCloseRangeIntoEntries(
+      existing.entries,
+      { startDate: sd, startTime, endDate: ed, endTime },
+      mode,
+      (ymd) => {
+        const r = getSlotHourRangeForStoreOnDate(rec, ymd);
+        return { ...r, closed: r.closed };
+      },
+    );
+    const json = serializeOwnerClosedSlotsStore({ entries: merged });
+    const [h] = await pool.execute<ResultSetHeader>(
+      'UPDATE store SET ownerClosedSlotsJson = ? WHERE storeId = ?',
+      [json, sid],
+    );
+    if (!h.affectedRows) {
+      return { success: false, message: '가게를 찾을 수 없습니다.' };
+    }
+    return { success: true, ownerClosedSlotsJson: json };
+  } catch (e) {
+    const err = e as { errno?: number; message?: string };
+    if (
+      err.errno === 1054 &&
+      typeof err.message === 'string' &&
+      err.message.includes('ownerClosedSlotsJson')
+    ) {
+      return {
+        success: false,
+        message:
+          'DB에 ownerClosedSlotsJson 컬럼이 없습니다. docs/store-owner-closed-slots.sql 을 실행하세요.',
+      };
+    }
+    console.error('[manageApplyOwnerCloseRange]', e);
     return { success: false, message: formatMysqlUserError(e) };
   }
 }

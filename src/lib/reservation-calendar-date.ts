@@ -1,5 +1,19 @@
-import { addDaysYmd, type BusinessDayRange } from '@/lib/business-day-reservations';
-import { reservationBelongsToBusinessDay } from '@/lib/business-day-reservations';
+import {
+  addDaysYmd,
+  compareReservationsForBusinessDay,
+  isStartTimeInBusinessWindow,
+  reservationBelongsToBusinessDay,
+  type BusinessDayRange,
+} from '@/lib/business-day-reservations';
+
+function parseTimeToMinutes(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t).trim());
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
 
 /** `22:00:00` → `22:00` */
 export function normalizeTimeHHmm(time: string): string {
@@ -57,4 +71,46 @@ export function filterReservationsForBusinessDayList<
       range,
     ),
   );
+}
+
+/**
+ * 사장님 캘린더 칸: 영업일 규칙 + 해당 달력일(`date` 컬럼) 일치 예약.
+ * (전화 일정 기본 14:00 등 영업 시작 전 시간도 선택한 날짜 칸에 표시)
+ */
+export function reservationShowsOnOwnerCalendarDay(
+  res: { date: string; startTime: string },
+  calendarCellYmd: string,
+  range: BusinessDayRange,
+): boolean {
+  const normalized = {
+    date: res.date.slice(0, 10),
+    startTime: normalizeTimeHHmm(res.startTime),
+  };
+  const cell = calendarCellYmd.trim().slice(0, 10);
+  if (reservationBelongsToBusinessDay(normalized, cell, range)) return true;
+  if (range.closed || normalized.date !== cell) return false;
+  const startMins = parseTimeToMinutes(normalized.startTime);
+  if (startMins === null) return false;
+  // 달력일은 같지만 영업 시간 밖(예: 저녁 영업 가게의 오후 전화 예약)
+  return !isStartTimeInBusinessWindow(startMins, range);
+}
+
+export function filterReservationsForOwnerCalendarDay<
+  T extends { date: string; startTime: string },
+>(list: T[], calendarCellYmd: string, range: BusinessDayRange): T[] {
+  return list
+    .filter((r) =>
+      reservationShowsOnOwnerCalendarDay(
+        { date: r.date.slice(0, 10), startTime: r.startTime },
+        calendarCellYmd,
+        range,
+      ),
+    )
+    .sort((a, b) =>
+      compareReservationsForBusinessDay(
+        { date: a.date.slice(0, 10), startTime: normalizeTimeHHmm(a.startTime) },
+        { date: b.date.slice(0, 10), startTime: normalizeTimeHHmm(b.startTime) },
+        range,
+      ),
+    );
 }

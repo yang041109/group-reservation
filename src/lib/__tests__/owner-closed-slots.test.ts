@@ -5,6 +5,10 @@ import {
   groupOwnerClosedBlocks,
   isSlotPastForSelectedDate,
   isSlotPastForToday,
+  mergeCloseRangeIntoEntries,
+  ownerClosedBlockSet,
+  parseOwnerClosedSlotsStore,
+  serializeOwnerClosedSlotsStore,
   timeBlocksInRange,
 } from '@/lib/owner-closed-slots';
 import type { TimeSlot } from '@/types';
@@ -98,5 +102,38 @@ describe('owner-closed-slots', () => {
   it('timeBlocksInRange includes endpoints', () => {
     const all = ['17:00', '17:30', '18:00', '18:30'];
     expect(timeBlocksInRange('17:30', '18:00', all)).toEqual(['17:30', '18:00']);
+  });
+
+  it('keeps multiple dates in entries store', () => {
+    const store = serializeOwnerClosedSlotsStore({
+      entries: [
+        { date: '2026-06-02', blocks: ['20:00'] },
+        { date: '2026-06-05', blocks: ['18:00'] },
+      ],
+    });
+    const parsed = parseOwnerClosedSlotsStore(store);
+    expect(parsed.entries).toHaveLength(2);
+    expect(ownerClosedBlockSet(store, '2026-06-02').has('20:00')).toBe(true);
+    expect(ownerClosedBlockSet(store, '2026-06-05').has('18:00')).toBe(true);
+    expect(ownerClosedBlockSet(store, '2026-06-03').size).toBe(0);
+  });
+
+  it('mergeCloseRange assigns dawn slots to prior business day only', () => {
+    const cross = { crossesMidnight: true, slotStartHour: 17, slotEndHour: 4, closed: false };
+    const merged = mergeCloseRangeIntoEntries(
+      [],
+      {
+        startDate: '2026-06-02',
+        startTime: '20:00',
+        endDate: '2026-06-03',
+        endTime: '02:00',
+      },
+      'full',
+      () => cross,
+    );
+    const june2 = merged.find((e) => e.date === '2026-06-02');
+    const june3 = merged.find((e) => e.date === '2026-06-03');
+    expect(june2?.blocks.length).toBeGreaterThan(0);
+    expect(june3?.blocks ?? []).not.toContain('01:00');
   });
 });
